@@ -1,0 +1,107 @@
+/* ============================================================
+   COSMOS STAFFING — Design Tokens
+   One neutral scale + one accent. Light & dark themes.
+   ============================================================ */
+
+:root {
+  /* Type families */
+  --font-display: "Inter Tight", "Inter", system-ui, -apple-system, sans-serif;
+  --font-body: "Inter", system-ui, -apple-system, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, "SF Mono", Menlo, monospace;
+
+  /* Fluid type scale (clamp: min, fluid, max) */
+  --fs-display: clamp(2.75rem, 1.6rem + 5.8vw, 5rem);   /* 44 -> 80 */
+  --fs-h1: clamp(2.25rem, 1.5rem + 3.6vw, 3rem);        /* 36 -> 48 */
+  --fs-h2: clamp(1.7rem, 1.25rem + 2.1vw, 2.125rem);    /* 27 -> 34 */
+  --fs-h3: clamp(1.3rem, 1.1rem + 0.9vw, 1.5rem);       /* 21 -> 24 */
+  --fs-body-lg: clamp(1.0625rem, 1rem + 0.3vw, 1.125rem);
+  --fs-body: 1.0625rem;
+  --fs-small: 0.875rem;
+  --fs-eyebrow: 0.8125rem;
+
+  /* Spacing scale — multiples of 4 */
+  --sp-1: 4px;
+  --sp-2: 8px;
+  --sp-3: 12px;
+  --sp-4: 16px;
+  --sp-6: 24px;
+  --sp-8: 32px;
+  --sp-12: 48px;
+  --sp-16: 64px;
+  --sp-24: 96px;
+  --sp-32: 128px;
+
+  /* Layout */
+  --maxw: 1200px;
+  --gutter: clamp(20px, 5vw, 48px);
+
+  /* Radius */
+  --r-card: 12px;
+  --r-btn: 8px;
+  --r-pill: 999px;
+
+  /* Motion */
+  --ease-out-expo: cubic-bezier(0.16, 1, 0.3, 1);
+  --ease-out-soft: cubic-bezier(0.22, 0.61, 0.36, 1);
+  --dur-micro: 200ms;
+  --dur-reveal: 640ms;
+
+  color-scheme: light;
+}
+
+/* ---------------- LIGHT (default) ---------------- */
+:root,
+[data-theme="light"] {
+  --bg: #FBFBF9;
+  --bg-2: #F4F4F0;        /* tinted band */
+  --surface: #FFFFFF;
+  --ink: #161618;
+  --muted: #6B6B72;
+  --hairline: #E7E7E1;
+  --accent: #2B45D4;
+  --accent-hover: #1E34B0;
+  --accent-soft: rgba(43, 69, 212, 0.08);
+  --success: #147A5E;
+
+  --shadow-sm: 0 1px 2px rgba(20, 20, 25, 0.04);
+  --shadow-md: 0 10px 30px -12px rgba(20, 20, 25, 0.18);
+  --shadow-lg: 0 24px 60px -20px rgba(20, 20, 25, 0.22);
+
+  --grain-opacity: 0.025;
+  color-scheme: light;
+}
+
+/* ---------------- DARK ---------------- */
+[data-theme="dark"] {
+  --bg: #0B0B0E;
+  --bg-2: #121217;
+  --surface: #141418;
+  --ink: #F3F3EF;
+  --muted: #9A9AA2;
+  --hairline: #26262C;
+  --accent: #7E93FF;
+  --accent-hover: #94A6FF;
+  --accent-soft: rgba(126, 147, 255, 0.12);
+  --success: #3FBF98;
+
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.4);
+  --shadow-md: 0 14px 40px -14px rgba(0, 0, 0, 0.6);
+  --shadow-lg: 0 30px 70px -20px rgba(0, 0, 0, 0.7);
+
+  --grain-opacity: 0.04;
+  color-scheme: dark;
+}
+
+/* Smooth token cross-fade on theme change.
+   Scoped to a class added briefly during toggle so we don't
+   pay transition cost on every interaction. */
+.theme-anim,
+.theme-anim *,
+.theme-anim *::before,
+.theme-anim *::after {
+  transition: background-color 420ms var(--ease-out-soft),
+              border-color 420ms var(--ease-out-soft),
+              color 420ms var(--ease-out-soft),
+              fill 420ms var(--ease-out-soft),
+              box-shadow 420ms var(--ease-out-soft) !important;
+}

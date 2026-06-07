@@ -1,0 +1,14 @@
+node_modules
+.next
+out
+build
+coverage
+.vercel
+next-env.d.ts
+package-lock.json
+public
+
+# Visual design references only — not part of the app.
+cosmos-staffing-claude-design
+cosmos-staffing-site-design2
+codex_design
