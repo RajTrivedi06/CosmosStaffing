@@ -1,16 +1,25 @@
-import { siteConfig } from "@/lib/site";
+import { Hero } from "@/components/sections/Hero";
+import { ProblemSection } from "@/components/sections/ProblemSection";
+import { ServicesBento } from "@/components/sections/ServicesBento";
+import { HowItWorks } from "@/components/sections/HowItWorks";
+import { WhyCosmos } from "@/components/sections/WhyCosmos";
+import { Stats } from "@/components/sections/Stats";
+import { Industries } from "@/components/sections/Industries";
+import { CandidateBand } from "@/components/sections/CandidateBand";
+import { FinalCTA } from "@/components/sections/FinalCTA";
 
-// Temporary landing — replaced by the full homepage in Pass 4.
 export default function Home() {
   return (
-    <main className="flex flex-1 flex-col items-center justify-center px-6 py-24 text-center">
-      <div className="flex max-w-xl flex-col items-center gap-6">
-        <span className="font-mono text-eyebrow tracking-widest text-muted uppercase">
-          Building
-        </span>
-        <h1 className="text-h1 font-display">{siteConfig.name}</h1>
-        <p className="text-body-lg text-muted">{siteConfig.description}</p>
-      </div>
-    </main>
+    <>
+      <Hero />
+      <ProblemSection />
+      <ServicesBento />
+      <HowItWorks />
+      <WhyCosmos />
+      <Stats />
+      <Industries />
+      <CandidateBand />
+      <FinalCTA />
+    </>
   );
 }

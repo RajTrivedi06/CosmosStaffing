@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { Menu, X } from "lucide-react";
@@ -9,23 +9,15 @@ import { Container } from "@/components/ui/Container";
 import { buttonVariants } from "@/components/ui/Button";
 import { ThemeToggle } from "./ThemeToggle";
 import { MobileMenu } from "./MobileMenu";
+import { useScrolledPast } from "@/lib/hooks";
 import { cn } from "@/lib/utils";
 
 /** Fixed site header that condenses (thinner + backdrop blur) on scroll. */
 export function Header() {
   const pathname = usePathname();
-  const [scrolled, setScrolled] = useState(false);
+  const scrolled = useScrolledPast(24);
+  // Menu links close the menu via onClose (in MobileMenu), so no route effect.
   const [menuOpen, setMenuOpen] = useState(false);
-
-  useEffect(() => {
-    const onScroll = () => setScrolled(window.scrollY > 24);
-    onScroll();
-    window.addEventListener("scroll", onScroll, { passive: true });
-    return () => window.removeEventListener("scroll", onScroll);
-  }, []);
-
-  // Close the menu whenever the route changes.
-  useEffect(() => setMenuOpen(false), [pathname]);
 
   return (
     <>
@@ -33,7 +25,7 @@ export function Header() {
         className={cn(
           "fixed inset-x-0 top-0 z-100 border-b border-transparent transition-[padding,background-color,border-color,backdrop-filter] duration-380 ease-expo",
           scrolled
-            ? "border-b-hairline bg-[color-mix(in_srgb,var(--bg)_78%,transparent)] py-[11px] backdrop-blur-[14px] backdrop-saturate-[160%]"
+            ? "border-b-hairline bg-[color-mix(in_srgb,var(--bg)_78%,transparent)] py-[11px] backdrop-blur-[14px] backdrop-saturate-160"
             : "py-5",
         )}
       >

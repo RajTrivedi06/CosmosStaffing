@@ -1,8 +1,8 @@
 "use client";
 
-import { useEffect, useState } from "react";
 import { useTheme } from "next-themes";
 import { Moon, Sun } from "lucide-react";
+import { useMounted } from "@/lib/hooks";
 
 /**
  * Light/dark toggle. Briefly adds `.theme-anim` to <html> so the token swap
@@ -11,9 +11,7 @@ import { Moon, Sun } from "lucide-react";
  */
 export function ThemeToggle() {
   const { resolvedTheme, setTheme } = useTheme();
-  const [mounted, setMounted] = useState(false);
-
-  useEffect(() => setMounted(true), []);
+  const mounted = useMounted();
 
   const toggle = () => {
     const root = document.documentElement;
