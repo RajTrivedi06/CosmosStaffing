@@ -59,6 +59,7 @@
   --accent-hover: #1e34b0;
   --accent-soft: rgba(43, 69, 212, 0.08);
   --success: #147a5e;
+  --danger: #b42318;
 
   --shadow-sm: 0 1px 2px rgba(20, 20, 25, 0.04);
   --shadow-md: 0 10px 30px -12px rgba(20, 20, 25, 0.18);
@@ -81,6 +82,7 @@
   --accent-hover: #94a6ff;
   --accent-soft: rgba(126, 147, 255, 0.12);
   --success: #3fbf98;
+  --danger: #ff9f93;
 
   --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.4);
   --shadow-md: 0 14px 40px -14px rgba(0, 0, 0, 0.6);
@@ -120,6 +122,7 @@
   --color-accent-hover: var(--accent-hover);
   --color-accent-soft: var(--accent-soft);
   --color-success: var(--success);
+  --color-danger: var(--danger);
 
   --radius-card: var(--r-card);
   --radius-btn: var(--r-btn);
@@ -140,6 +143,8 @@
   html {
     -webkit-font-smoothing: antialiased;
     text-rendering: optimizeLegibility;
+    /* Offset in-page anchor jumps for the fixed header. */
+    scroll-padding-top: 96px;
   }
 
   body {
@@ -451,20 +456,67 @@
     border-radius: 6px;
     border: 1px solid var(--hairline);
   }
+
+  /* ---- Form fields ---- */
+  .form-input {
+    width: 100%;
+    font-family: var(--font-body);
+    font-size: 1.0625rem;
+    color: var(--ink);
+    background: var(--bg);
+    border: 1px solid var(--hairline);
+    border-radius: var(--r-btn);
+    padding: 12px 14px;
+    transition:
+      border-color var(--dur-micro),
+      box-shadow var(--dur-micro);
+  }
+  .form-input::placeholder {
+    color: color-mix(in srgb, var(--muted) 80%, transparent);
+  }
+  .form-input:focus {
+    outline: none;
+    border-color: var(--accent);
+    box-shadow: 0 0 0 3px var(--accent-soft);
+  }
+  .form-input[aria-invalid="true"] {
+    border-color: var(--danger);
+  }
+  .form-input[aria-invalid="true"]:focus {
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--danger) 20%, transparent);
+  }
+  textarea.form-input {
+    resize: vertical;
+    min-height: 96px;
+  }
+
+  .form-success {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: var(--sp-4);
+    padding: var(--sp-8);
+    border: 1px solid color-mix(in srgb, var(--success) 40%, var(--hairline));
+    border-radius: var(--r-card);
+    background: color-mix(in srgb, var(--success) 8%, var(--surface));
+  }
 }
 
 /* Smooth token cross-fade on theme change. Scoped to a class added
-   briefly during the toggle so we don't pay transition cost otherwise. */
-.theme-anim,
-.theme-anim *,
-.theme-anim *::before,
-.theme-anim *::after {
-  transition:
-    background-color 420ms var(--ease-out-soft),
-    border-color 420ms var(--ease-out-soft),
-    color 420ms var(--ease-out-soft),
-    fill 420ms var(--ease-out-soft),
-    box-shadow 420ms var(--ease-out-soft) !important;
+   briefly during the toggle so we don't pay transition cost otherwise.
+   Gated on no-preference so it doesn't override the reduced-motion reset. */
+@media (prefers-reduced-motion: no-preference) {
+  .theme-anim,
+  .theme-anim *,
+  .theme-anim *::before,
+  .theme-anim *::after {
+    transition:
+      background-color 420ms var(--ease-out-soft),
+      border-color 420ms var(--ease-out-soft),
+      color 420ms var(--ease-out-soft),
+      fill 420ms var(--ease-out-soft),
+      box-shadow 420ms var(--ease-out-soft) !important;
+  }
 }
 
 /* Honor reduced-motion globally: neutralize transitions/animations. */

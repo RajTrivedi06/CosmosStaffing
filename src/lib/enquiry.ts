@@ -1,48 +1,40 @@
-/**
- * Shape of an enquiry submitted through the site. Fields are intentionally
- * minimal for now — extend as the enquiry form is designed.
- */
-export type EnquiryInput = {
-  name: string;
-  email: string;
-  company?: string;
-  message: string;
-};
+import { z } from "zod";
 
-export type EnquiryValidationResult =
-  | { success: true; data: EnquiryInput }
-  | { success: false; errors: Record<string, string> };
+/** Options for the "What you need" select on the Request Talent form. */
+export const NEED_OPTIONS = [
+  { value: "staffing", label: "Staffing & Recruiting" },
+  { value: "professional-search", label: "Professional Search" },
+  { value: "hr-payroll", label: "HR & Payroll" },
+  { value: "bookkeeping", label: "Bookkeeping" },
+  { value: "not-sure", label: "Not sure yet" },
+] as const;
 
+const NEED_VALUES = NEED_OPTIONS.map((o) => o.value);
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 /**
- * Validate an unknown payload (e.g. a parsed JSON request body) into an
- * EnquiryInput. Pure and dependency-free so it can run on the server or be
- * reused client-side. Swap for a schema library (e.g. zod) if validation
- * needs grow.
+ * Validation schema for an enquiry / Request Talent submission. Shared between
+ * the client form (react-hook-form via zodResolver) and the API route.
  */
-export function validateEnquiry(payload: unknown): EnquiryValidationResult {
-  const errors: Record<string, string> = {};
-  const body = (
-    typeof payload === "object" && payload !== null ? payload : {}
-  ) as Record<string, unknown>;
+export const enquirySchema = z.object({
+  name: z.string().trim().min(1, "Please enter your name."),
+  company: z.string().trim().min(1, "Please enter your company."),
+  email: z
+    .string()
+    .trim()
+    .min(1, "Please enter your email.")
+    .refine((v) => EMAIL_RE.test(v), "Enter a valid email address."),
+  phone: z.string().trim().optional(),
+  need: z
+    .string()
+    .min(1, "Please choose what you need.")
+    .refine(
+      (v) => (NEED_VALUES as readonly string[]).includes(v),
+      "Please choose what you need.",
+    ),
+  details: z.string().trim().optional(),
+  location: z.string().trim().optional(),
+  timeline: z.string().trim().optional(),
+});
 
-  const name = typeof body.name === "string" ? body.name.trim() : "";
-  const email = typeof body.email === "string" ? body.email.trim() : "";
-  const company = typeof body.company === "string" ? body.company.trim() : "";
-  const message = typeof body.message === "string" ? body.message.trim() : "";
-
-  if (!name) errors.name = "Name is required.";
-  if (!email) errors.email = "Email is required.";
-  else if (!EMAIL_RE.test(email)) errors.email = "Enter a valid email address.";
-  if (!message) errors.message = "Message is required.";
-
-  if (Object.keys(errors).length > 0) {
-    return { success: false, errors };
-  }
-
-  return {
-    success: true,
-    data: { name, email, message, ...(company ? { company } : {}) },
-  };
-}
+export type EnquiryInput = z.infer<typeof enquirySchema>;

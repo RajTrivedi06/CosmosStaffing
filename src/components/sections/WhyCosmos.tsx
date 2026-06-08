@@ -51,7 +51,7 @@ export function WhyCosmos() {
           {ITEMS.map(({ Icon, title, body }) => (
             <RevealItem key={title} className="flex flex-col gap-4">
               <span className="grid size-11 place-items-center rounded-[11px] border border-hairline bg-accent-soft text-accent">
-                <Icon className="size-[22px]" strokeWidth={1.6} />
+                <Icon className="size-[22px]" strokeWidth={1.6} aria-hidden="true" />
               </span>
               <h3 className="text-h3 font-[540] tracking-[-0.02em]">{title}</h3>
               <p className="text-muted">{body}</p>

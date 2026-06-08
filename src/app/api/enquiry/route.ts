@@ -1,14 +1,11 @@
-import { validateEnquiry } from "@/lib/enquiry";
+import { enquirySchema } from "@/lib/enquiry";
 
 /**
- * POST /api/enquiry — receives an enquiry form submission.
+ * POST /api/enquiry — receives a Request Talent / enquiry submission.
  *
- * This is a scaffold: it validates the payload and acknowledges receipt, but
- * does not yet deliver the enquiry anywhere. Wire up delivery where the TODO
- * is below once a provider is chosen.
- *
- * Uses the Web `Request`/`Response` APIs (stable) rather than Next-specific
- * helpers.
+ * Scaffold: validates the payload with the shared zod schema and acknowledges
+ * receipt, but does not yet deliver the enquiry anywhere. Wire up delivery
+ * where the TODO is below once a provider is chosen.
  */
 export async function POST(request: Request): Promise<Response> {
   let payload: unknown;
@@ -21,9 +18,12 @@ export async function POST(request: Request): Promise<Response> {
     );
   }
 
-  const result = validateEnquiry(payload);
+  const result = enquirySchema.safeParse(payload);
   if (!result.success) {
-    return Response.json({ ok: false, errors: result.errors }, { status: 422 });
+    return Response.json(
+      { ok: false, error: "Validation failed." },
+      { status: 422 },
+    );
   }
 
   // TODO: deliver the enquiry — e.g. send an email (Resend/SendGrid), push to a
