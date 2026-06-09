@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { AlertCircle, Check } from "lucide-react";
+import { AlertCircle, Check, ChevronDown } from "lucide-react";
 import { enquirySchema, type EnquiryInput, NEED_OPTIONS } from "@/lib/enquiry";
 import { Button } from "@/components/ui/Button";
 import { Placeholder } from "@/components/ui/Placeholder";
@@ -22,8 +22,11 @@ function Field({
   children: React.ReactNode;
 }) {
   return (
-    <div className="flex flex-col gap-1.5">
-      <label htmlFor={id} className="text-sm font-medium text-ink">
+    <div className="group flex flex-col gap-1.5">
+      <label
+        htmlFor={id}
+        className="text-sm font-medium text-ink transition-colors group-focus-within:text-accent"
+      >
         {label}
         {required && (
           <>
@@ -182,23 +185,29 @@ export function RequestTalentForm() {
         required
         error={errors.need?.message}
       >
-        <select
-          id="need"
-          defaultValue=""
-          className="form-input"
-          aria-invalid={!!errors.need}
-          aria-describedby={describe("need")}
-          {...register("need")}
-        >
-          <option value="" disabled>
-            Select one…
-          </option>
-          {NEED_OPTIONS.map((o) => (
-            <option key={o.value} value={o.value}>
-              {o.label}
+        <div className="relative">
+          <select
+            id="need"
+            defaultValue=""
+            className="form-input appearance-none pr-10"
+            aria-invalid={!!errors.need}
+            aria-describedby={describe("need")}
+            {...register("need")}
+          >
+            <option value="" disabled>
+              Select one…
             </option>
-          ))}
-        </select>
+            {NEED_OPTIONS.map((o) => (
+              <option key={o.value} value={o.value}>
+                {o.label}
+              </option>
+            ))}
+          </select>
+          <ChevronDown
+            className="pointer-events-none absolute top-1/2 right-3.5 size-4 -translate-y-1/2 text-muted"
+            aria-hidden="true"
+          />
+        </div>
       </Field>
 
       <Field id="details" label="Role / details" error={errors.details?.message}>
@@ -237,7 +246,7 @@ export function RequestTalentForm() {
           type="submit"
           size="lg"
           disabled={isSubmitting}
-          className="self-start disabled:cursor-not-allowed disabled:opacity-50"
+          className="self-start"
         >
           {isSubmitting ? "Sending…" : "Send Request"}
         </Button>

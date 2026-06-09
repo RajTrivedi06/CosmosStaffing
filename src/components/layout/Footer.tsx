@@ -24,7 +24,7 @@ export function Footer() {
   const year = new Date().getFullYear();
 
   return (
-    <footer className="relative z-[1] border-t border-hairline bg-bg pt-[clamp(56px,7vw,88px)] pb-12">
+    <footer className="relative z-1 border-t border-hairline bg-bg pt-[clamp(56px,7vw,88px)] pb-12">
       <Container>
         <div className="grid grid-cols-[1.6fr_1fr_1fr_1.4fr] gap-x-8 gap-y-12 max-[900px]:grid-cols-2 max-[560px]:grid-cols-1">
           <div className="flex max-w-[30ch] flex-col gap-4">
@@ -44,7 +44,7 @@ export function Footer() {
           <FooterCol title="Services">
             {siteConfig.services.map((s) => (
               <li key={s.href}>
-                <Link className="link-slide text-sm" href={s.href}>
+                <Link className="link-slide text-sm text-muted transition-colors hover:text-ink" href={s.href}>
                   {s.title}
                 </Link>
               </li>
@@ -54,7 +54,7 @@ export function Footer() {
           <FooterCol title="Company">
             {siteConfig.companyNav.map((c) => (
               <li key={c.href}>
-                <Link className="link-slide text-sm" href={c.href}>
+                <Link className="link-slide text-sm text-muted transition-colors hover:text-ink" href={c.href}>
                   {c.label}
                 </Link>
               </li>
@@ -66,17 +66,17 @@ export function Footer() {
               <Placeholder>address</Placeholder>
             </li>
             <li>
-              <Link className="link-slide text-sm" href="/contact">
+              <Link className="link-slide text-sm text-muted transition-colors hover:text-ink" href="/contact">
                 <Placeholder>phone</Placeholder>
               </Link>
             </li>
             <li>
-              <Link className="link-slide text-sm" href="/contact">
+              <Link className="link-slide text-sm text-muted transition-colors hover:text-ink" href="/contact">
                 <Placeholder>email</Placeholder>
               </Link>
             </li>
             <li className="mt-2">
-              <a className="link-slide text-sm" href={siteConfig.social.linkedin}>
+              <a className="link-slide text-sm text-muted transition-colors hover:text-ink" href={siteConfig.social.linkedin}>
                 LinkedIn
               </a>
             </li>

@@ -74,7 +74,7 @@ export function ServicesBento() {
                   aria-hidden="true"
                   className="bento-glow pointer-events-none absolute inset-0 -z-10 opacity-0 transition-opacity duration-420 ease-expo group-hover:opacity-100"
                 />
-                <span className="font-mono text-sm text-muted">
+                <span className="font-mono text-sm text-muted transition-colors duration-420 ease-expo group-hover:text-accent">
                   {tile.index}
                 </span>
                 <span>

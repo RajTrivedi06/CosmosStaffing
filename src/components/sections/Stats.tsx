@@ -9,7 +9,7 @@ import { Stagger, RevealItem } from "@/components/motion/Reveal";
 import { cn } from "@/lib/utils";
 
 const NUM_CLASS =
-  "font-display text-[clamp(2.4rem,1.4rem+3vw,3.4rem)] leading-none font-[580] tracking-[-0.04em] text-ink";
+  "font-display text-[clamp(2.4rem,1.4rem+3vw,3.4rem)] leading-none font-[580] tracking-[-0.04em] text-ink tabular-nums";
 
 function Stat({
   index,

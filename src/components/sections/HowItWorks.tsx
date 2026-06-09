@@ -126,7 +126,14 @@ export function HowItWorks() {
                   )}
                 >
                   <span className="step-dot" aria-hidden="true" />
-                  <div className="font-mono text-sm text-muted">{step.n}</div>
+                  <div
+                    className={cn(
+                      "font-mono text-sm transition-colors duration-400",
+                      on ? "text-accent" : "text-muted",
+                    )}
+                  >
+                    {step.n}
+                  </div>
                   <h3
                     className={cn(
                       "mt-1.5 text-h3 font-[540] tracking-[-0.02em] transition-colors duration-400",

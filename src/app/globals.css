@@ -206,7 +206,6 @@
   :focus-visible {
     outline: 2px solid var(--accent);
     outline-offset: 3px;
-    border-radius: 4px;
   }
 }
 
@@ -355,7 +354,9 @@
     border: 1px solid var(--hairline);
     background: var(--surface);
     overflow: hidden;
-    box-shadow: var(--shadow-md);
+    box-shadow:
+      var(--shadow-md),
+      inset 0 1px 0 0 color-mix(in srgb, var(--ink) 7%, transparent);
   }
   .scene {
     position: absolute;
@@ -473,6 +474,9 @@
   }
   .form-input::placeholder {
     color: color-mix(in srgb, var(--muted) 80%, transparent);
+  }
+  .form-input:hover:not(:focus) {
+    border-color: color-mix(in srgb, var(--ink) 22%, var(--hairline));
   }
   .form-input:focus {
     outline: none;

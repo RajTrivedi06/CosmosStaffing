@@ -63,16 +63,13 @@ export default function ContactPage() {
                 <div className="mt-6 flex flex-col gap-3">
                   <Link
                     href="/jobs"
-                    className={buttonVariants({ size: "default" })}
+                    className={`${buttonVariants({ size: "default" })} w-full`}
                   >
                     See Open Jobs
                   </Link>
                   <Link
                     href="/jobs"
-                    className={buttonVariants({
-                      variant: "ghost",
-                      size: "default",
-                    })}
+                    className={`${buttonVariants({ variant: "ghost", size: "default" })} w-full`}
                   >
                     Submit Your Resume
                   </Link>
