@@ -506,6 +506,14 @@
     border: 1px solid color-mix(in srgb, var(--success) 40%, var(--hairline));
     border-radius: var(--r-card);
     background: color-mix(in srgb, var(--success) 8%, var(--surface));
+    /* Gentle rise-in for this rare confirmation moment. */
+    transition:
+      opacity 420ms var(--ease-out-expo),
+      transform 420ms var(--ease-out-expo);
+    @starting-style {
+      opacity: 0;
+      transform: translateY(10px);
+    }
   }
 }
 
