@@ -20,13 +20,18 @@ export function ThemeToggle() {
     window.setTimeout(() => root.classList.remove("theme-anim"), 460);
   };
 
-  const isDark = resolvedTheme === "dark";
+  // Gate everything theme-dependent on `mounted` so the server render and the
+  // first client render agree (resolvedTheme is unknown on the server).
+  const isDark = mounted && resolvedTheme === "dark";
+  const label = mounted
+    ? `Switch to ${isDark ? "light" : "dark"} theme`
+    : "Toggle color theme";
 
   return (
     <button
       type="button"
       onClick={toggle}
-      aria-label={`Switch to ${isDark ? "light" : "dark"} theme`}
+      aria-label={label}
       className="grid size-[38px] place-items-center rounded-pill border border-hairline bg-surface text-ink transition-colors duration-200 hover:border-ink"
     >
       {mounted ? (
