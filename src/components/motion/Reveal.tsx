@@ -13,8 +13,9 @@ type BaseProps = {
   "aria-hidden"?: boolean;
 };
 
-const hidden = { opacity: 0, y: 20, filter: "blur(6px)" };
-const shown = { opacity: 1, y: 0, filter: "blur(0px)" };
+// Transform + opacity only (no filter) — calmer and paint-free.
+const hidden = { opacity: 0, y: 20 };
+const shown = { opacity: 1, y: 0 };
 
 /** Fade + rise (+ subtle blur) when scrolled into view. Once. */
 export function Reveal({
@@ -61,7 +62,7 @@ export function Stagger({
   children,
   className,
   style,
-  stagger = 0.075,
+  stagger = 0.06,
   amount = 0.2,
   ...rest
 }: BaseProps & { stagger?: number; amount?: number }) {

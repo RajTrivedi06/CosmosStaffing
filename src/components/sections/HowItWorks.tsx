@@ -79,7 +79,8 @@ export function HowItWorks() {
         scrub: true,
         onUpdate: (self) => {
           if (progressRef.current) {
-            progressRef.current.style.height = `${self.progress * 100}%`;
+            // transform (not height) — GPU-composited, no per-frame layout.
+            progressRef.current.style.transform = `scaleY(${self.progress})`;
           }
         },
       });

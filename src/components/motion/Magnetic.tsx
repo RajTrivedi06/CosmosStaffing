@@ -3,6 +3,7 @@
 import { useRef } from "react";
 import { motion, useMotionValue, useSpring } from "motion/react";
 import { useReducedMotionSafe } from "./useReducedMotionSafe";
+import { useMediaQuery } from "@/lib/hooks";
 
 type MagneticProps = {
   children: React.ReactNode;
@@ -17,6 +18,8 @@ export function Magnetic({
   strength = 0.32,
 }: MagneticProps) {
   const reduced = useReducedMotionSafe();
+  // Only fine pointers that hover — never engage the magnet on touch.
+  const canHover = useMediaQuery("(hover: hover) and (pointer: fine)");
   const ref = useRef<HTMLSpanElement>(null);
   const x = useMotionValue(0);
   const y = useMotionValue(0);
@@ -24,7 +27,7 @@ export function Magnetic({
   const springY = useSpring(y, { stiffness: 150, damping: 15, mass: 0.1 });
 
   const onMove = (e: React.MouseEvent) => {
-    if (reduced || !ref.current) return;
+    if (reduced || !canHover || !ref.current) return;
     const r = ref.current.getBoundingClientRect();
     x.set((e.clientX - (r.left + r.width / 2)) * strength);
     y.set((e.clientY - (r.top + r.height / 2)) * strength);

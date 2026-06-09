@@ -410,8 +410,11 @@
     left: 0;
     top: 0;
     width: 2px;
-    height: 0;
+    height: 100%;
     background: var(--accent);
+    transform: scaleY(0);
+    transform-origin: top center;
+    will-change: transform;
   }
   .step-dot {
     position: absolute;
@@ -517,9 +520,7 @@
     transition:
       background-color 420ms var(--ease-out-soft),
       border-color 420ms var(--ease-out-soft),
-      color 420ms var(--ease-out-soft),
-      fill 420ms var(--ease-out-soft),
-      box-shadow 420ms var(--ease-out-soft) !important;
+      color 420ms var(--ease-out-soft) !important;
   }
 }
 
@@ -532,5 +533,11 @@
     animation-iteration-count: 1 !important;
     transition-duration: 0.001ms !important;
     scroll-behavior: auto !important;
+  }
+
+  /* Don't pin the scrollytelling visual under reduced motion. */
+  .scrolly-visual {
+    position: relative;
+    top: 0;
   }
 }

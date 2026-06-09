@@ -23,7 +23,7 @@ export function Header() {
     <>
       <header
         className={cn(
-          "fixed inset-x-0 top-0 z-100 border-b border-transparent transition-[padding,background-color,border-color,backdrop-filter] duration-380 ease-expo",
+          "fixed inset-x-0 top-0 z-100 border-b border-transparent transition-[padding,background-color,border-color] duration-380 ease-expo",
           scrolled
             ? "border-b-hairline bg-[color-mix(in_srgb,var(--bg)_78%,transparent)] py-[11px] backdrop-blur-[14px] backdrop-saturate-160"
             : "py-5",
