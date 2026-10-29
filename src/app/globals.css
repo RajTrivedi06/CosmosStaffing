@@ -11,8 +11,11 @@
   --ground: #eef0ec; /* tweened per section by <DayScroll> */
   --paper: #fbf9f5;
   --ink: #211e1a;
-  --ink-soft: #5d564c;
+  /* Passes 4.5:1 on every ground, down to the 21:00 #e4c6a5. */
+  --ink-soft: #554e45;
+  /* Decorative rules only. Controls and icons use --line-strong (3:1). */
   --line: rgba(33, 30, 26, 0.14);
+  --line-strong: rgba(33, 30, 26, 0.5);
   --leaf: #4c5a28;
   --focus: #2f4fd8;
   --glass: rgba(255, 253, 249, 0.55);
@@ -42,6 +45,8 @@
 @layer base {
   html {
     -webkit-font-smoothing: antialiased;
+    /* No double-tap zoom delay on phones; pinch zoom still works. */
+    touch-action: manipulation;
     /* Keeps focused fields clear of the fixed header and phone booking bar. */
     scroll-padding-top: 80px;
     scroll-padding-bottom: 96px;
@@ -195,7 +200,7 @@
     padding-inline: 6px;
     text-decoration: underline;
     text-underline-offset: 5px;
-    text-decoration-color: var(--line);
+    text-decoration-color: var(--line-strong);
   }
   .btn-quiet:hover {
     text-decoration-color: currentColor;
@@ -698,7 +703,7 @@
   .svc .go {
     text-decoration: underline;
     text-underline-offset: 4px;
-    text-decoration-color: var(--line);
+    text-decoration-color: var(--line-strong);
   }
   .svc:hover .go {
     text-decoration-color: currentColor;
@@ -807,6 +812,14 @@
     font-size: clamp(3.4rem, 9vw, 10rem);
     line-height: 0.9;
   }
+  /* Phones: the booking bar shows over both scenes, so the copy and its
+     button sit above it. */
+  @media (max-width: 900px) {
+    .stage-copy,
+    .evening .stage-copy {
+      bottom: calc(96px + env(safe-area-inset-bottom, 0px));
+    }
+  }
 
   /* ---- 14:00 Standard ---- */
   .checklist {
@@ -847,7 +860,7 @@
   }
   .tick circle {
     fill: none;
-    stroke: var(--line);
+    stroke: var(--line-strong);
     stroke-width: 1.4;
   }
   .tick path {
@@ -974,7 +987,7 @@
     font: 400 1rem/1.4 var(--sans);
     color: var(--ink);
     background: #fff;
-    border: 1px solid rgba(33, 30, 26, 0.5);
+    border: 1px solid var(--line-strong);
     border-radius: 12px;
     padding: 14px 16px;
   }
@@ -1184,7 +1197,7 @@
     width: 22px;
     height: 22px;
     border-radius: 50%;
-    border: 1.5px solid rgba(33, 30, 26, 0.5);
+    border: 1.5px solid var(--line-strong);
     transition:
       border-width 0.2s ease,
       border-color 0.2s ease;
@@ -1209,7 +1222,7 @@
     padding: 0 16px;
     border-radius: 99px;
     background: rgba(255, 255, 255, 0.72);
-    border: 1px solid rgba(33, 30, 26, 0.3);
+    border: 1px solid var(--line-strong);
     cursor: pointer;
     transition:
       background-color 0.2s ease,
@@ -1241,6 +1254,13 @@
   .quote-review dd {
     margin: 0;
     overflow-wrap: anywhere;
+  }
+  .quote-share {
+    display: grid;
+    gap: 2px;
+    justify-items: start;
+    font-size: 0.88rem;
+    color: var(--ink-soft);
   }
   .quote-edit {
     background: none;
@@ -1518,12 +1538,15 @@
     gap: 6px;
     color: var(--ink-soft);
   }
+  /* Underlined at rest, so links read as links without a hover. */
   .site-footer a {
-    text-decoration: none;
+    text-decoration: underline;
+    text-decoration-color: color-mix(in srgb, currentColor 40%, transparent);
+    text-decoration-thickness: 1px;
+    text-underline-offset: 4px;
   }
   .site-footer a:hover {
-    text-decoration: underline;
-    text-underline-offset: 4px;
+    text-decoration-color: currentColor;
   }
 
   /* ---- Mobile booking bar ---- */
@@ -1569,8 +1592,41 @@
   }
 }
 
-/* Honour reduced motion: neutralise CSS transitions. Scroll scenes still
-   track the scrollbar directly, without smoothing or intro animation. */
+/* ============================================================
+   Still scenes: reduced motion, or no JavaScript
+   <DayScroll> builds the scroll scenes only under html[data-motion="on"]
+   (set before first paint, see lib/motion.ts). Otherwise each scene is one
+   screen showing its finished state.
+   ============================================================ */
+html:not([data-motion="on"]) .hero,
+html:not([data-motion="on"]) .band,
+html:not([data-motion="on"]) .evening {
+  height: auto;
+}
+html:not([data-motion="on"]) .stage {
+  position: relative;
+}
+html:not([data-motion="on"]) .band-media {
+  clip-path: none;
+}
+html:not([data-motion="on"]) .band-media img {
+  transform: none;
+}
+html:not([data-motion="on"]) .eve-late {
+  opacity: 1;
+}
+/* The two "say" lines belong to the hero's scroll; keep them for screen
+   readers only. */
+html:not([data-motion="on"]) .say {
+  opacity: 1;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+/* Honour reduced motion: neutralise CSS transitions too. */
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,

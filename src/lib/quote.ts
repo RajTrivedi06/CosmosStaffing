@@ -335,6 +335,80 @@ export function summarize(
   return rows;
 }
 
+/**
+ * Answers that can travel in a link, so a quote in progress can be shared or
+ * bookmarked. Anything personal (ZIP code, date, notes, contact details)
+ * stays out of the URL.
+ */
+const SHAREABLE = [
+  "service",
+  "property",
+  "bedrooms",
+  "bathrooms",
+  "area",
+  "frequency",
+  "condition",
+  "timing",
+] as const;
+
+export function answersToParams(a: QuoteAnswers) {
+  const params = new URLSearchParams();
+  for (const key of SHAREABLE) {
+    const value = a[key];
+    if (value) params.set(key, value);
+  }
+  if (a.extras.length) params.set("extras", a.extras.join(","));
+  return params;
+}
+
+/**
+ * Answers read from a link. Each value is kept only if it is a real option
+ * for the answers before it, so a hand-edited link can't produce a quote the
+ * screen couldn't.
+ */
+export function answersFromParams(params: URLSearchParams) {
+  const a: QuoteAnswers = { ...EMPTY_ANSWERS };
+  const service = params.get("service");
+  if (!SERVICE_OPTIONS.some((o) => o.value === service)) return {};
+  a.service = service as ServiceValue;
+  const property = params.get("property") ?? undefined;
+  if (has(propertyOptions(a), property)) a.property = property;
+  const pick = (
+    key:
+      | "bedrooms"
+      | "bathrooms"
+      | "area"
+      | "frequency"
+      | "condition"
+      | "timing",
+    options: Option[] | string[],
+  ) => {
+    const value = params.get(key) ?? undefined;
+    if (has(options, value)) a[key] = value;
+  };
+  pick("bedrooms", BEDROOMS);
+  pick("bathrooms", BATHROOMS);
+  pick("area", AREAS);
+  pick("frequency", frequencyOptions(a));
+  pick("condition", conditionOptions(a));
+  pick("timing", TIMINGS);
+  const extras = (params.get("extras") ?? "").split(",");
+  a.extras = extras.filter(
+    (x, i) => has(extraOptions(a), x) && extras.indexOf(x) === i,
+  );
+
+  const shared: Partial<QuoteAnswers> = {};
+  for (const key of SHAREABLE)
+    if (a[key]) Object.assign(shared, { [key]: a[key] });
+  if (a.extras.length) shared.extras = a.extras;
+  return shared;
+}
+
+/** The first question still to answer, or the review when all are done. */
+export function firstOpenStep(a: QuoteAnswers): StepId {
+  return stepsFor(a).find((s) => stepError(s, a)) ?? "review";
+}
+
 export function formatDate(iso: string) {
   const [y, m, d] = iso.split("-").map(Number);
   return new Date(Date.UTC(y, m - 1, d)).toLocaleDateString("en-US", {

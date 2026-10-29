@@ -27,6 +27,9 @@ site, which has been removed.)
   promises render as `[PLACEHOLDER: …]`; never invent them.
 - `src/lib/quote.ts` — quote questions, branching and validation.
 - `src/lib/scroll.ts` — shared smooth scroll and anchor targets.
+- `src/lib/motion.ts` — `html[data-motion]`, set before first paint. Scroll
+  scenes are styled for motion only under `data-motion="on"`; otherwise
+  (reduced motion, no JavaScript) they render still and finished.
 - `supabase/migrations/` — database schema (quote_requests table).
 - `src/components/` — shared UI components.
 - `public/` — static assets.
@@ -37,6 +40,9 @@ site, which has been removed.)
 - `npm run build` / `npm start` — production build / serve.
 - `npm run lint` — ESLint. `npm run typecheck` — type-check.
 - `npm run format` — Prettier write. `npm run format:check` — check only.
+- `npm test` — Vitest unit tests (`tests/unit`).
+- `npm run test:e2e` — build, then Playwright browser tests (`tests/e2e`,
+  desktop and phone, port 3200).
 
 ## Conventions
 

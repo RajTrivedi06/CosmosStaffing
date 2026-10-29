@@ -30,6 +30,8 @@ Then open <http://localhost:3000>.
 | `npm run typecheck`    | Type-check with `tsc` (no emit)   |
 | `npm run format`       | Format the codebase with Prettier |
 | `npm run format:check` | Check formatting without writing  |
+| `npm test`             | Unit tests (Vitest)               |
+| `npm run test:e2e`     | Build, then browser tests         |
 
 ## Project structure
 
@@ -48,10 +50,23 @@ src/
     site.ts            Central site config and copy
     quote.ts           Quote questions, branching, validation
     quote-delivery.ts  Supabase storage + Resend email
+    scroll.ts          Smooth scroll and in-page link targets
+    motion.ts          Motion on/off (reduced motion, no JavaScript)
+    metadata.ts        Per-page titles, canonical URLs, sharing card
   components/          Shared UI components
+tests/
+  unit/                Quote logic, delivery and the API route (Vitest)
+  e2e/                 Browser tests, desktop and phone (Playwright)
 supabase/              Local config and migrations
 public/images/         4K photography
 ```
+
+## Motion
+
+The home page plays as one scrolling day. Its scenes are built only when
+`<html data-motion="on">`, which an inline script sets before the first paint.
+With reduced motion, or without JavaScript, every scene renders as a still,
+finished screen instead.
 
 ## Configuration
 
@@ -60,5 +75,7 @@ public/images/         4K photography
   requests aren't connected yet rather than pretending to send.
 - Apply the database schema with `supabase db push` (or run the migration in
   `supabase/migrations/` in the SQL editor).
+- Set `NEXT_PUBLIC_SITE_URL` to the live domain. Canonical URLs, the sitemap
+  and `robots.txt` use it.
 - Brand and content live in [`src/lib/site.ts`](./src/lib/site.ts). Edit there
   rather than hard-coding values in pages.

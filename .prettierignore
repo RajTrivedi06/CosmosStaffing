@@ -12,3 +12,6 @@ public
 cosmos-staffing-claude-design
 cosmos-staffing-site-design2
 codex_design
+
+# Reference tutorials, not part of the app.
+tutorial-*.html

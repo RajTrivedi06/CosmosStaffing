@@ -6,6 +6,7 @@ import Lenis from "lenis";
 import { gsap } from "gsap";
 import { ScrollTrigger } from "gsap/ScrollTrigger";
 import { useReducedMotionSafe } from "@/components/motion/useReducedMotionSafe";
+import { prefersReducedMotion, setMotionAttribute } from "@/lib/motion";
 import { scrollToHash, setLenis } from "@/lib/scroll";
 
 /**
@@ -18,13 +19,17 @@ import { scrollToHash, setLenis } from "@/lib/scroll";
  * the screen and scenes with a registered target land finished.
  *
  * Under reduced motion we skip Lenis entirely and fall back to native scroll.
+ * The preference is read directly, not from the hook, which reads "motion on"
+ * during hydration and would otherwise start Lenis once for everyone.
  */
 export function LenisProvider({ children }: { children: React.ReactNode }) {
-  const reduced = useReducedMotionSafe();
+  const reducedPref = useReducedMotionSafe();
   const pathname = usePathname();
 
   useEffect(() => {
     gsap.registerPlugin(ScrollTrigger);
+    const reduced = prefersReducedMotion();
+    setMotionAttribute(reduced);
 
     if (reduced) {
       // Native scroll; make sure any triggers measure against it.
@@ -51,10 +56,11 @@ export function LenisProvider({ children }: { children: React.ReactNode }) {
       setLenis(null);
       lenis.destroy();
     };
-  }, [reduced]);
+  }, [reducedPref]);
 
   useEffect(() => {
     const onClick = (e: MouseEvent) => {
+      const reduced = prefersReducedMotion();
       if (e.defaultPrevented || e.button !== 0) return;
       if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
       const link = (e.target as Element | null)?.closest?.("a[href]");
@@ -79,7 +85,7 @@ export function LenisProvider({ children }: { children: React.ReactNode }) {
     };
     document.addEventListener("click", onClick, true);
     return () => document.removeEventListener("click", onClick, true);
-  }, [reduced, pathname]);
+  }, [pathname]);
 
   return <>{children}</>;
 }

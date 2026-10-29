@@ -2,14 +2,16 @@
 
 import { useEffect, useId, useRef, useState } from "react";
 import Link from "next/link";
-import { useSearchParams } from "next/navigation";
 import { AnimatePresence, motion, useReducedMotion } from "motion/react";
 import { coverage, siteConfig } from "@/lib/site";
 import {
   EMPTY_ANSWERS,
   SERVICE_OPTIONS,
+  answersFromParams,
+  answersToParams,
   conditionOptions,
   extraOptions,
+  firstOpenStep,
   frequencyOptions,
   isTexasZip,
   propertyOptions,
@@ -20,7 +22,6 @@ import {
   summarize,
   timingOptions,
   type QuoteAnswers,
-  type ServiceValue,
   type StepId,
 } from "@/lib/quote";
 
@@ -52,11 +53,12 @@ function saveDraft(draft: Draft | null) {
  * The guided quote, one question per screen, in the spirit of a phone's setup
  * assistant. Questions adapt to earlier answers (see stepsFor). Answers are
  * kept when going back and saved for this tab, so a detour to Contact or a
- * refresh loses nothing. Nothing claims success until /api/quote confirms the
- * request was delivered.
+ * refresh loses nothing. The choices so far also live in the address bar
+ * (never contact details), so a quote in progress can be shared or
+ * bookmarked. Nothing claims success until /api/quote confirms the request
+ * was delivered.
  */
 export function QuoteFlow() {
-  const params = useSearchParams();
   const reduce = useReducedMotion();
   const [answers, setAnswers] = useState<QuoteAnswers>(EMPTY_ANSWERS);
   const [step, setStep] = useState<StepId>("service");
@@ -68,27 +70,42 @@ export function QuoteFlow() {
   const honeypotRef = useRef<HTMLInputElement>(null);
   const firstRender = useRef(true);
 
-  // Restore a saved draft, or start from a service chosen on the site.
+  // Restore this tab's draft. Answers in the link (a shared quote, or a
+  // service chosen on the site) win over the draft, and the flow opens on
+  // the first question they leave open.
   useEffect(() => {
     const draft = loadDraft();
-    const chosen = params.get("service");
-    const preset = SERVICE_OPTIONS.find((o) => o.value === chosen)?.value as
-      | ServiceValue
-      | undefined;
-    /* eslint-disable react-hooks/set-state-in-effect -- one-time restore from sessionStorage, which the server cannot read */
-    if (preset && draft?.answers.service !== preset) {
-      setAnswers({ ...(draft?.answers ?? EMPTY_ANSWERS), service: preset });
-      setStep("property");
+    const linked = answersFromParams(
+      new URLSearchParams(window.location.search),
+    );
+    const base = draft?.answers ?? EMPTY_ANSWERS;
+    const differs = Object.entries(linked).some(
+      ([key, value]) =>
+        String(value) !== String(base[key as keyof QuoteAnswers]),
+    );
+    /* eslint-disable react-hooks/set-state-in-effect -- one-time restore from the URL and sessionStorage, which the server cannot read */
+    if (differs) {
+      const merged = { ...base, ...linked };
+      setAnswers(merged);
+      setStep(firstOpenStep(merged));
     } else if (draft) {
       setAnswers(draft.answers);
       setStep(draft.step);
     }
     setReady(true);
     /* eslint-enable react-hooks/set-state-in-effect */
-  }, [params]);
+  }, []);
 
   useEffect(() => {
-    if (ready && status !== "sent") saveDraft({ answers, step });
+    if (!ready || status === "sent") return;
+    saveDraft({ answers, step });
+    const query = answersToParams(answers).toString();
+    if (query === window.location.search.slice(1)) return;
+    history.replaceState(
+      null,
+      "",
+      query ? `?${query}` : window.location.pathname,
+    );
   }, [answers, step, ready, status]);
 
   // Each new question takes focus, so screen readers announce it.
@@ -604,6 +621,7 @@ function Step({
       return (
         <>
           {head("Check your answers", "Change anything before you send.")}
+          <ShareLink />
           <dl className="quote-review">
             {summarize(a).map((row) => (
               <div key={row.step}>
@@ -623,6 +641,35 @@ function Step({
         </>
       );
   }
+}
+
+/**
+ * Copies a link to the answers so far. The address bar already holds them;
+ * this makes that discoverable and says what the link leaves out.
+ */
+function ShareLink() {
+  const [copied, setCopied] = useState<boolean | null>(null);
+  const copy = async () => {
+    try {
+      await navigator.clipboard.writeText(window.location.href);
+      setCopied(true);
+    } catch {
+      setCopied(false);
+    }
+  };
+  return (
+    <p className="quote-share">
+      <button type="button" className="quote-edit" onClick={copy}>
+        Copy a link to these answers
+      </button>
+      <span aria-live="polite">
+        {copied === true &&
+          "Link copied. It leaves out your ZIP code, date, notes and contact details."}
+        {copied === false &&
+          "Couldn't copy. The link in your address bar has these answers."}
+      </span>
+    </p>
+  );
 }
 
 function Field({

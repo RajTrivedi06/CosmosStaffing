@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { pageMetadata } from "@/lib/metadata";
 import Link from "next/link";
 import {
   coverage,
@@ -11,11 +12,12 @@ import {
 import { Frame } from "@/components/home/Frame";
 import { FaqList } from "@/components/ui/FaqList";
 
-export const metadata: Metadata = {
+export const metadata: Metadata = pageMetadata({
   title: "Services",
   description:
     "Home cleaning, deep cleans, move-in and move-out cleans and workplace cleaning, based in Texas and arranged across the US.",
-};
+  path: "/services",
+});
 
 export default function ServicesPage() {
   return (

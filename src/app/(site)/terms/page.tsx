@@ -1,10 +1,13 @@
 import type { Metadata } from "next";
-import { terms } from "@/lib/site";
+import { pageMetadata } from "@/lib/metadata";
+import { siteConfig, terms } from "@/lib/site";
 import { Placeholder } from "@/components/ui/Placeholder";
 
-export const metadata: Metadata = {
+export const metadata: Metadata = pageMetadata({
   title: "Terms and conditions",
-};
+  description: `The terms for cleaning arranged by ${siteConfig.name}.`,
+  path: "/terms",
+});
 
 /** Structure only: every section waits for approved wording. */
 export default function TermsPage() {

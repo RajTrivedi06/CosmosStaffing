@@ -110,7 +110,7 @@ async function emailQuote(
   try {
     // RESEND_API_URL exists only so delivery can be tested against a stub.
     const res = await fetch(
-      process.env.RESEND_API_URL ?? "https://api.resend.com/emails",
+      process.env.RESEND_API_URL || "https://api.resend.com/emails",
       {
         method: "POST",
         headers: {

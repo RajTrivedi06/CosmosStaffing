@@ -1,12 +1,13 @@
 "use client";
 
 import { useMediaQuery } from "@/lib/hooks";
+import { REDUCED_MOTION_QUERY } from "@/lib/motion";
 
 /**
- * Single source of truth for reduced-motion. `false` (motion on) on the server
- * and during hydration, then tracks `prefers-reduced-motion`. All motion
- * primitives gate on this so behavior stays consistent.
+ * Tracks `prefers-reduced-motion` so motion effects re-run when it changes.
+ * It reads `false` during hydration, so effects should check
+ * `prefersReducedMotion()` for the real value rather than trust this alone.
  */
 export function useReducedMotionSafe(): boolean {
-  return useMediaQuery("(prefers-reduced-motion: reduce)");
+  return useMediaQuery(REDUCED_MOTION_QUERY);
 }

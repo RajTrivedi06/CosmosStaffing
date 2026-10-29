@@ -3,6 +3,8 @@ import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import { siteConfig } from "@/lib/site";
 import { LenisProvider } from "@/components/providers/LenisProvider";
+import { baseOpenGraph, shareImage } from "@/lib/metadata";
+import { MOTION_SCRIPT } from "@/lib/motion";
 
 const geist = Geist({
   variable: "--font-geist",
@@ -23,6 +25,13 @@ export const metadata: Metadata = {
     template: `%s | ${siteConfig.name}`,
   },
   description: siteConfig.description,
+  applicationName: siteConfig.name,
+  openGraph: {
+    ...baseOpenGraph,
+    title: `${siteConfig.name}: ${siteConfig.slogan}`,
+    description: siteConfig.description,
+  },
+  twitter: { card: "summary_large_image", images: [shareImage] },
 };
 
 export const viewport: Viewport = {
@@ -40,7 +49,15 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" className={`${geist.variable} ${geistMono.variable}`}>
+    <html
+      lang="en"
+      className={`${geist.variable} ${geistMono.variable}`}
+      // MOTION_SCRIPT sets data-motion before React hydrates.
+      suppressHydrationWarning
+    >
+      <head>
+        <script dangerouslySetInnerHTML={{ __html: MOTION_SCRIPT }} />
+      </head>
       <body>
         <LenisProvider>{children}</LenisProvider>
       </body>

@@ -20,8 +20,11 @@ export const siteConfig = {
   sloganLines: ["Come home", "to calm."],
   description:
     "Trusted home and office cleaning, on a schedule that runs itself.",
-  // TODO: set the production domain once chosen. Used for metadata.
-  url: "https://example.com",
+  /**
+   * Canonical address for metadata, the sitemap and robots.txt. Set
+   * NEXT_PUBLIC_SITE_URL once the domain is chosen.
+   */
+  url: process.env.NEXT_PUBLIC_SITE_URL || "https://example.com",
 
   /**
    * Header navigation. Home sections use `/#id` so the links also work from

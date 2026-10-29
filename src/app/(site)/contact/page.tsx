@@ -1,11 +1,14 @@
 import type { Metadata } from "next";
+import { pageMetadata } from "@/lib/metadata";
 import Link from "next/link";
 import { contactPage, coverage, siteConfig } from "@/lib/site";
 import { Placeholder } from "@/components/ui/Placeholder";
 
-export const metadata: Metadata = {
+export const metadata: Metadata = pageMetadata({
   title: "Contact us",
-};
+  description: `Talk to ${siteConfig.name} about cleaning for your home or workplace.`,
+  path: "/contact",
+});
 
 export default function ContactPage() {
   return (
