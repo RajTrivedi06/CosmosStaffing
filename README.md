@@ -1,13 +1,12 @@
-# Cosmos Staffing
+# Cosmos Cleaning
 
-Website for **Cosmos Staffing**, built with [Next.js](https://nextjs.org). The
-current focus is an enquiry-driven site. The design is still evolving, so this
-repo is intentionally a lean, well-structured starting point rather than a
-finished site.
+Website for **Cosmos Cleaning**, home and workplace cleaning based in Texas,
+built with [Next.js](https://nextjs.org). Visitors get a personal quote through
+a guided, one-question-per-screen flow at `/quote`.
 
 ## Requirements
 
-- Node.js `>= 22.13` (or `20.19+`, or `24+`) — see [`.nvmrc`](./.nvmrc).
+- Node.js `>= 22.13` (see `engines` in `package.json`).
 - npm (the lockfile is committed).
 
 ## Getting started
@@ -36,28 +35,30 @@ Then open <http://localhost:3000>.
 
 ```
 src/
-  app/                 App Router routes
-    api/enquiry/       Enquiry submission endpoint (scaffold)
+  app/
+    (site)/            Marketing pages with header and footer
+      page.tsx         Home (one scrolling "day")
+      services/        Services, how we work, coverage, FAQ
+      terms/ contact/  Terms (awaiting approved wording) and contact
+    quote/             Guided quote screen
+    api/quote/         Quote endpoint: validate, store, email
     layout.tsx         Root layout / metadata
-    page.tsx           Landing page (placeholder)
     globals.css        Tailwind entry + theme tokens
   lib/
-    site.ts            Central site config (name, copy, contact, nav)
-    enquiry.ts         Enquiry type + validation
+    site.ts            Central site config and copy
+    quote.ts           Quote questions, branching, validation
+    quote-delivery.ts  Supabase storage + Resend email
   components/          Shared UI components
-public/                Static assets
+supabase/              Local config and migrations
+public/images/         4K photography
 ```
 
 ## Configuration
 
-- Copy [`.env.example`](./.env.example) to `.env.local` and fill in values as
-  integrations are added (`.env*` is gitignored).
-- Brand and content live in [`src/lib/site.ts`](./src/lib/site.ts) — edit there
+- Copy [`.env.example`](./.env.example) to `.env.local` and fill in the
+  Supabase and Resend values. Without them, the quote screen says online
+  requests aren't connected yet rather than pretending to send.
+- Apply the database schema with `supabase db push` (or run the migration in
+  `supabase/migrations/` in the SQL editor).
+- Brand and content live in [`src/lib/site.ts`](./src/lib/site.ts). Edit there
   rather than hard-coding values in pages.
-
-## Stack notes
-
-- Next.js 16 (App Router) + React 19 + Tailwind CSS v4.
-- The enquiry endpoint (`POST /api/enquiry`) validates submissions but does not
-  yet deliver them anywhere — wire up email/CRM/DB at the `TODO` in
-  [`src/app/api/enquiry/route.ts`](./src/app/api/enquiry/route.ts).

@@ -1,13 +1,14 @@
-# Cosmos Staffing
+# Cosmos Cleaning
 
 @AGENTS.md
 
 ## Project
 
-A Next.js website for **Cosmos Staffing**, a staffing company. The near-term
-goal is an enquiry-focused site (visitors submit staffing enquiries). The
-design is still being defined — keep additions minimal and easy to change until
-direction is confirmed.
+A Next.js website for **Cosmos Cleaning**, a home and workplace cleaning
+company based in Texas (Austin, Houston, San Antonio, Dallas) that also
+arranges cleaning elsewhere in the US. The site leads visitors to a guided
+quote at /quote. (The repo name is left over from the earlier Cosmos Staffing
+site, which has been removed.)
 
 ## Stack
 
@@ -18,9 +19,15 @@ direction is confirmed.
 ## Layout
 
 - `src/app/` — routes (App Router); `layout.tsx` is the root shell.
-- `src/app/api/enquiry/route.ts` — enquiry submission endpoint (scaffold).
-- `src/lib/site.ts` — central site config (name, copy, contact, nav).
-- `src/lib/enquiry.ts` — enquiry type + validation.
+  `(site)/` holds the marketing pages (home, services, terms, contact) with
+  header and footer; `quote/` is the standalone quote screen.
+- `src/app/api/quote/route.ts` — quote endpoint: validates, stores in
+  Supabase, emails via Resend (`src/lib/quote-delivery.ts`).
+- `src/lib/site.ts` — central site config and copy. Unconfirmed policies and
+  promises render as `[PLACEHOLDER: …]`; never invent them.
+- `src/lib/quote.ts` — quote questions, branching and validation.
+- `src/lib/scroll.ts` — shared smooth scroll and anchor targets.
+- `supabase/migrations/` — database schema (quote_requests table).
 - `src/components/` — shared UI components.
 - `public/` — static assets.
 

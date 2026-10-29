@@ -22,7 +22,11 @@ const emptySubscribe = () => () => {};
 
 /** `false` on the server / first render, `true` once mounted on the client. */
 export function useMounted(): boolean {
-  return useSyncExternalStore(emptySubscribe, () => true, () => false);
+  return useSyncExternalStore(
+    emptySubscribe,
+    () => true,
+    () => false,
+  );
 }
 
 /** `true` once the window has scrolled past `threshold` px. */
