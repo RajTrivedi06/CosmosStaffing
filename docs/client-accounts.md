@@ -130,8 +130,9 @@ Sharing the project grants nothing beyond sign-in:
    against the API directly._ The Studio never sends `reason=wrong_account`
    (another owner's link reads as not found), so that screen stays generic.
 3. **Fail closed in production.** _Done on the website:_ see Delivery above.
-   Vercel Production is refused by both applications; lifting either guard is
-   a separate reviewed release change.
+   Vercel Production stays refused by both applications. The website's own
+   switch, `CUSTOMER_API_PRODUCTION_ENABLED`, is prepared and off, and the
+   Studio's guard is separate. See [launch-cutover.md](launch-cutover.md).
 4. **Server-side auth rate limiting needs a reviewed deployment design.**
    _Open._ Every Supabase Auth call comes from the website server, so provider
    per-IP limits are shared by all clients. Raising provider limits is not
@@ -145,7 +146,9 @@ Sharing the project grants nothing beyond sign-in:
 ## Configuration needed (names only; no values here)
 
 - Website env: `QUOTE_DELIVERY_MODE=customer`, `QUOTE_STUDIO_TEST_ENABLED=true`
-  (isolated test or protected Preview only), `STUDIO_CUSTOMER_API_URL` (the
+  (isolated test or protected Preview only; Production instead needs
+  `CUSTOMER_API_PRODUCTION_ENABLED=true` and the exact Studio address, set only
+  at an approved cutover), `STUDIO_CUSTOMER_API_URL` (the
   fixed Studio origin plus `/api/customer/v2`), `WEBSITE_INTAKE_SECRET`,
   `AUTH_SUPABASE_URL` (HTTPS, the Studio's project),
   `AUTH_SUPABASE_PUBLISHABLE_KEY` (publishable only).
