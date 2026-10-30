@@ -1,6 +1,6 @@
 import { expect, test } from "@playwright/test";
 
-const PAGES = ["/", "/services", "/contact", "/terms", "/quote"];
+const PAGES = ["/", "/services", "/contact", "/clean-with-cosmos", "/quote"];
 
 test("every internal link resolves, and its target exists", async ({
   page,
@@ -52,9 +52,16 @@ test("search engines get robots.txt, a sitemap and page metadata", async ({
   expect(robots).toMatch(/Sitemap: .*\/sitemap\.xml/);
 
   const sitemap = await (await request.get("/sitemap.xml")).text();
-  for (const path of ["/services", "/quote", "/contact", "/terms"]) {
+  for (const path of [
+    "/services",
+    "/quote",
+    "/contact",
+    "/clean-with-cosmos",
+  ]) {
     expect(sitemap).toContain(`${path}</loc>`);
   }
+  // The Studio owns /terms and marks it noindex.
+  expect(sitemap).not.toContain("/terms</loc>");
 
   await page.goto("/services");
   await expect(page).toHaveTitle("Services | Cosmos Cleaning");

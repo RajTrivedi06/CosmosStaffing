@@ -3,6 +3,7 @@ import { deliverQuote } from "@/lib/quote-delivery";
 import { homeQuote } from "./fixtures";
 
 const ENV = [
+  "QUOTE_DELIVERY_MODE",
   "SUPABASE_URL",
   "SUPABASE_SECRET_KEY",
   "RESEND_API_KEY",
@@ -75,7 +76,7 @@ describe("deliverQuote", () => {
       service: "regular",
       zip: "78701",
       email: "alex@example.com",
-      phone: null,
+      phone: homeQuote.phone,
     });
 
     expect(email.url).toBe("https://api.resend.com/emails");
@@ -92,7 +93,7 @@ describe("deliverQuote", () => {
     });
   });
 
-  it("counts as sent when only the email goes through", async () => {
+  it("does not send email or claim success when persistence fails", async () => {
     configureDb();
     configureEmail();
     mockFetch((url) =>
@@ -101,9 +102,9 @@ describe("deliverQuote", () => {
         : Response.json({ id: "email-1" }),
     );
     expect(await deliverQuote(homeQuote, "abc")).toEqual({
-      outcome: "sent",
+      outcome: "failed",
       stored: "failed",
-      emailed: "ok",
+      emailed: "not_configured",
     });
   });
 
@@ -116,12 +117,54 @@ describe("deliverQuote", () => {
     expect((await deliverQuote(homeQuote, "abc")).outcome).toBe("failed");
   });
 
-  it("fails rather than claiming success when the only channel fails", async () => {
+  it("does not use email as a substitute for persistence", async () => {
     configureEmail();
     mockFetch(() => new Response(null, { status: 422 }));
     expect(await deliverQuote(homeQuote, "abc")).toEqual({
-      outcome: "failed",
+      outcome: "not_configured",
       stored: "not_configured",
+      emailed: "not_configured",
+    });
+  });
+});
+
+describe("authoritative delivery boundary", () => {
+  it.each(["studio", "typo"])(
+    "never falls back or writes to either system in %s mode",
+    async (mode) => {
+      configureDb();
+      configureEmail();
+      vi.stubEnv("QUOTE_DELIVERY_MODE", mode);
+      mockFetch(() => Response.json([{ id: "unexpected" }]));
+      expect((await deliverQuote(homeQuote, "abc")).outcome).toBe(
+        "not_configured",
+      );
+      expect(calls).toHaveLength(0);
+    },
+  );
+
+  it.each([[], {}, [{ id: "" }], [{ nope: true }]].map((body) => ({ body })))(
+    "rejects an invalid persistence acknowledgement: %j",
+    async ({ body }) => {
+      configureDb();
+      configureEmail();
+      mockFetch(() => Response.json(body));
+      expect((await deliverQuote(homeQuote, "abc")).outcome).toBe("failed");
+      expect(calls).toHaveLength(1);
+    },
+  );
+
+  it("confirms persistence even when its email notification fails", async () => {
+    configureDb();
+    configureEmail();
+    mockFetch((url) =>
+      url.startsWith("https://db.test")
+        ? Response.json([{ id: "row-1" }])
+        : new Response(null, { status: 503 }),
+    );
+    expect(await deliverQuote(homeQuote, "abc")).toEqual({
+      outcome: "sent",
+      stored: "ok",
       emailed: "failed",
     });
   });

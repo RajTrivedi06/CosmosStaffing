@@ -12,6 +12,7 @@ import { Pricing } from "@/components/home/Pricing";
 import { Evening } from "@/components/home/Evening";
 import { Faq } from "@/components/home/Faq";
 import { CloseCta } from "@/components/home/CloseCta";
+import { CleanTeaser } from "@/components/home/CleanTeaser";
 
 export const metadata: Metadata = {
   alternates: { canonical: "/" },
@@ -32,6 +33,7 @@ export default function Home() {
       <Evening />
       <Faq />
       <CloseCta />
+      <CleanTeaser />
     </DayScroll>
   );
 }

@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { homeQuote } from "./fixtures";
 
 const deliverQuote = vi.fn();
@@ -11,6 +11,7 @@ vi.mock("@/lib/quote-delivery", () => ({
 let POST: (request: Request) => Promise<Response>;
 let ip = 0;
 beforeEach(async () => {
+  vi.stubEnv("QUOTE_DELIVERY_MODE", "legacy");
   vi.resetModules();
   ({ POST } = await import("@/app/api/quote/route"));
   deliverQuote.mockReset();
@@ -23,11 +24,13 @@ beforeEach(async () => {
   vi.spyOn(console, "info").mockImplementation(() => {});
 });
 
+afterEach(() => vi.unstubAllEnvs());
+
 const post = (body: unknown, from = `10.0.0.${ip}`) =>
   POST(
     new Request("http://localhost/api/quote", {
       method: "POST",
-      headers: { "x-forwarded-for": from },
+      headers: { "x-forwarded-for": from, "content-type": "application/json" },
       body: typeof body === "string" ? body : JSON.stringify(body),
     }),
   );
@@ -56,9 +59,10 @@ describe("POST /api/quote", () => {
     expect(deliverQuote).not.toHaveBeenCalled();
   });
 
-  it("quietly drops requests that fill the honeypot", async () => {
+  it("does not acknowledge dropped honeypot requests as persisted", async () => {
     const res = await post({ ...homeQuote, website: "http://spam.test" });
-    expect(res.status).toBe(200);
+    expect(res.status).toBe(422);
+    expect(await res.json()).toMatchObject({ ok: false });
     expect(deliverQuote).not.toHaveBeenCalled();
   });
 
@@ -95,5 +99,44 @@ describe("POST /api/quote", () => {
     expect(logged).not.toContain("alex@example.com");
     expect(logged).not.toContain("Alex");
     expect(logged).not.toContain("78701");
+  });
+});
+
+it("blocks Studio cutover without falling back to legacy or accepting unverified clients", async () => {
+  vi.stubEnv("QUOTE_DELIVERY_MODE", "studio");
+  const res = await post(homeQuote);
+  expect(res.status).toBe(503);
+  expect(res.headers.get("cache-control")).toBe("no-store");
+  expect(await res.json()).toEqual({ ok: false, code: "studio_pending" });
+  expect(deliverQuote).not.toHaveBeenCalled();
+});
+
+describe("POST /api/quote origin check", () => {
+  const from = (origin: string, host: string) =>
+    POST(
+      new Request("http://localhost:3201/api/quote", {
+        method: "POST",
+        headers: {
+          origin,
+          host,
+          "x-forwarded-for": `10.9.0.${++ip}`,
+          "content-type": "application/json",
+        },
+        body: JSON.stringify(homeQuote),
+      }),
+    );
+
+  it("accepts the host the browser actually used", async () => {
+    // Next may report 127.0.0.1 as localhost in request.url.
+    expect((await from("http://127.0.0.1:3201", "127.0.0.1:3201")).status).toBe(
+      200,
+    );
+  });
+
+  it("still refuses another site", async () => {
+    expect((await from("https://evil.example", "127.0.0.1:3201")).status).toBe(
+      403,
+    );
+    expect(deliverQuote).not.toHaveBeenCalled();
   });
 });

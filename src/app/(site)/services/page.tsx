@@ -114,9 +114,11 @@ export default function ServicesPage() {
       >
         <h2 id="terms-h">{servicesPage.termsTitle}</h2>
         <p className="lede">{servicesPage.termsBody}</p>
-        <Link className="btn btn-glass" href="/terms">
+        {/* The terms page belongs to the Studio (lib/studio-routes.ts), so
+            this is a plain link: next/link cannot cross zones. */}
+        <a className="btn btn-glass" href={servicesPage.termsHref}>
           Read the terms
-        </Link>
+        </a>
       </section>
     </main>
   );

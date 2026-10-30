@@ -22,9 +22,9 @@ export const siteConfig = {
     "Trusted home and office cleaning, on a schedule that runs itself.",
   /**
    * Canonical address for metadata, the sitemap and robots.txt. Set
-   * NEXT_PUBLIC_SITE_URL once the domain is chosen.
+   * NEXT_PUBLIC_SITE_URL only for an isolated local/preview origin.
    */
-  url: process.env.NEXT_PUBLIC_SITE_URL || "https://example.com",
+  url: process.env.NEXT_PUBLIC_SITE_URL || "https://cosmosservicesllc.com",
 
   /**
    * Header navigation. Home sections use `/#id` so the links also work from
@@ -52,7 +52,10 @@ export const siteConfig = {
       { label: "How it works", href: "/#how" },
       { label: "How we work", href: "/services#process" },
       { label: "Questions", href: "/services#faq" },
+      // Forwarded to the Operations Studio (lib/studio-routes.ts).
       { label: "Terms", href: "/terms" },
+      { label: "Clean with Cosmos", href: "/clean-with-cosmos" },
+      { label: "Cleaner sign-in", href: "/me/login" },
     ],
   },
 } as const;
@@ -380,54 +383,120 @@ export const servicesPage = {
   termsTitle: "Terms and conditions",
   termsBody:
     "Our full terms cover quotes, scheduling, access, cancellations and payment.",
+  /** The Operations Studio serves the terms (lib/studio-routes.ts). */
+  termsHref: "/terms",
 } as const;
 
 /**
- * Terms headings. Every body is a placeholder: the business must supply
- * approved wording (and ideally have it reviewed) before launch.
+ * Cleaner recruitment. The application, sign-in, agreements, statuses and the
+ * cleaner portal all belong to the Operations Studio. This site explains the
+ * opportunity and links into the Studio; it never collects cleaner details
+ * (no form, no table, no uploads, no "leave your number").
+ *
+ * Copy follows the Studio's `docs/product/cleaner-onboarding.md`. Anything
+ * not documented and approved renders as a placeholder.
  */
-export const terms = {
-  title: "Terms and conditions",
-  lede: "These terms are being finalised. Each section below is awaiting approved wording.",
-  sections: [
+export const cleaners = {
+  path: "/clean-with-cosmos",
+  label: "Clean with Cosmos",
+  title: "Clean with Cosmos.",
+  lede: "We work with independent cleaners across Texas who take pride in calm, careful work. Our team guides onboarding or sends you a private invitation link.",
+
+  apply: {
+    /**
+     * Public applications are unavailable. Staff-led/private invitation
+     * onboarding is the supported workflow. Enable only if Studio confirms
+     * a public route and both allowlists are updated; never share an invite.
+     */
+    available: false,
+    href: "/apply",
+    label: "Cleaner onboarding",
+    pending:
+      "Public applications are not available. If our team has invited you, use your private invitation link. Otherwise, contact us to discuss the opportunity.",
+  },
+
+  /** Phone number and texted code. Cleaners only; staff sign in elsewhere. */
+  signIn: {
+    label: "Cleaner sign-in",
+    href: "/me/login",
+    note: "Already onboarded? Open your cleaner portal with your phone number and a texted code.",
+  },
+
+  /** Staff-led onboarding; the private questionnaire requires no password. */
+  expect: [
     {
-      title: "Quotes",
-      pending:
-        "how quotes are prepared, how long they are valid, and what can change the final price",
+      title: "Start with our team",
+      body: "Our team helps you through onboarding or sends a private link to your questionnaire. Keep that link private; it is just for you.",
     },
     {
-      title: "Scheduling and access",
-      pending: "booking confirmation, arrival windows, keys and door codes",
+      title: "No password to complete your questionnaire",
+      body: "Open your invitation link to answer the onboarding questions. For the cleaner portal and signing documents, verify your phone number with a texted code.",
     },
     {
-      title: "Cancelling or rescheduling",
-      pending: "notice period and any fees",
+      title: "What we ask",
+      body: "The cleanings you do, where in Texas you work and up to 12 ZIP codes, when you're usually free, how you get to jobs, whether you bring supplies, the languages you speak, your experience, and an emergency contact.",
     },
     {
-      title: "If something isn't right",
-      pending: "how to report an issue and the re-clean policy",
+      title: "How you'd be paid",
+      body: "Choose Zelle, Cash App, Venmo or check. The questionnaire never asks for account numbers. A business name and EIN are optional.",
     },
     {
-      title: "Insurance and liability",
-      pending: "insurance cover, breakages and damage claims",
-    },
-    {
-      title: "Payment",
-      pending: "accepted payment methods, invoicing and when payment is due",
-    },
-    {
-      title: "Providers",
-      pending:
-        "how cleaning providers are vetted and the relationship between Cosmos and providers",
-    },
-    {
-      title: "Privacy",
-      pending: "how quote and contact details are stored and used",
+      title: "After your questionnaire",
+      body: "Verify your phone number to access the portal, agree to receive documents electronically, and sign the Cleaner Agreement. Job offers start only once our team has completed your review and your profile is active.",
     },
   ],
+
+  /** Texas areas, matching the application's choices. */
+  areas: [
+    "Austin",
+    "Dallas–Fort Worth",
+    "San Antonio",
+    "Houston",
+    "Elsewhere in Texas",
+  ],
+  areasTitle: "Where",
+
+  /** Documented decision (Raj, 2026-10-20); the scope is not yet written. */
+  insurance: "You don't need your own insurance to apply.",
+  insurancePending:
+    "what Cosmos's company insurance covers for independent cleaners",
+
+  /** Not decided or not live yet: shown as placeholders, never guessed. */
+  pending: [
+    "pay rates and earnings",
+    "how long a review takes",
+    "background checks (not live yet)",
+    "how much work to expect",
+    "payout timing and process",
+  ],
+  pendingTitle: "Still to confirm",
+
+  /** Plain statement of the relationship; the agreement holds the terms. */
+  independent:
+    "You'd work with Cosmos as an independent cleaner, not an employee; the Cleaner Agreement sets out how we work together. Applying doesn't guarantee approval or work.",
+
+  /** The home page's short version of this section. */
+  teaser: {
+    title: "Clean with Cosmos.",
+    body: "Independent cleaners across Texas: learn about working with Cosmos and our staff-led onboarding process.",
+    more: "What to expect",
+  },
 } as const;
 
 export const contactPage = {
   title: "Talk to us",
   lede: "Questions before you book, a larger project, or something the quote doesn't cover. We're happy to help.",
+  /** Two separate paths: clients asking for a cleaning, cleaners applying. */
+  actions: {
+    title: "How can we help?",
+    clients: {
+      title: "Request a cleaning",
+      body: "Tell us about your space and timing, and we'll reply with a personal quote. A request is not a booking until we confirm it.",
+      label: "Get a quote",
+    },
+    cleaners: {
+      title: "Clean with Cosmos",
+      body: "For independent cleaners in Texas. Learn about the opportunity and onboarding with our team or through a private invitation.",
+    },
+  },
 } as const;

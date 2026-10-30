@@ -15,7 +15,7 @@ export const homeQuote: QuoteAnswers = {
   notes: "Gate code at the side door.",
   name: "Alex Rivera",
   email: "alex@example.com",
-  phone: "",
+  phone: "512-555-0100",
 };
 
 /** A complete workplace request. */

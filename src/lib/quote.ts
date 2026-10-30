@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { preferredDateError } from "@/lib/quote-date";
 
 /**
  * The guided quote: questions, answer options, which questions apply to which
@@ -202,7 +203,6 @@ export function stepsFor(a: QuoteAnswers): StepId[] {
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const ZIP_RE = /^\d{5}$/;
-const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 
 const has = (options: Option[] | string[], value?: string) =>
   !!value &&
@@ -242,10 +242,7 @@ export function stepError(step: StepId, a: QuoteAnswers): string | null {
       return a.zip && ZIP_RE.test(a.zip) ? null : "Enter a 5-digit ZIP code.";
     case "timing":
       if (!has(TIMINGS, a.timing)) return "Choose when you'd like us to start.";
-      if (a.timing === "date" && !(a.date && DATE_RE.test(a.date))) {
-        return "Choose a date.";
-      }
-      return null;
+      return a.timing === "date" ? preferredDateError(a.date) : null;
     case "details":
       if (!a.extras.every((x) => has(extraOptions(a), x)))
         return "Choose from the listed options.";
@@ -256,6 +253,7 @@ export function stepError(step: StepId, a: QuoteAnswers): string | null {
       if (!a.name.trim()) return "Please enter your name.";
       if (a.name.length > 100) return "Keep your name under 100 characters.";
       if (!EMAIL_RE.test(a.email.trim())) return "Enter a valid email address.";
+      if (!a.phone.trim()) return "Enter your phone number.";
       if (a.phone.length > 30) return "Enter a shorter phone number.";
       return null;
     case "review":

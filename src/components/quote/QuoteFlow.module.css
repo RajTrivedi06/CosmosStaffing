@@ -1,0 +1,84 @@
+/* Questionnaire-only sizing. Shared marketing styles remain untouched. */
+.shell {
+  min-height: 100dvh;
+  overflow-wrap: anywhere;
+}
+
+.shell :global(.quote-card) {
+  min-width: 0;
+  margin-top: clamp(16px, 3dvh, 32px);
+}
+
+.shell :global(.quote-card form) {
+  grid-template-rows: auto 1fr;
+}
+
+.shell :global(.quote-actions) {
+  align-items: center;
+  flex-wrap: wrap;
+  /* Normal flow: never cover fields when the mobile keyboard opens. */
+  position: static;
+}
+
+.shell :global(.quote-actions .btn) {
+  min-width: 88px;
+  max-width: 100%;
+  white-space: normal;
+}
+
+.shell :global(.quote-input) {
+  min-width: 0;
+  max-width: 100%;
+  font-size: max(1rem, 16px);
+  scroll-margin-block: 24px;
+}
+
+.shell :global(.quote-edit) {
+  min-height: 44px;
+}
+
+.dateShortcuts {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.dateShortcuts button {
+  min-height: 44px;
+  padding: 10px 14px;
+  font-size: 0.9rem;
+}
+
+.dateShortcuts [aria-pressed="true"] {
+  outline: 2px solid var(--ink);
+  outline-offset: 2px;
+}
+
+.shell[data-keyboard-nav] :global(.quote-progress span) {
+  transition: none;
+}
+
+@media (max-width: 600px), (max-height: 600px) {
+  .shell {
+    padding-top: max(12px, env(safe-area-inset-top, 0px));
+  }
+  .shell :global(.quote-card) {
+    padding: 20px;
+    border-radius: 22px;
+  }
+  .shell :global(.quote-card form) {
+    gap: 18px;
+  }
+  .shell :global(.quote-progress) {
+    margin-top: 16px;
+  }
+  .shell :global(.quote-foot) {
+    margin-top: 20px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .shell :global(.quote-progress span) {
+    transition: none;
+  }
+}

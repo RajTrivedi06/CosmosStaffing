@@ -1,4 +1,5 @@
 import { SERVICE_OPTIONS, summarize, type QuoteAnswers } from "@/lib/quote";
+import { quoteIntakeMode } from "@/lib/quote-intake";
 
 /**
  * Where quote requests go: stored in Supabase, then emailed to the team.
@@ -10,8 +11,9 @@ import { SERVICE_OPTIONS, summarize, type QuoteAnswers } from "@/lib/quote";
  *   QUOTE_TO_EMAIL        inbox that receives quote requests
  *   QUOTE_FROM_EMAIL      sender on a domain verified in Resend
  *
- * A request counts as delivered if it was stored or emailed. With neither
- * configured, nothing is delivered and the quote screen says so honestly.
+ * Success requires confirmed persistence. Email is only a notification
+ * after storage. Studio mode stays unavailable until its contract arrives;
+ * it must never fall back to this legacy inbox or write to both systems.
  */
 export type DeliveryOutcome = "sent" | "not_configured" | "failed";
 type Step = "ok" | "failed" | "not_configured";
@@ -20,18 +22,25 @@ export async function deliverQuote(
   answers: QuoteAnswers,
   requestId: string,
 ): Promise<{ outcome: DeliveryOutcome; stored: Step; emailed: Step }> {
+  if (quoteIntakeMode() !== "legacy") {
+    return {
+      outcome: "not_configured",
+      stored: "not_configured",
+      emailed: "not_configured",
+    };
+  }
   const row = await storeQuote(answers, requestId);
-  const emailed = await emailQuote(answers, requestId);
   const stored = row.step;
+  if (stored !== "ok") {
+    return {
+      outcome: stored === "not_configured" ? "not_configured" : "failed",
+      stored,
+      emailed: "not_configured",
+    };
+  }
+  const emailed = await emailQuote(answers, requestId);
   if (row.id) await setEmailStatus(row.id, emailed);
-
-  const outcome: DeliveryOutcome =
-    stored === "ok" || emailed === "ok"
-      ? "sent"
-      : stored === "not_configured" && emailed === "not_configured"
-        ? "not_configured"
-        : "failed";
-  return { outcome, stored, emailed };
+  return { outcome: "sent", stored, emailed };
 }
 
 function supabase() {
@@ -67,8 +76,12 @@ async function storeQuote(
       signal: AbortSignal.timeout(10_000),
     });
     if (!res.ok) return { step: "failed" };
-    const [created] = (await res.json()) as { id: string }[];
-    return { step: "ok", id: created?.id };
+    const rows: unknown = await res.json();
+    const created = Array.isArray(rows) && rows.length === 1 ? rows[0] : null;
+    if (!created || typeof created.id !== "string" || !created.id.trim()) {
+      return { step: "failed" };
+    }
+    return { step: "ok", id: created.id };
   } catch {
     return { step: "failed" };
   }

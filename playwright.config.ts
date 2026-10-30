@@ -1,21 +1,16 @@
 import { defineConfig, devices } from "@playwright/test";
 
 const PORT = 3200;
+const STUDIO_STUB_PORT = 3299;
+const STUDIO_STUB_ORIGIN = `http://127.0.0.1:${STUDIO_STUB_PORT}`;
 
-/**
- * Browser tests against a production build: `npm run test:e2e` builds first.
- * Quote delivery is not configured for the test server, so the quote tests
- * check the honest "not connected" message and stub /api/quote for success.
- */
+/** Synthetic Studio only; no real delivery credentials enter these test servers. */
 export default defineConfig({
   testDir: "tests/e2e",
   fullyParallel: true,
   retries: process.env.CI ? 1 : 0,
   reporter: process.env.CI ? "github" : "list",
-  use: {
-    baseURL: `http://localhost:${PORT}`,
-    trace: "retain-on-failure",
-  },
+  use: { baseURL: `http://localhost:${PORT}`, trace: "retain-on-failure" },
   projects: [
     {
       name: "desktop",
@@ -31,17 +26,30 @@ export default defineConfig({
       testMatch: /(quote|\.mobile)\.spec\.ts$/,
     },
   ],
-  webServer: {
-    command: `npm run start -- -p ${PORT}`,
-    url: `http://localhost:${PORT}`,
-    reuseExistingServer: !process.env.CI,
-    // Keep any real delivery credentials out of the test server.
-    env: {
-      SUPABASE_URL: "",
-      SUPABASE_SECRET_KEY: "",
-      RESEND_API_KEY: "",
-      QUOTE_TO_EMAIL: "",
-      QUOTE_FROM_EMAIL: "",
+  webServer: [
+    {
+      command: "node tests/e2e/studio-stub.mjs",
+      url: `${STUDIO_STUB_ORIGIN}/health`,
+      reuseExistingServer: !process.env.CI,
+      env: { STUDIO_STUB_PORT: String(STUDIO_STUB_PORT) },
     },
-  },
+    {
+      command: `npm run start -- -p ${PORT}`,
+      url: `http://localhost:${PORT}`,
+      reuseExistingServer: !process.env.CI,
+      env: {
+        NEXT_DIST_DIR: ".next-test",
+        STUDIO_ORIGIN: STUDIO_STUB_ORIGIN,
+        QUOTE_DELIVERY_MODE: process.env.E2E_QUOTE_MODE || "legacy",
+        QUOTE_STUDIO_TEST_ENABLED: "false",
+        STUDIO_INTAKE_URL: "",
+        WEBSITE_INTAKE_SECRET: "",
+        SUPABASE_URL: "",
+        SUPABASE_SECRET_KEY: "",
+        RESEND_API_KEY: "",
+        QUOTE_TO_EMAIL: "",
+        QUOTE_FROM_EMAIL: "",
+      },
+    },
+  ],
 });

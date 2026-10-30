@@ -15,7 +15,7 @@
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "test": "vitest run",
-    "test:e2e": "next build && playwright test"
+    "test:e2e": "NEXT_DIST_DIR=.next-test STUDIO_ORIGIN=http://127.0.0.1:3299 next build && playwright test"
   },
   "dependencies": {
     "gsap": "^3.15.0",

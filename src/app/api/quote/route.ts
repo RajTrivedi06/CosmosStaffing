@@ -1,81 +1,103 @@
+import { z } from "zod";
 import { quoteSchema } from "@/lib/quote";
 import { deliverQuote } from "@/lib/quote-delivery";
+import { quoteIntakeMode } from "@/lib/quote-intake";
+import { attemptSchema } from "@/lib/quote-attempt";
+import {
+  deliverStudioQuote,
+  studioTestConfiguration,
+} from "@/lib/studio-intake";
+import { quoteRateLimit, readQuoteBody } from "@/lib/quote-request-guard";
 
-/** Largest request body accepted, in bytes. A full quote is about 2 KB. */
-const MAX_BODY = 16_000;
-/** Requests allowed per IP address in each window. */
-const RATE_LIMIT = 5;
-const RATE_WINDOW_MS = 10 * 60 * 1000;
-
-// In-memory, so it only limits within one server instance. Put a shared store
-// (or the host's rate limiting) in front of this before high-traffic launch.
-const recent = new Map<string, number[]>();
-
-function rateLimited(ip: string) {
-  const now = Date.now();
-  const hits = (recent.get(ip) ?? []).filter((t) => now - t < RATE_WINDOW_MS);
-  hits.push(now);
-  recent.set(ip, hits);
-  return hits.length > RATE_LIMIT;
-}
-
-const json = (body: object, status: number) => Response.json(body, { status });
+const json = (
+  body: object,
+  status: number,
+  headers: Record<string, string> = {},
+) =>
+  Response.json(body, {
+    status,
+    headers: {
+      "Cache-Control": "no-store",
+      "CDN-Cache-Control": "no-store",
+      "Vercel-CDN-Cache-Control": "no-store",
+      "Referrer-Policy": "no-referrer",
+      "X-Robots-Tag": "noindex, nofollow, noarchive",
+      ...headers,
+    },
+  });
+const facadeSchema = attemptSchema.extend({
+  website: z.string().max(200).optional(),
+});
+const legacySchema = quoteSchema
+  .safeExtend({ website: z.string().max(200).optional() })
+  .strict();
 
 /**
- * POST /api/quote: receives a request from the quote screen, re-validates
- * every answer on the server, then stores it and emails it to the team (see
- * quote-delivery). Success is only reported once it was stored or emailed. Customer details
- * are never logged; logs carry a request id and the outcome.
+ * The browser's Origin must name the host it sent the request to. Next can
+ * normalise request.url's host (127.0.0.1 reads as localhost), so the Host
+ * header the browser sent is checked too.
  */
-export async function POST(request: Request): Promise<Response> {
-  const id = crypto.randomUUID().slice(0, 8);
-  const log = (outcome: string) => console.info(`[quote ${id}] ${outcome}`);
+function sameOrigin(origin: string, request: Request) {
+  const url = new URL(request.url);
+  const host = request.headers.get("host");
+  return (
+    origin === url.origin || (!!host && origin === `${url.protocol}//${host}`)
+  );
+}
 
-  const raw = await request.text();
-  if (raw.length > MAX_BODY) {
-    log("rejected: body too large");
-    return json({ ok: false, code: "too_large" }, 413);
-  }
+/** Browser facade. Exactly one destination, committed acknowledgments only. */
+export async function POST(request: Request): Promise<Response> {
+  const legacy = quoteIntakeMode() === "legacy";
+  if (!legacy && !studioTestConfiguration())
+    return json({ ok: false, code: "studio_pending" }, 503);
+
+  const retryAfter = quoteRateLimit(request);
+  if (retryAfter)
+    return json({ ok: false, code: "rate_limited" }, 429, {
+      "Retry-After": String(retryAfter),
+    });
+  // JSON + same-origin checks deter cross-site browser submissions, not direct bots.
+  if (request.headers.get("sec-fetch-site") === "cross-site")
+    return json({ ok: false, code: "invalid_origin" }, 403);
+  const origin = request.headers.get("origin");
+  if (origin && !sameOrigin(origin, request))
+    return json({ ok: false, code: "invalid_origin" }, 403);
+  if (
+    request.headers
+      .get("content-type")
+      ?.split(";", 1)[0]
+      .trim()
+      .toLowerCase() !== "application/json"
+  )
+    return json({ ok: false, code: "unsupported_media_type" }, 415);
 
   let payload: unknown;
   try {
+    const raw = await readQuoteBody(request);
+    if (raw === null) return json({ ok: false, code: "too_large" }, 413);
     payload = JSON.parse(raw);
   } catch {
-    log("rejected: invalid json");
     return json({ ok: false, code: "invalid" }, 400);
   }
-
-  // Honeypot: a field people never see. Bots that fill it get a quiet 200.
-  if (
-    typeof payload === "object" &&
-    payload !== null &&
-    "website" in payload &&
-    (payload as { website: unknown }).website
-  ) {
-    log("dropped: honeypot");
-    return json({ ok: true }, 200);
-  }
-
-  const ip =
-    request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ||
-    request.headers.get("x-real-ip") ||
-    "unknown";
-  if (rateLimited(ip)) {
-    log("rejected: rate limited");
-    return json({ ok: false, code: "rate_limited" }, 429);
-  }
-
-  const result = quoteSchema.safeParse(payload);
-  if (!result.success) {
-    log("rejected: validation");
+  const parsed = facadeSchema.safeParse(payload);
+  // Compatibility for legacy tabs already open at rollout. Studio requires a UUID.
+  const old =
+    legacy && !parsed.success ? legacySchema.safeParse(payload) : null;
+  if (!parsed.success && !old?.success)
     return json({ ok: false, code: "invalid" }, 422);
+  const data = parsed.success ? parsed.data : old!.data!;
+  if (data.website) return json({ ok: false, code: "invalid" }, 422);
+  if (!legacy && parsed.success) {
+    const result = await deliverStudioQuote(parsed.data);
+    return json(result.body, result.status);
   }
-
-  const { outcome, stored, emailed } = await deliverQuote(result.data, id);
-  log(`${outcome} (stored: ${stored}, emailed: ${emailed})`);
+  const answers = parsed.success
+    ? parsed.data.answers
+    : quoteSchema.parse(old!.data);
+  const id = parsed.success ? parsed.data.submission_id : crypto.randomUUID();
+  const { outcome } = await deliverQuote(answers, id);
   if (outcome === "sent") return json({ ok: true, id }, 200);
-  if (outcome === "not_configured") {
-    return json({ ok: false, code: "not_configured" }, 503);
-  }
-  return json({ ok: false, code: "delivery_failed" }, 502);
+  return outcome === "not_configured"
+    ? json({ ok: false, code: "not_configured" }, 503)
+    : json({ ok: false, code: "delivery_failed" }, 502);
 }

@@ -1,4 +1,5 @@
 import { expect, test, type Page } from "@playwright/test";
+import { homeQuote } from "../unit/fixtures";
 
 const heading = (page: Page, name: string) =>
   expect(page.getByRole("heading", { level: 1, name })).toBeVisible();
@@ -68,6 +69,7 @@ async function answerHomeQuote(page: Page) {
     "Enter a valid email address.",
   );
   await page.getByLabel("Email").fill("alex@example.com");
+  await page.getByLabel("Phone", { exact: true }).fill("512-555-0100");
   await next(page);
 
   await heading(page, "Check your answers");
@@ -115,9 +117,7 @@ test("thanks the visitor only once the request is delivered", async ({
     page.getByRole("heading", { name: "Thank you. Your request is in." }),
   ).toBeFocused();
   expect(body).toMatchObject({
-    service: "regular",
-    zip: "78701",
-    email: "alex@example.com",
+    answers: { service: "regular", zip: "78701", email: "alex@example.com" },
   });
 });
 
@@ -152,4 +152,124 @@ test("a quote in progress can be shared without personal details", async ({
   await heading(theirs, "How does it look today?");
   await expect(theirs.getByRole("radio", { name: /^Well kept/ })).toBeChecked();
   await other.close();
+});
+
+/** A completed synthetic draft; no customer data or external backend. */
+async function restoreReview(page: Page) {
+  await page.goto("/quote");
+  // Let hydration finish its initial save before replacing it with this fixture.
+  await expect
+    .poll(() =>
+      page.evaluate(() => sessionStorage.getItem("cosmos-quote-draft")),
+    )
+    .not.toBeNull();
+  await page.evaluate((answers) => {
+    sessionStorage.setItem(
+      "cosmos-quote-draft",
+      JSON.stringify({ answers, step: "review" }),
+    );
+  }, homeQuote);
+  await page.reload();
+  await heading(page, "Check your answers");
+}
+
+test("unconfirmed persistence preserves answers and allows retry", async ({
+  page,
+}) => {
+  let attempts = 0;
+  await page.route("**/api/quote", async (route) => {
+    attempts += 1;
+    // A successful HTTP status alone is not a persistence acknowledgement.
+    await route.fulfill({
+      json: attempts === 1 ? { ok: false } : { ok: true, id: "saved-fixture" },
+    });
+  });
+  await restoreReview(page);
+  await page.getByRole("button", { name: "Send my request" }).click();
+  await expect(page.locator(".quote-card").getByRole("alert")).toContainText(
+    "couldn't confirm",
+  );
+  await expect(page.locator(".quote-review")).toContainText("alex@example.com");
+  await expect(
+    page.getByRole("heading", { name: "Thank you. Your request is in." }),
+  ).toHaveCount(0);
+  await page.getByRole("button", { name: "Try again" }).click();
+  await heading(page, "Thank you. Your request is in.");
+  expect(
+    await page.evaluate(() => sessionStorage.getItem("cosmos-quote-draft")),
+  ).toBeNull();
+});
+
+test("network failure and same-tab navigation preserve the complete draft", async ({
+  page,
+}) => {
+  await page.route("**/api/quote", (route) => route.abort("failed"));
+  await restoreReview(page);
+  await page.getByRole("button", { name: "Send my request" }).click();
+  await expect(page.getByRole("button", { name: "Try again" })).toBeVisible();
+  const before = await page.evaluate(() =>
+    sessionStorage.getItem("cosmos-quote-draft"),
+  );
+  // This proves same-tab draft continuity, not an authentication flow.
+  await page.goto("/contact");
+  await page.goto("/quote");
+  await heading(page, "Check your answers");
+  expect(
+    await page.evaluate(() => sessionStorage.getItem("cosmos-quote-draft")),
+  ).toBe(before);
+  expect(page.url()).not.toContain("alex");
+});
+
+test("a cutover while the questionnaire is open cannot silently use legacy delivery", async ({
+  page,
+}) => {
+  await page.route("**/api/quote", (route) =>
+    route.fulfill({ status: 503, json: { ok: false, code: "studio_pending" } }),
+  );
+  await restoreReview(page);
+  await page.getByRole("button", { name: "Send my request" }).click();
+  await expect(
+    page.getByRole("heading", { name: "Sign in before sending" }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("button", { name: "Client sign-in unavailable" }),
+  ).toBeDisabled();
+  await expect(
+    page.locator('a[href="/login"], a[href="/me/login"]'),
+  ).toHaveCount(0);
+  await expect(page.locator(".quote-review")).toContainText("alex@example.com");
+  await expect(
+    page.getByText(/Your earlier attempt is retained/),
+  ).toBeVisible();
+});
+
+test("Studio pending mode places client sign-in after answers and blocks submission", async ({
+  page,
+  request,
+}, testInfo) => {
+  test.skip(
+    process.env.E2E_QUOTE_MODE !== "studio",
+    "Run with E2E_QUOTE_MODE=studio against the isolated test server.",
+  );
+  let submissions = 0;
+  page.on("request", (req) => {
+    if (req.url().endsWith("/api/quote")) submissions += 1;
+  });
+  await restoreReview(page);
+  await expect(
+    page.getByRole("heading", { name: "Sign in before sending" }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("button", { name: "Client sign-in unavailable" }),
+  ).toBeDisabled();
+  await page.reload();
+  await expect(page.locator(".quote-review")).toContainText("alex@example.com");
+  expect(submissions).toBe(0);
+  const res = await request.post("/api/quote", { data: {} });
+  expect(res.status()).toBe(503);
+  expect(await res.json()).toEqual({ ok: false, code: "studio_pending" });
+  await page.screenshot({
+    path: testInfo.outputPath("client-sign-in.png"),
+    fullPage: true,
+  });
 });

@@ -1,8 +1,9 @@
 import type { Metadata } from "next";
 import { pageMetadata } from "@/lib/metadata";
 import Link from "next/link";
-import { contactPage, coverage, siteConfig } from "@/lib/site";
+import { cleaners, contactPage, coverage, siteConfig } from "@/lib/site";
 import { Placeholder } from "@/components/ui/Placeholder";
+import { CleanerSignIn } from "@/components/cleaners/ApplyAction";
 
 export const metadata: Metadata = pageMetadata({
   title: "Contact us",
@@ -11,6 +12,7 @@ export const metadata: Metadata = pageMetadata({
 });
 
 export default function ContactPage() {
+  const { actions } = contactPage;
   return (
     <main id="main" className="page">
       <header className="page-hero pad">
@@ -39,12 +41,35 @@ export default function ContactPage() {
           </div>
         </dl>
         <p className="lede">{coverage.summary}</p>
-        <div className="cta-row">
-          <Link className="btn btn-primary" href={siteConfig.primaryCta.href}>
-            {siteConfig.primaryCta.label}
-          </Link>
-        </div>
       </div>
+      <section className="contact-actions pad" aria-labelledby="actions-h">
+        <h2 id="actions-h">{actions.title}</h2>
+        <div className="contact-paths">
+          <div className="contact-path">
+            <h3>{actions.clients.title}</h3>
+            <p>{actions.clients.body}</p>
+            <Link className="btn btn-primary" href={siteConfig.primaryCta.href}>
+              {actions.clients.label}
+            </Link>
+          </div>
+          <div className="contact-path">
+            <h3>{actions.cleaners.title}</h3>
+            <p>{actions.cleaners.body}</p>
+            {/* While the Studio's application is not open, this leads to the
+                recruitment page, which says so; once it is, straight in. */}
+            {cleaners.apply.available ? (
+              <a className="btn btn-primary" href={cleaners.apply.href}>
+                {cleaners.apply.label}
+              </a>
+            ) : (
+              <Link className="btn btn-primary" href={`${cleaners.path}#apply`}>
+                {cleaners.apply.label}
+              </Link>
+            )}
+            <CleanerSignIn />
+          </div>
+        </div>
+      </section>
     </main>
   );
 }

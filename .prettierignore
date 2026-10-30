@@ -1,5 +1,6 @@
 node_modules
 .next
+.next-test
 out
 build
 coverage
@@ -15,3 +16,5 @@ codex_design
 
 # Reference tutorials, not part of the app.
 tutorial-*.html
+# Next rewrites this on every build.
+tsconfig.json

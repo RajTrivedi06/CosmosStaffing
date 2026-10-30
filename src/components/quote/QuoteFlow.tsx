@@ -4,6 +4,23 @@ import { useEffect, useId, useRef, useState } from "react";
 import Link from "next/link";
 import { AnimatePresence, motion, useReducedMotion } from "motion/react";
 import { coverage, siteConfig } from "@/lib/site";
+import type { QuoteIntakeMode } from "@/lib/quote-intake";
+import {
+  DRAFT_KEY,
+  readQuoteDraft,
+  updateQuoteAnswers,
+  type QuoteDraft,
+} from "@/lib/quote-draft";
+import {
+  ATTEMPT_KEY,
+  createQuoteAttempt,
+  readQuoteAttempt,
+  confirmedQuote,
+  type QuoteAttempt,
+} from "@/lib/quote-attempt";
+import { localCalendarDate, preferredDateError } from "@/lib/quote-date";
+import { PreferredDate } from "./PreferredDate";
+import styles from "./QuoteFlow.module.css";
 import {
   EMPTY_ANSWERS,
   SERVICE_OPTIONS,
@@ -25,27 +42,34 @@ import {
   type StepId,
 } from "@/lib/quote";
 
-const DRAFT_KEY = "cosmos-quote-draft";
 const EASE = [0.32, 0.72, 0, 1] as const;
 
-type Status = "idle" | "sending" | "sent" | "unavailable" | "error";
+type Status =
+  | "idle"
+  | "sending"
+  | "sent"
+  | "unavailable"
+  | "error"
+  | "studio_pending"
+  | "conflict"
+  | "rate_limited"
+  | "invalid";
 
-type Draft = { answers: QuoteAnswers; step: StepId };
-
-function loadDraft(): Draft | null {
+function loadDraft(): QuoteDraft | null {
   try {
-    const raw = sessionStorage.getItem(DRAFT_KEY);
-    return raw ? (JSON.parse(raw) as Draft) : null;
+    return readQuoteDraft(sessionStorage.getItem(DRAFT_KEY));
   } catch {
     return null;
   }
 }
-function saveDraft(draft: Draft | null) {
+function saveDraft(draft: QuoteDraft | null): boolean {
   try {
     if (draft) sessionStorage.setItem(DRAFT_KEY, JSON.stringify(draft));
     else sessionStorage.removeItem(DRAFT_KEY);
+    return true;
   } catch {
     // Private mode or blocked storage: the flow still works, just unsaved.
+    return false;
   }
 }
 
@@ -58,7 +82,7 @@ function saveDraft(draft: Draft | null) {
  * bookmarked. Nothing claims success until /api/quote confirms the request
  * was delivered.
  */
-export function QuoteFlow() {
+export function QuoteFlow({ intakeMode }: { intakeMode: QuoteIntakeMode }) {
   const reduce = useReducedMotion();
   const [answers, setAnswers] = useState<QuoteAnswers>(EMPTY_ANSWERS);
   const [step, setStep] = useState<StepId>("service");
@@ -66,15 +90,30 @@ export function QuoteFlow() {
   const [error, setError] = useState<string | null>(null);
   const [status, setStatus] = useState<Status>("idle");
   const [ready, setReady] = useState(false);
+  const [draftStored, setDraftStored] = useState(true);
+  const [keyboardNavigation, setKeyboardNavigation] = useState(false);
+  const [transitioning, setTransitioning] = useState(false);
+  const transitioningRef = useRef(false);
+  const shellRef = useRef<HTMLDivElement>(null);
   const headingRef = useRef<HTMLHeadingElement>(null);
   const honeypotRef = useRef<HTMLInputElement>(null);
-  const firstRender = useRef(true);
+  const sendingRef = useRef(false);
+  const attemptRef = useRef<QuoteAttempt | null>(null);
+  const [hasAttempt, setHasAttempt] = useState(false);
+  const [attemptRecoveryFailed, setAttemptRecoveryFailed] = useState(false);
 
   // Restore this tab's draft. Answers in the link (a shared quote, or a
   // service chosen on the site) win over the draft, and the flow opens on
   // the first question they leave open.
   useEffect(() => {
     const draft = loadDraft();
+    let storedAttempt: string | null = null;
+    try {
+      storedAttempt = sessionStorage.getItem(ATTEMPT_KEY);
+    } catch {
+      /* handled before send */
+    }
+    const attempt = readQuoteAttempt(storedAttempt);
     const linked = answersFromParams(
       new URLSearchParams(window.location.search),
     );
@@ -84,8 +123,14 @@ export function QuoteFlow() {
         String(value) !== String(base[key as keyof QuoteAnswers]),
     );
     /* eslint-disable react-hooks/set-state-in-effect -- one-time restore from the URL and sessionStorage, which the server cannot read */
-    if (differs) {
-      const merged = { ...base, ...linked };
+    if (storedAttempt && !attempt) setAttemptRecoveryFailed(true);
+    if (attempt) {
+      attemptRef.current = attempt;
+      setHasAttempt(true);
+      setAnswers(attempt.answers);
+      setStep("review");
+    } else if (differs) {
+      const merged = updateQuoteAnswers(base, linked);
       setAnswers(merged);
       setStep(firstOpenStep(merged));
     } else if (draft) {
@@ -98,7 +143,10 @@ export function QuoteFlow() {
 
   useEffect(() => {
     if (!ready || status === "sent") return;
-    saveDraft({ answers, step });
+    const saved = saveDraft({ answers, step });
+    // Storage availability is external browser state, not derived React state.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setDraftStored(saved);
     const query = answersToParams(answers).toString();
     if (query === window.location.search.slice(1)) return;
     history.replaceState(
@@ -108,35 +156,83 @@ export function QuoteFlow() {
     );
   }, [answers, step, ready, status]);
 
-  // Each new question takes focus, so screen readers announce it.
+  // Keep an edited field in the visible area after a mobile keyboard resizes
+  // it. Never lock the page, reposition controls over inputs, or disable zoom.
   useEffect(() => {
-    if (firstRender.current) {
-      firstRender.current = false;
-      return;
-    }
-    headingRef.current?.focus({ preventScroll: true });
-  }, [step, status]);
+    let frame = 0;
+    const viewport = window.visualViewport;
+    const reveal = () => {
+      cancelAnimationFrame(frame);
+      frame = requestAnimationFrame(() => {
+        const active = document.activeElement;
+        if (
+          !shellRef.current?.contains(active) ||
+          !(
+            active instanceof HTMLInputElement ||
+            active instanceof HTMLTextAreaElement
+          )
+        )
+          return;
+        const bounds = active.getBoundingClientRect();
+        const top = viewport?.offsetTop ?? 0;
+        const bottom = top + (viewport?.height ?? window.innerHeight);
+        if (bounds.bottom > bottom - 16 || bounds.top < top + 16) {
+          active.scrollIntoView({ block: "center", behavior: "instant" });
+        }
+      });
+    };
+    viewport?.addEventListener("resize", reveal);
+    return () => {
+      cancelAnimationFrame(frame);
+      viewport?.removeEventListener("resize", reveal);
+    };
+  }, []);
+
+  useEffect(() => {
+    if (status === "sent") headingRef.current?.focus({ preventScroll: true });
+  }, [status]);
 
   const steps = stepsFor(answers);
   const index = Math.max(0, steps.indexOf(step));
   const isReview = step === "review";
-
+  const awaitingStudio =
+    intakeMode === "studio_pending" || status === "studio_pending";
   const update = (patch: Partial<QuoteAnswers>) => {
-    setAnswers((a) => ({ ...a, ...patch }));
+    if (attemptRef.current) return;
+    setAnswers((a) => updateQuoteAnswers(a, patch));
     setError(null);
     if (status === "unavailable" || status === "error") setStatus("idle");
   };
 
   const go = (to: StepId, direction: number) => {
+    if (sendingRef.current || transitioningRef.current || attemptRef.current)
+      return;
+    if (to === step) return;
+    transitioningRef.current = true;
+    setTransitioning(true);
     setDir(direction);
     setError(null);
     setStep(to);
-    window.scrollTo({ top: 0 });
+    if (document.activeElement instanceof HTMLElement)
+      document.activeElement.blur();
+    window.scrollTo({ top: 0, behavior: "instant" });
+  };
+
+  const validate = (candidate: StepId) =>
+    stepError(candidate, answers) ||
+    (candidate === "timing" && answers.timing === "date"
+      ? preferredDateError(answers.date, localCalendarDate())
+      : null);
+
+  const stepReady = () => {
+    transitioningRef.current = false;
+    setTransitioning(false);
   };
 
   const next = async () => {
+    if (transitioningRef.current) return;
     if (isReview) return send();
-    const problem = stepError(step, answers);
+    const problem = validate(step);
     if (problem) {
       setError(problem);
       return;
@@ -149,33 +245,104 @@ export function QuoteFlow() {
   };
 
   const send = async () => {
+    if (sendingRef.current || awaitingStudio || attemptRecoveryFailed) return;
     // Re-check every applicable question before sending.
-    const firstBad = steps.find((s) => stepError(s, answers));
+    const firstBad = attemptRef.current
+      ? undefined
+      : steps.find((s) => validate(s));
     if (firstBad) {
       go(firstBad, -1);
-      setError(stepError(firstBad, answers));
+      setError(validate(firstBad));
       return;
     }
+    // Persist before transport: a reload must never mint a replacement UUID.
+    const attempt = attemptRef.current ?? createQuoteAttempt(answers);
+    try {
+      sessionStorage.setItem(ATTEMPT_KEY, JSON.stringify(attempt));
+    } catch {
+      setDraftStored(false);
+      setError(
+        "Your browser could not retain this submission for a safe retry. Enable storage or contact us before sending.",
+      );
+      return;
+    }
+    attemptRef.current = attempt;
+    setHasAttempt(true);
+    sendingRef.current = true;
+    saveDraft({ answers, step: "review" });
     setStatus("sending");
     try {
       const res = await fetch("/api/quote", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          ...answers,
+          ...attempt,
           website: honeypotRef.current?.value || undefined,
         }),
+        signal: AbortSignal.timeout(30_000),
       });
-      if (res.ok) {
+      const body = (await res.json().catch(() => null)) as {
+        ok?: boolean;
+        id?: string;
+        code?: string;
+      } | null;
+      if (confirmedQuote(res.status, body)) {
         setStatus("sent");
         saveDraft(null);
+        try {
+          sessionStorage.removeItem(ATTEMPT_KEY);
+        } catch {
+          /* retained, never silently resubmit */
+        }
+        attemptRef.current = null;
         return;
       }
-      const body = (await res.json().catch(() => ({}))) as { code?: string };
-      setStatus(body.code === "not_configured" ? "unavailable" : "error");
+      setStatus(
+        body?.code === "studio_pending"
+          ? "studio_pending"
+          : body?.code === "idempotency_conflict"
+            ? "conflict"
+            : res.status === 429
+              ? "rate_limited"
+              : [400, 413, 415, 422].includes(res.status)
+                ? "invalid"
+                : body?.code === "not_configured"
+                  ? "unavailable"
+                  : "error",
+      );
     } catch {
       setStatus("error");
+    } finally {
+      sendingRef.current = false;
     }
+  };
+
+  const startSeparateRequest = () => {
+    if (sendingRef.current || !attemptRef.current) return;
+    if (
+      !window.confirm(
+        "Your previous request may already be saved. A separate request can create another inquiry. Contact us if you only need to change or resolve the previous request. Start a genuinely separate request?",
+      )
+    )
+      return;
+    try {
+      const attempt = attemptRef.current;
+      sessionStorage.setItem(
+        `${ATTEMPT_KEY}-archive-${attempt.submission_id}`,
+        JSON.stringify(attempt),
+      );
+      sessionStorage.removeItem(ATTEMPT_KEY);
+    } catch {
+      setError(
+        "Keep this tab open and contact us. The original attempt could not be retained safely.",
+      );
+      return;
+    }
+    attemptRef.current = null;
+    setHasAttempt(false);
+    setStatus("idle");
+    setError(null);
+    setStep("contact");
   };
 
   const motionProps = {
@@ -184,16 +351,29 @@ export function QuoteFlow() {
     animate: "center",
     exit: "exit",
     variants: {
-      enter: (d: number) => ({ opacity: 0, x: reduce ? 0 : d * 28 }),
+      enter: (d: number) => ({
+        opacity: 0,
+        x: reduce || keyboardNavigation ? 0 : d * 20,
+      }),
       center: { opacity: 1, x: 0 },
-      exit: (d: number) => ({ opacity: 0, x: reduce ? 0 : d * -28 }),
+      exit: (d: number) => ({
+        opacity: 0,
+        x: reduce || keyboardNavigation ? 0 : d * -20,
+      }),
     },
-    transition: { duration: reduce ? 0.12 : 0.32, ease: EASE },
+    transition: {
+      duration: reduce || keyboardNavigation ? 0 : 0.18,
+      ease: EASE,
+    },
   };
 
   if (status === "sent") {
     return (
-      <div className="quote-shell">
+      <div
+        className={`quote-shell ${styles.shell}`}
+        ref={shellRef}
+        data-lenis-prevent
+      >
         <QuoteTop />
         <main id="main" className="quote-card" aria-live="polite">
           <motion.div {...motionProps} key="sent" className="quote-step">
@@ -217,7 +397,12 @@ export function QuoteFlow() {
   }
 
   return (
-    <div className="quote-shell">
+    <div
+      className={`quote-shell ${styles.shell}`}
+      ref={shellRef}
+      data-lenis-prevent
+      data-keyboard-nav={keyboardNavigation || undefined}
+    >
       <QuoteTop />
       <div
         className="quote-progress"
@@ -229,6 +414,9 @@ export function QuoteFlow() {
       <main id="main" className="quote-card">
         <form
           noValidate
+          aria-busy={status === "sending" || undefined}
+          onKeyDown={() => setKeyboardNavigation(true)}
+          onPointerDown={() => setKeyboardNavigation(false)}
           onSubmit={(e) => {
             e.preventDefault();
             void next();
@@ -238,23 +426,27 @@ export function QuoteFlow() {
             Step {index + 1} of {steps.length}
           </p>
           <div className="quote-viewport">
-            <AnimatePresence mode="wait" custom={dir} initial={false}>
-              <motion.div
-                {...motionProps}
-                key={step}
-                className="quote-step"
-                style={{ visibility: ready ? "visible" : "hidden" }}
-              >
-                <Step
-                  step={step}
-                  answers={answers}
-                  update={update}
-                  error={error}
-                  headingRef={headingRef}
-                  onEdit={(to) => go(to, -1)}
-                />
-              </motion.div>
-            </AnimatePresence>
+            {ready ? (
+              <AnimatePresence mode="wait" custom={dir} initial={false}>
+                <motion.div {...motionProps} key={step} className="quote-step">
+                  <Step
+                    step={step}
+                    answers={answers}
+                    update={update}
+                    error={error}
+                    headingRef={headingRef}
+                    onEdit={(to) => go(to, -1)}
+                    locked={hasAttempt}
+                    ready={ready}
+                    onReady={stepReady}
+                  />
+                </motion.div>
+              </AnimatePresence>
+            ) : (
+              <p className="quote-note" role="status">
+                Loading questions…
+              </p>
+            )}
           </div>
 
           {/* Honeypot: hidden from people and assistive tech. */}
@@ -268,11 +460,82 @@ export function QuoteFlow() {
             aria-hidden="true"
           />
 
+          {!draftStored && (
+            <p className="quote-note" role="status">
+              Your browser can&apos;t save this draft. Your answers are still
+              here, but keep this tab open and avoid reloading until you finish.
+            </p>
+          )}
+
+          {isReview && error && (
+            <p className="quote-alert" role="alert">
+              {error}
+            </p>
+          )}
+          {isReview && (hasAttempt || attemptRecoveryFailed) && (
+            <div className="quote-alert" role="status">
+              {attemptRecoveryFailed ? (
+                <p>
+                  The saved submission could not be recovered safely. Please
+                  contact us before sending another request; your draft is still
+                  here.
+                </p>
+              ) : (
+                <>
+                  <p>
+                    These are the original submitted answers. Retrying uses the
+                    same request ID and answers. To change or resolve this
+                    request,{" "}
+                    <Link href={siteConfig.contactCta.href}>contact us</Link>.
+                  </p>
+                  <button
+                    type="button"
+                    className="btn btn-glass mt-3"
+                    disabled={status === "sending"}
+                    onClick={startSeparateRequest}
+                  >
+                    Start a separate request
+                  </button>
+                </>
+              )}
+            </div>
+          )}
+          {isReview &&
+            ["conflict", "rate_limited", "invalid"].includes(status) && (
+              <div className="quote-alert" role="alert">
+                {status === "conflict"
+                  ? "This request ID is already associated with different answers. We kept the original attempt. Contact us to resolve it; retrying will not create a new ID."
+                  : status === "rate_limited"
+                    ? "Too many attempts were made. Wait ten minutes before retrying the same request. Your answers are still here."
+                    : "The request could not be accepted. We kept its original answers and ID. Contact us to correct it before starting a separate request."}
+              </div>
+            )}
+          {isReview && awaitingStudio && (
+            <section
+              className="quote-alert border-line bg-paper"
+              aria-labelledby="client-sign-in-title"
+            >
+              <h2
+                id="client-sign-in-title"
+                className="mb-2 text-lg leading-snug font-semibold tracking-tight"
+              >
+                Sign in before sending
+              </h2>
+              <p>
+                Client sign-in and online submission aren&apos;t available yet.{" "}
+                {hasAttempt
+                  ? "Your earlier attempt is retained; contact us if its status is unclear. "
+                  : "Nothing has been sent. "}
+                You can keep reviewing your answers in this tab, or{" "}
+                <Link href={siteConfig.contactCta.href}>contact us</Link>.
+              </p>
+            </section>
+          )}
           {isReview && status === "unavailable" && (
             <div className="quote-alert" role="alert">
               <strong>We couldn&apos;t send this online yet.</strong> Online
               quote requests aren&apos;t connected, so nothing was sent. Your
-              answers are saved on this device. Please{" "}
+              answers are still here in this tab. Please{" "}
               <Link href={siteConfig.contactCta.href}>contact us</Link>{" "}
               directly.
             </div>
@@ -280,30 +543,44 @@ export function QuoteFlow() {
           {isReview && status === "error" && (
             <div className="quote-alert" role="alert">
               <strong>
-                Something went wrong and your request wasn&apos;t sent.
+                We couldn&apos;t confirm that your request was saved.
               </strong>{" "}
-              Your answers are saved. Please try again, or{" "}
-              <Link href={siteConfig.contactCta.href}>contact us</Link>.
+              Your answers are still here. Please try again, or{" "}
+              <Link href={siteConfig.contactCta.href}>contact us</Link>. If you
+              already received a confirmation, contact us before retrying.
             </div>
           )}
 
           <div className="quote-actions">
             {index > 0 && (
-              <button type="button" className="btn btn-glass" onClick={back}>
+              <button
+                type="button"
+                className="btn btn-glass"
+                onClick={back}
+                disabled={status === "sending" || transitioning || hasAttempt}
+              >
                 Back
               </button>
             )}
             <button
               type="submit"
               className="btn btn-primary"
-              disabled={status === "sending" || !ready}
+              disabled={
+                status === "sending" ||
+                transitioning ||
+                !ready ||
+                attemptRecoveryFailed ||
+                (isReview && awaitingStudio)
+              }
             >
               {isReview
-                ? status === "sending"
-                  ? "Sending…"
-                  : status === "error"
-                    ? "Try again"
-                    : "Send my request"
+                ? awaitingStudio
+                  ? "Client sign-in unavailable"
+                  : status === "sending"
+                    ? "Sending…"
+                    : hasAttempt
+                      ? "Try again"
+                      : "Send my request"
                 : "Continue"}
             </button>
           </div>
@@ -345,6 +622,9 @@ type StepProps = {
   error: string | null;
   headingRef: React.RefObject<HTMLHeadingElement | null>;
   onEdit: (step: StepId) => void;
+  locked: boolean;
+  ready: boolean;
+  onReady: () => void;
 };
 
 function Step({
@@ -354,8 +634,24 @@ function Step({
   error,
   headingRef,
   onEdit,
+  locked,
+  ready,
+  onReady,
 }: StepProps) {
   const ids = useId();
+  // This component mounts with the incoming screen, after AnimatePresence
+  // removes the outgoing one. Focusing in the parent's step effect was too early.
+  useEffect(() => {
+    if (!ready) return;
+    headingRef.current?.focus({ preventScroll: true });
+    onReady();
+    // Only a newly mounted screen or the initial draft restore takes focus.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [ready]);
+  const errorRef = useRef<HTMLParagraphElement>(null);
+  useEffect(() => {
+    if (error) errorRef.current?.focus({ preventScroll: false });
+  }, [error]);
   const head = (title: string, help?: React.ReactNode) => (
     <>
       <h1 ref={headingRef} tabIndex={-1} id={`${ids}-h`}>
@@ -365,7 +661,13 @@ function Step({
     </>
   );
   const errorEl = error && (
-    <p className="field-error" role="alert" id={`${ids}-err`}>
+    <p
+      ref={errorRef}
+      tabIndex={-1}
+      className="field-error"
+      role="alert"
+      id={`${ids}-err`}
+    >
       {error}
     </p>
   );
@@ -430,6 +732,8 @@ function Step({
             value={a.bedrooms}
             onChange={(bedrooms) => update({ bedrooms })}
             labelledBy={`${ids}-bed`}
+            invalid={!!error?.includes("bedrooms")}
+            errorId={`${ids}-err`}
           />
           <p className="quote-sub" id={`${ids}-bath`}>
             Bathrooms
@@ -439,6 +743,8 @@ function Step({
             value={a.bathrooms}
             onChange={(bathrooms) => update({ bathrooms })}
             labelledBy={`${ids}-bath`}
+            invalid={!!error?.includes("bathrooms")}
+            errorId={`${ids}-err`}
           />
           {errorEl}
         </>
@@ -482,6 +788,8 @@ function Step({
             type="text"
             inputMode="numeric"
             autoComplete="postal-code"
+            enterKeyHint="next"
+            required
             spellCheck={false}
             maxLength={5}
             value={a.zip ?? ""}
@@ -512,19 +820,12 @@ function Step({
           )}
           {choices("timing", timingOptions)}
           {a.timing === "date" && (
-            <div className="quote-date">
-              <label className="quote-label" htmlFor={`${ids}-date`}>
-                Date
-              </label>
-              <input
-                id={`${ids}-date`}
-                className="input quote-input"
-                type="date"
-                min={new Date().toISOString().slice(0, 10)}
-                value={a.date ?? ""}
-                onChange={(e) => update({ date: e.target.value })}
-              />
-            </div>
+            <PreferredDate
+              value={a.date}
+              onChange={(date) => update({ date })}
+              error={!!error}
+              errorId={`${ids}-err`}
+            />
           )}
           {errorEl}
         </>
@@ -579,12 +880,32 @@ function Step({
       return (
         <>
           {head("Where should we send your quote?")}
-          <div className="quote-fields">
+          <div
+            className="quote-fields"
+            onKeyDown={(event) => {
+              if (event.key !== "Enter" || event.nativeEvent.isComposing)
+                return;
+              const fields = Array.from(
+                event.currentTarget.querySelectorAll("input"),
+              );
+              const index = fields.indexOf(event.target as HTMLInputElement);
+              if (index >= 0 && index < fields.length - 1) {
+                event.preventDefault();
+                fields[index + 1].focus();
+              }
+            }}
+          >
             <Field id={`${ids}-name`} label="Name">
               <input
                 id={`${ids}-name`}
                 className="input quote-input"
                 autoComplete="name"
+                required
+                enterKeyHint="next"
+                aria-invalid={error?.includes("name") || undefined}
+                aria-describedby={
+                  error?.includes("name") ? `${ids}-err` : undefined
+                }
                 value={a.name}
                 maxLength={100}
                 onChange={(e) => update({ name: e.target.value })}
@@ -595,19 +916,32 @@ function Step({
                 id={`${ids}-email`}
                 className="input quote-input"
                 type="email"
+                required
                 autoComplete="email"
+                enterKeyHint="next"
+                autoCapitalize="none"
+                aria-invalid={error?.includes("email") || undefined}
+                aria-describedby={
+                  error?.includes("email") ? `${ids}-err` : undefined
+                }
                 spellCheck={false}
                 value={a.email}
                 maxLength={200}
                 onChange={(e) => update({ email: e.target.value })}
               />
             </Field>
-            <Field id={`${ids}-phone`} label="Phone (optional)">
+            <Field id={`${ids}-phone`} label="Phone">
               <input
                 id={`${ids}-phone`}
                 className="input quote-input"
                 type="tel"
+                required
                 autoComplete="tel"
+                enterKeyHint="done"
+                aria-invalid={error?.includes("phone") || undefined}
+                aria-describedby={
+                  error?.includes("phone") ? `${ids}-err` : undefined
+                }
                 value={a.phone}
                 maxLength={30}
                 onChange={(e) => update({ phone: e.target.value })}
@@ -620,7 +954,12 @@ function Step({
     case "review":
       return (
         <>
-          {head("Check your answers", "Change anything before you send.")}
+          {head(
+            "Check your answers",
+            locked
+              ? "Your original answers are retained for retry."
+              : "Change anything before you send.",
+          )}
           <ShareLink />
           <dl className="quote-review">
             {summarize(a).map((row) => (
@@ -630,6 +969,7 @@ function Step({
                 <button
                   type="button"
                   className="quote-edit"
+                  disabled={locked}
                   onClick={() => onEdit(row.step)}
                 >
                   Change
@@ -715,6 +1055,7 @@ function Choices({
     <div
       className="quote-choices"
       role="radiogroup"
+      aria-required="true"
       aria-labelledby={labelledBy}
       aria-invalid={invalid || undefined}
       aria-describedby={invalid ? errorId : undefined}
@@ -748,13 +1089,29 @@ type PillsProps = {
   value?: string;
   onChange: (value: string) => void;
   labelledBy: string;
+  invalid: boolean;
+  errorId: string;
 };
 
 /** A compact row of radio pills for small numbers. */
-function Pills({ options, value, onChange, labelledBy }: PillsProps) {
+function Pills({
+  options,
+  value,
+  onChange,
+  labelledBy,
+  invalid,
+  errorId,
+}: PillsProps) {
   const name = useId();
   return (
-    <div className="quote-pills" role="radiogroup" aria-labelledby={labelledBy}>
+    <div
+      className="quote-pills"
+      role="radiogroup"
+      aria-labelledby={labelledBy}
+      aria-required="true"
+      aria-invalid={invalid || undefined}
+      aria-describedby={invalid ? errorId : undefined}
+    >
       {options.map((o) => (
         <label key={o} className="pill" data-on={value === o || undefined}>
           <input
