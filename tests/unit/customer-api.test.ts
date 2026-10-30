@@ -118,6 +118,51 @@ describe("configuration", () => {
   });
 });
 
+describe("production", () => {
+  const PRODUCTION = "https://studio.cosmosservicesllc.com/api/customer/v2";
+  beforeEach(() => {
+    vi.stubEnv("VERCEL_ENV", "production");
+    vi.stubEnv("STUDIO_CUSTOMER_API_URL", PRODUCTION);
+  });
+
+  it("stays off by default, even with the test switch and the real address", () => {
+    vi.stubEnv("QUOTE_STUDIO_TEST_ENABLED", "true");
+    vi.stubEnv("CUSTOMER_API_PRODUCTION_ENABLED", "");
+    expect(customerApiConfig()).toBeNull();
+  });
+
+  it("opens only with its own switch and the real Studio", () => {
+    vi.stubEnv("QUOTE_STUDIO_TEST_ENABLED", "");
+    vi.stubEnv("CUSTOMER_API_PRODUCTION_ENABLED", "true");
+    expect(customerApiConfig()).toEqual({ base: PRODUCTION, secret: SECRET });
+  });
+
+  it.each([
+    ["a loopback address", "http://127.0.0.1:3398/api/customer/v2"],
+    ["another host", "https://studio.example.test/api/customer/v2"],
+    ["the wrong path", "https://studio.cosmosservicesllc.com/api/customer"],
+    ["plain HTTP", "http://studio.cosmosservicesllc.com/api/customer/v2"],
+    ["no address", ""],
+  ])("refuses %s even when switched on", (_, url) => {
+    vi.stubEnv("CUSTOMER_API_PRODUCTION_ENABLED", "true");
+    vi.stubEnv("STUDIO_CUSTOMER_API_URL", url);
+    expect(customerApiConfig()).toBeNull();
+  });
+
+  it("needs a real server credential", () => {
+    vi.stubEnv("CUSTOMER_API_PRODUCTION_ENABLED", "true");
+    vi.stubEnv("WEBSITE_INTAKE_SECRET", "short");
+    expect(customerApiConfig()).toBeNull();
+  });
+
+  it("the production switch doesn't open a Preview", () => {
+    vi.stubEnv("VERCEL_ENV", "preview");
+    vi.stubEnv("QUOTE_STUDIO_TEST_ENABLED", "");
+    vi.stubEnv("CUSTOMER_API_PRODUCTION_ENABLED", "true");
+    expect(customerApiConfig()).toBeNull();
+  });
+});
+
 describe("intake v2", () => {
   it("sends exactly {version 2, submission_id, answers} with the documented headers", async () => {
     studio(202, ack);

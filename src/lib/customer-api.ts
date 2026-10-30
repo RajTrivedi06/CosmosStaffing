@@ -1,5 +1,6 @@
 import "server-only";
 import { z } from "zod";
+import { DEFAULT_STUDIO_ORIGIN } from "@/lib/studio-routes";
 import { studioAcknowledgment, toStudioIntake } from "@/lib/quote-attempt";
 import type { QuoteAttempt } from "@/lib/quote-attempt";
 import {
@@ -16,20 +17,25 @@ import {
  * credential. Studio verifies the token, the live session and ownership on
  * every call; nothing the browser sends is passed on as identity.
  *
- * Off unless explicitly enabled for an isolated test or protected Preview,
- * and never on Vercel Production: production enablement is a separate,
- * reviewed release change. Configuration names:
- * QUOTE_STUDIO_TEST_ENABLED, STUDIO_CUSTOMER_API_URL (the fixed
- * Studio origin plus /api/customer/v2), WEBSITE_INTAKE_SECRET.
+ * Off unless explicitly enabled. An isolated test or protected Preview uses
+ * QUOTE_STUDIO_TEST_ENABLED, which never opens Vercel Production. Production
+ * has its own switch, CUSTOMER_API_PRODUCTION_ENABLED, set only at an approved
+ * cutover (docs/launch-cutover.md), and accepts only the real Studio.
+ * Other configuration: STUDIO_CUSTOMER_API_URL (the fixed Studio origin plus
+ * /api/customer/v2), WEBSITE_INTAKE_SECRET.
  */
 export function customerApiConfig(): { base: string; secret: string } | null {
-  if (
-    process.env.QUOTE_STUDIO_TEST_ENABLED !== "true" ||
-    process.env.VERCEL_ENV === "production"
-  )
-    return null;
+  const production = process.env.VERCEL_ENV === "production";
+  const enabled = production
+    ? process.env.CUSTOMER_API_PRODUCTION_ENABLED
+    : process.env.QUOTE_STUDIO_TEST_ENABLED;
+  if (enabled !== "true") return null;
   const secret = process.env.WEBSITE_INTAKE_SECRET;
   if (!secret || secret.length < 24) return null;
+  if (production)
+    return process.env.STUDIO_CUSTOMER_API_URL === PRODUCTION_CUSTOMER_API
+      ? { base: PRODUCTION_CUSTOMER_API, secret }
+      : null;
   try {
     const url = new URL(process.env.STUDIO_CUSTOMER_API_URL || "");
     const loopback = ["localhost", "127.0.0.1", "[::1]"].includes(url.hostname);
@@ -53,6 +59,9 @@ export function customerApiConfig(): { base: string; secret: string } | null {
     return null;
   }
 }
+
+/** The only customer API Vercel Production may call. */
+const PRODUCTION_CUSTOMER_API = `${DEFAULT_STUDIO_ORIGIN}/api/customer/v2`;
 
 /** Studio's answers can be long (50 quotes and payments); still bounded. */
 const MAX_RESPONSE_BYTES = 262_144;
