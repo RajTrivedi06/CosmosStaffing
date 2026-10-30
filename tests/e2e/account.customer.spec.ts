@@ -132,6 +132,49 @@ async function adoptAndReview(page: Page, name: string, email: string) {
 /** What's left of an attempt whose outcome is unknown. */
 const noteTitle = account.quote.unresolvedTitle;
 
+/** Counts sends from this page, for "nothing was sent". */
+function countSends(page: Page) {
+  const sends = { count: 0 };
+  page.on("request", (request) => {
+    if (new URL(request.url()).pathname === "/api/quote") sends.count += 1;
+  });
+  return sends;
+}
+
+/** A committed request whose answer was lost, then a sign-out. Returns its ID. */
+async function unconfirmedThenSignedOut(
+  page: Page,
+  name: string,
+  email: string,
+) {
+  await anonymousAnswers(page, name, email);
+  await adoptAndReview(page, name, email);
+  await failNextIntake(page, email);
+  await page.getByRole("button", { name: "Send my request" }).click();
+  await expect(
+    page.getByText("We couldn't confirm that your request was saved."),
+  ).toBeVisible();
+  const { submissions } = await stubState(page, email);
+  await signOut(page);
+  return submissions[0];
+}
+
+/** Everything a blocked client sees, and nothing they could send with. */
+async function expectBlocked(page: Page, id: string) {
+  await expect(page.getByRole("heading", { name: noteTitle })).toBeVisible();
+  await expect(page.getByText(id)).toBeVisible();
+  await expect(page.getByLabel("ZIP code")).toHaveCount(0);
+  await expect(
+    page.getByRole("button", { name: /Send my request|Try again/ }),
+  ).toHaveCount(0);
+}
+
+async function startSeparate(page: Page) {
+  page.once("dialog", (dialog) => dialog.accept());
+  await page.getByRole("button", { name: "Start a separate request" }).click();
+  await expect(page.getByRole("heading", { name: noteTitle })).toHaveCount(0);
+}
+
 const ownAddress = (context: BrowserContext) =>
   context.setExtraHTTPHeaders({
     "x-forwarded-for": `10.88.${Math.floor(Math.random() * 250)}.${Math.floor(Math.random() * 250)}`,
@@ -284,7 +327,7 @@ test("if the session changes with no signal, nothing is sent as the new account"
   ).toHaveCount(0);
 });
 
-test("after sign-out only the attempt's ID stays, for its own account; identical answers replay", async ({
+test("after sign-out only the attempt's ID stays, for its own account, and sending stops", async ({
   page,
 }) => {
   const alice = uniqueEmail("keep-a");
@@ -292,17 +335,8 @@ test("after sign-out only the attempt's ID stays, for its own account; identical
   await signUpAndConfirm(page, bob);
   await signOut(page);
   await signUpAndConfirm(page, alice);
-  await anonymousAnswers(page, "Alice Pending", alice);
-  await adoptAndReview(page, "Alice Pending", alice);
-  await failNextIntake(page, alice);
-  await page.getByRole("button", { name: "Send my request" }).click();
-  await expect(
-    page.getByText("We couldn't confirm that your request was saved."),
-  ).toBeVisible();
-  const saved = await stubState(page, alice);
-  expect(saved.requests).toBe(1);
+  const id = await unconfirmedThenSignedOut(page, "Alice Pending", alice);
 
-  await signOut(page);
   const after = await storedText(page);
   for (const value of [
     "Alice Pending",
@@ -311,9 +345,9 @@ test("after sign-out only the attempt's ID stays, for its own account; identical
     homeQuote.notes,
   ])
     expect(after).not.toContain(value);
-  expect(after).toContain(saved.submissions[0]);
+  expect(after).toContain(id);
 
-  // Bob sees nothing of it, and can't replay it.
+  // Bob sees nothing of it, and isn't held up by it.
   await signIn(page, bob);
   await page.goto("/quote");
   await expect(page.getByRole("heading", { name: noteTitle })).toHaveCount(0);
@@ -321,72 +355,134 @@ test("after sign-out only the attempt's ID stays, for its own account; identical
 
   await signOut(page);
   await signIn(page, alice);
+  const sends = countSends(page);
+  await page.goto("/quote");
+  await expectBlocked(page, id);
+  // A link's answers don't get past it, and neither does a reload.
   await page.goto(choicesLink);
-  // Unknown, not failed: nothing says it wasn't sent.
-  await expect(page.getByRole("heading", { name: noteTitle })).toBeVisible();
-  await expect(page.getByText(saved.submissions[0])).toBeVisible();
-  await finishQuestions(page, { name: "Alice Pending", email: alice });
-  const replay = page.waitForResponse("**/api/quote");
-  await page.getByRole("button", { name: "Send my request" }).click();
-  expect((await replay).status()).toBe(200);
-  await expect(page.getByRole("heading", { name: SENT })).toBeVisible();
-  // The same submission, replayed: still one request, and the marker is gone.
-  expect(await stubState(page, alice)).toEqual(saved);
-  expect(await storedText(page)).not.toContain(saved.submissions[0]);
+  await expectBlocked(page, id);
+  await page.reload();
+  await expectBlocked(page, id);
+  expect(sends.count).toBe(0);
+
+  await page
+    .getByRole("link", { name: account.quote.unresolvedAccount })
+    .click();
+  await expect(page).toHaveURL(/\/account$/);
+  await expect(page.getByText("Request received")).toBeVisible();
+  expect((await stubState(page, alice)).requests).toBe(1);
 });
 
-test("new answers under a held ID can't add a request when the original arrived", async ({
+test("a conflict is never a receipt: the attempt stays unresolved", async ({
   page,
 }) => {
-  const email = uniqueEmail("arrived");
+  const email = uniqueEmail("conflict");
   await signUpAndConfirm(page, email);
-  await anonymousAnswers(page, "Ann Arrived", email);
-  await adoptAndReview(page, "Ann Arrived", email);
-  await failNextIntake(page, email);
+  await anonymousAnswers(page, "Cleo Conflict", email);
+  await adoptAndReview(page, "Cleo Conflict", email);
+  await page.route("**/api/quote", (route) =>
+    route.fulfill({
+      status: 409,
+      json: { ok: false, code: "idempotency_conflict" },
+    }),
+  );
+  const conflict = "We can't match this request ID to its earlier attempt";
+  const sent = page.waitForRequest("**/api/quote");
   await page.getByRole("button", { name: "Send my request" }).click();
-  await expect(
-    page.getByText("We couldn't confirm that your request was saved."),
-  ).toBeVisible();
-  const saved = await stubState(page, email);
+  await expect(page.getByText(conflict)).toBeVisible();
+  const { submission_id } = (await sent).postDataJSON();
+  await expect(page.getByRole("heading", { name: SENT })).toHaveCount(0);
+  expect(await storedText(page)).toContain(submission_id);
 
+  // It survives a reload with its answers, and a retry is still a conflict.
+  await page.reload();
+  await page.getByRole("button", { name: "Try again" }).click();
+  await expect(page.getByText(conflict)).toBeVisible();
+  await page.unroute("**/api/quote");
+
+  // After sign-out the marker keeps it unresolved.
   await signOut(page);
   await signIn(page, email);
-  await page.goto(choicesLink);
-  await finishQuestions(page, { name: "Ann Different", email });
-  await page.getByRole("button", { name: "Send my request" }).click();
-  await expect(
-    page.getByRole("heading", { name: account.quote.receivedTitle }),
-  ).toBeVisible();
-  expect(await stubState(page, email)).toEqual(saved);
-  expect(await storedText(page)).not.toContain(saved.submissions[0]);
-  await page.reload();
-  await expect(page.getByRole("heading", { name: noteTitle })).toHaveCount(0);
+  await page.goto("/quote");
+  await expectBlocked(page, submission_id);
+  expect((await stubState(page, email)).requests).toBe(0);
 });
 
-test("a held ID is reused only until the client explicitly starts a separate request", async ({
+test("only a validated receipt completes a request", async ({ page }) => {
+  const email = uniqueEmail("receipt");
+  await signUpAndConfirm(page, email);
+  await anonymousAnswers(page, "Rex Receipt", email);
+  await adoptAndReview(page, "Rex Receipt", email);
+  const first = page.waitForRequest("**/api/quote");
+  for (const [index, reply] of [
+    { status: 202, json: { ok: true } },
+    { status: 200, json: { ok: true, id: "not-a-receipt" } },
+    { status: 202, json: { ok: true, receipt_id: "bad", status: "received" } },
+  ].entries()) {
+    await page.route("**/api/quote", (route) => route.fulfill(reply), {
+      times: 1,
+    });
+    await page
+      .getByRole("button", { name: index ? "Try again" : "Send my request" })
+      .click();
+    await expect(
+      page.getByText("We couldn't confirm that your request was saved."),
+    ).toBeVisible();
+    await expect(page.getByRole("heading", { name: SENT })).toHaveCount(0);
+  }
+  const { submission_id } = (await first).postDataJSON();
+  expect(await storedText(page)).toContain(submission_id);
+
+  const real = page.waitForRequest("**/api/quote");
+  await page.getByRole("button", { name: "Try again" }).click();
+  await expect(page.getByRole("heading", { name: SENT })).toBeVisible();
+  expect((await real).postDataJSON().submission_id).toBe(submission_id);
+  expect(await storedText(page)).not.toContain(submission_id);
+  expect((await stubState(page, email)).requests).toBe(1);
+});
+
+test("age doesn't remove a marker or allow a new ID", async ({ page }) => {
+  const email = uniqueEmail("aged");
+  await signUpAndConfirm(page, email);
+  const id = await unconfirmedThenSignedOut(page, "Ada Aged", email);
+  await signIn(page, email);
+
+  const sends = countSends(page);
+  // Well past the old limit, seen by a sweep from each kind of page.
+  await page.evaluate(() => {
+    for (const key of Object.keys(localStorage))
+      if (key.startsWith("cosmos-quote-attempt:")) {
+        const record = JSON.parse(localStorage.getItem(key)!);
+        record.savedAt = Date.now() - 400 * 24 * 60 * 60 * 1000;
+        localStorage.setItem(key, JSON.stringify(record));
+      }
+  });
+  await page.goto("/");
+  await page.goto("/account");
+  await page.goto("/quote");
+  await expectBlocked(page, id);
+  await page.reload();
+  await expectBlocked(page, id);
+  expect(sends.count).toBe(0);
+  expect((await stubState(page, email)).requests).toBe(1);
+});
+
+test("a marker clears only on a confirmed separate request, which is a new ID", async ({
   page,
 }) => {
   const email = uniqueEmail("separate");
   await signUpAndConfirm(page, email);
-  await anonymousAnswers(page, "Sam Separate", email);
-  await adoptAndReview(page, "Sam Separate", email);
-  await failNextIntake(page, email);
-  await page.getByRole("button", { name: "Send my request" }).click();
-  await expect(
-    page.getByText("We couldn't confirm that your request was saved."),
-  ).toBeVisible();
-  const [first] = (await stubState(page, email)).submissions;
-
-  await signOut(page);
+  const first = await unconfirmedThenSignedOut(page, "Sam Separate", email);
   await signIn(page, email);
-  await page.goto(choicesLink);
+  await page.goto("/quote");
   page.once("dialog", (dialog) => dialog.dismiss());
   await page.getByRole("button", { name: "Start a separate request" }).click();
-  await expect(page.getByRole("heading", { name: noteTitle })).toBeVisible();
-  page.once("dialog", (dialog) => dialog.accept());
-  await page.getByRole("button", { name: "Start a separate request" }).click();
-  await expect(page.getByRole("heading", { name: noteTitle })).toHaveCount(0);
+  await expectBlocked(page, first);
+  await page.reload();
+  await expectBlocked(page, first);
 
+  await startSeparate(page);
+  await page.goto(choicesLink);
   await finishQuestions(page, { name: "Sam Second", email });
   await page.getByRole("button", { name: "Send my request" }).click();
   await expect(page.getByRole("heading", { name: SENT })).toBeVisible();
@@ -575,7 +671,8 @@ test("a session the Studio refuses during a send needs a real new sign-in, witho
     ),
   ).toEqual([]);
 
-  // A genuine new session, back at the quote, holding the same ID.
+  // A genuine new session, and the attempt stays unresolved: this browser
+  // can't know what happened, so sending stops until the client decides.
   await rejectSession(page, email, false);
   await page.getByLabel("Email").fill(email);
   await page.getByLabel("Password", { exact: true }).fill(PASSWORD);
@@ -583,13 +680,16 @@ test("a session the Studio refuses during a send needs a real new sign-in, witho
     .getByRole("button", { name: account.signIn.submit, exact: true })
     .click();
   await expect(page).toHaveURL(/\/quote(\?|$)/);
-  await expect(page.getByRole("heading", { name: noteTitle })).toBeVisible();
+  await expectBlocked(page, submission_id);
+  expect((await stubState(page, email)).requests).toBe(0);
+
+  await startSeparate(page);
   await page.goto(choicesLink);
   await finishQuestions(page, { name: "Rae Revoked", email });
   const resend = page.waitForRequest("**/api/quote");
   await page.getByRole("button", { name: "Send my request" }).click();
   await expect(page.getByRole("heading", { name: SENT })).toBeVisible();
-  expect((await resend).postDataJSON().submission_id).toBe(submission_id);
+  expect((await resend).postDataJSON().submission_id).not.toBe(submission_id);
   expect((await stubState(page, email)).requests).toBe(1);
 });
 
@@ -619,7 +719,7 @@ test("a session the Studio rejects asks to sign in again, without a redirect loo
   await expect(page.getByLabel("Email")).toBeVisible();
 });
 
-test("an ended session leaves only the ID, and the resend keeps it", async ({
+test("an ended session leaves only the ID, and stops sending until a decision", async ({
   page,
   context,
 }) => {
@@ -651,13 +751,14 @@ test("an ended session leaves only the ID, and the resend keeps it", async ({
     .getByRole("button", { name: account.signIn.submit, exact: true })
     .click();
   await expect(page).toHaveURL(/\/quote(\?|$)/);
-  await expect(page.getByRole("heading", { name: noteTitle })).toBeVisible();
+  await expectBlocked(page, submission_id);
   await expect(page.getByText("Eve Expiring")).toHaveCount(0);
+  await startSeparate(page);
   await page.goto(choicesLink);
   await finishQuestions(page, { name: "Eve Expiring", email });
   const resend = page.waitForRequest("**/api/quote");
   await page.getByRole("button", { name: "Send my request" }).click();
   await expect(page.getByRole("heading", { name: SENT })).toBeVisible();
-  expect((await resend).postDataJSON().submission_id).toBe(submission_id);
+  expect((await resend).postDataJSON().submission_id).not.toBe(submission_id);
   expect((await stubState(page, email)).requests).toBe(1);
 });

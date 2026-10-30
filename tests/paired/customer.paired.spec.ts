@@ -1,3 +1,4 @@
+import { execFileSync } from "node:child_process";
 import { readFileSync } from "node:fs";
 import path from "node:path";
 import {
@@ -8,6 +9,7 @@ import {
   type Page,
 } from "@playwright/test";
 import { account } from "../../src/lib/site";
+import { toStudioIntake } from "../../src/lib/quote-attempt";
 import { homeQuote } from "../unit/fixtures";
 import { choicesLink, finishQuestions, storedText } from "../e2e/quote-helpers";
 
@@ -105,6 +107,58 @@ async function sendAdopted(page: Page, name: string, email: string) {
   await finishQuestions(page, { name, email });
   await expect(page.getByText(name).first()).toBeVisible();
 }
+
+/**
+ * Restarts this site's process through the lease's launcher, via a script the
+ * website owner supplies. The local limiter allows five sends a process in ten
+ * minutes, and this suite needs more.
+ */
+function restartWebsite(mode: "correct" | "invalid" = "correct") {
+  const control = process.env.PAIRED_SITE_CONTROL;
+  if (!control) throw new Error("Set PAIRED_SITE_CONTROL");
+  execFileSync(control, [mode], { stdio: "inherit" });
+}
+
+const unconfirmed = "We couldn't confirm that your request was saved.";
+const conflict = "We can't match this request ID to its earlier attempt";
+
+/** The real Studio commits; only its answer to the browser is lost. */
+async function loseNextAnswer(page: Page) {
+  const committed = { status: 0 };
+  await page.route(
+    "**/api/quote",
+    async (route) => {
+      committed.status = (await route.fetch()).status();
+      await route.abort("connectionfailed");
+    },
+    { times: 1 },
+  );
+  return committed;
+}
+
+async function signedIn(
+  browser: Browser,
+  baseURL: string,
+  use: object,
+  email = alice.email,
+) {
+  const context = await newContext(browser, baseURL, use);
+  const page = await context.newPage();
+  await page.goto("/account/login");
+  await signIn(page, email);
+  await expect(page).toHaveURL(/\/account$/, { timeout: 20_000 });
+  return { context, page };
+}
+
+const blocked = async (page: Page, id: string) => {
+  await expect(
+    page.getByRole("heading", { name: account.quote.unresolvedTitle }),
+  ).toBeVisible();
+  await expect(page.getByText(id)).toBeVisible();
+  await expect(
+    page.getByRole("button", { name: /Send my request|Try again/ }),
+  ).toHaveCount(0);
+};
 
 /** Who is signed in to the Studio staff app, as a role. */
 async function staffPage(browser: Browser, role: "staff" | "admin") {
@@ -667,6 +721,7 @@ test("a session revoked during a send needs a real new sign-in and can't duplica
   baseURL,
   contextOptions,
 }) => {
+  restartWebsite();
   const key = /^AUTH_SUPABASE_PUBLISHABLE_KEY=['"]?([^'"\n]+)/m.exec(
     readFileSync(process.env.PAIRED_WEBSITE_ENV!, "utf8"),
   )![1];
@@ -721,19 +776,218 @@ test("a session revoked during a send needs a real new sign-in and can't duplica
 
   await signIn(page, alice.email);
   await expect(page).toHaveURL(/\/quote(\?|$)/, { timeout: 20_000 });
-  await expect(
-    page.getByRole("heading", { name: account.quote.unresolvedTitle }),
-  ).toBeVisible();
+  // A new session, and nothing more goes out until the client decides.
+  await blocked(page, submission_id);
+  await page.goto("/account");
+  await expect(details).toHaveCount(before);
+
+  await page.goto("/quote");
+  page.once("dialog", (dialog) => dialog.accept());
+  await page.getByRole("button", { name: "Start a separate request" }).click();
   await page.goto(choicesLink);
   await finishQuestions(page, { name, email: alice.email });
   const resend = page.waitForRequest("**/api/quote");
   const accepted = page.waitForResponse("**/api/quote");
   await page.getByRole("button", { name: "Send my request" }).click();
-  // The refused send never committed, so this is the one request.
   expect((await accepted).status()).toBe(202);
-  expect((await resend).postDataJSON().submission_id).toBe(submission_id);
+  expect((await resend).postDataJSON().submission_id).not.toBe(submission_id);
   await page.goto("/account");
   await expect(details).toHaveCount(before + 1);
+  await context.close();
+});
+
+test("a real conflict stays unresolved, for the owner and for anyone else", async ({
+  browser,
+  baseURL,
+  contextOptions,
+}) => {
+  restartWebsite();
+  const name = `Alice Conflict ${stamp}`;
+  const { context, page } = await signedIn(browser, baseURL!, contextOptions);
+  const details = page.getByRole("link", { name: "Details" });
+  await expect(details.first()).toBeVisible();
+  const before = await details.count();
+  await page.goto(choicesLink);
+  await finishQuestions(page, { name, email: alice.email });
+  const committed = await loseNextAnswer(page);
+  const sent = page.waitForRequest("**/api/quote");
+  await page.getByRole("button", { name: "Send my request" }).click();
+  await expect(page.getByText(unconfirmed)).toBeVisible({ timeout: 20_000 });
+  expect(committed.status).toBe(202);
+  const original = (await sent).postDataJSON();
+  const id: string = original.submission_id;
+
+  // The same ID with other answers: the real Studio's 409 proves no receipt.
+  await page.route(
+    "**/api/quote",
+    (route) =>
+      route.continue({
+        postData: JSON.stringify({
+          ...original,
+          answers: { ...original.answers, notes: "Different answers." },
+        }),
+      }),
+    { times: 1 },
+  );
+  const refused = page.waitForResponse("**/api/quote");
+  await page.getByRole("button", { name: "Try again" }).click();
+  const reply = await refused;
+  expect(reply.status()).toBe(409);
+  expect(await reply.json()).toEqual({
+    ok: false,
+    code: "idempotency_conflict",
+  });
+  await expect(page.getByText(conflict)).toBeVisible();
+  expect(await storedText(page)).toContain(id);
+
+  // Another account gets the same opaque answer, and learns nothing.
+  const bobPage = await bobContext.newPage();
+  await bobPage.goto("/account");
+  const { access_token } = (await readSession(bobContext)) as unknown as {
+    access_token: string;
+  };
+  const secret = /^WEBSITE_INTAKE_SECRET=['"]?([^'"\n]+)/m.exec(
+    readFileSync(process.env.PAIRED_WEBSITE_ENV!, "utf8"),
+  )![1];
+  const taken = await bobPage.request.post(`${STUDIO}/api/customer/v2/intake`, {
+    data: {
+      version: 2,
+      submission_id: id,
+      answers: toStudioIntake({
+        submission_id: id,
+        answers: {
+          ...homeQuote,
+          service: homeQuote.service!,
+          name: bob.name,
+          email: bob.email,
+        },
+      }).answers,
+    },
+    headers: {
+      Authorization: `Bearer ${access_token}`,
+      "X-Webhook-Secret": secret,
+      "Idempotency-Key": id,
+      Cookie: "",
+    },
+  });
+  expect(taken.status()).toBe(409);
+  expect(await taken.json()).toEqual({
+    ok: false,
+    code: "idempotency_conflict",
+  });
+  await bobPage.close();
+
+  // The untouched snapshot is what resolves it: Studio's receipt, one record.
+  const replay = page.waitForResponse("**/api/quote");
+  await page.getByRole("button", { name: "Try again" }).click();
+  expect((await replay).status()).toBe(200);
+  await expect(
+    page.getByRole("heading", { name: "Thank you. Your request is in." }),
+  ).toBeVisible();
+  expect(await storedText(page)).not.toContain(id);
+  await page.goto("/account");
+  await expect(details).toHaveCount(before + 1);
+  await context.close();
+});
+
+test("logout and expiry leave only a marker, and it stays, isolated, whatever its age", async ({
+  browser,
+  baseURL,
+  contextOptions,
+}) => {
+  const name = `Alice Marker ${stamp}`;
+  const { context, page } = await signedIn(browser, baseURL!, contextOptions);
+  const details = page.getByRole("link", { name: "Details" });
+  await expect(details.first()).toBeVisible();
+  const before = await details.count();
+  await page.goto(choicesLink);
+  await finishQuestions(page, { name, email: alice.email });
+  const committed = await loseNextAnswer(page);
+  const sent = page.waitForRequest("**/api/quote");
+  await page.getByRole("button", { name: "Send my request" }).click();
+  await expect(page.getByText(unconfirmed)).toBeVisible({ timeout: 20_000 });
+  expect(committed.status).toBe(202);
+  const id: string = (await sent).postDataJSON().submission_id;
+  expect(await storedText(page)).toContain(name);
+
+  // Past the answers' 7 days, a page that doesn't know the session retires them.
+  const age = (days: number) =>
+    page.evaluate((days) => {
+      for (const key of Object.keys(localStorage))
+        if (key.startsWith("cosmos-quote-attempt:")) {
+          const record = JSON.parse(localStorage.getItem(key)!);
+          record.savedAt = Date.now() - days * 24 * 60 * 60 * 1000;
+          localStorage.setItem(key, JSON.stringify(record));
+        }
+    }, days);
+  await age(8);
+  await page.goto("/");
+  await expect.poll(() => storedText(page)).not.toContain(name);
+  expect(await storedText(page)).not.toContain(alice.email);
+  expect(await storedText(page)).toContain(id);
+
+  // Years later it still stops a send, on every load.
+  const sends = { count: 0 };
+  page.on("request", (request) => {
+    if (new URL(request.url()).pathname === "/api/quote") sends.count += 1;
+  });
+  await age(1_000);
+  await page.goto("/");
+  await page.goto("/quote");
+  await blocked(page, id);
+  await page.reload();
+  await blocked(page, id);
+  expect(sends.count).toBe(0);
+
+  // Sign-out keeps it; the next person here sees none of it.
+  await page.goto("/account");
+  await page.getByRole("button", { name: account.home.signOut }).click();
+  await expect(page.getByLabel("Email")).toBeVisible({ timeout: 15_000 });
+  await signIn(page, bob.email);
+  await expect(page).toHaveURL(/\/account$/, { timeout: 20_000 });
+  await page.goto("/quote");
+  await expect(
+    page.getByRole("heading", { name: account.quote.unresolvedTitle }),
+  ).toHaveCount(0);
+  await expect(page.getByText(id)).toHaveCount(0);
+
+  await page.goto("/account");
+  await page.getByRole("button", { name: account.home.signOut }).click();
+  await expect(page.getByLabel("Email")).toBeVisible({ timeout: 15_000 });
+  await signIn(page, alice.email);
+  await expect(page).toHaveURL(/\/account$/, { timeout: 20_000 });
+  // The one committed record stands; the marker makes no second one.
+  await expect(details).toHaveCount(before + 1);
+  await page.goto("/quote");
+  await blocked(page, id);
+  await context.close();
+});
+
+test("sensitive data an earlier version stored leaves the browser", async ({
+  browser,
+  baseURL,
+  contextOptions,
+}) => {
+  const context = await newContext(browser, baseURL!, contextOptions);
+  const page = await context.newPage();
+  const legacy = { answers: homeQuote, step: "review" };
+  await page.goto("/");
+  await page.evaluate((legacy) => {
+    localStorage.setItem(
+      "cosmos-quote-handoff",
+      JSON.stringify({ version: 1, savedAt: Date.now(), draft: legacy }),
+    );
+    sessionStorage.setItem("cosmos-quote-draft", JSON.stringify(legacy));
+  }, legacy);
+  await page.goto("/");
+  await expect
+    .poll(() =>
+      page.evaluate(() => localStorage.getItem("cosmos-quote-handoff")),
+    )
+    .toBeNull();
+  await page.goto("/account/login");
+  await expect.poll(() => storedText(page)).not.toContain(homeQuote.email);
+  expect(await storedText(page)).not.toContain(homeQuote.notes);
   await context.close();
 });
 

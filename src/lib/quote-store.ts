@@ -26,9 +26,11 @@ import { carriedAnswers } from "@/lib/quote";
  * An attempt's answers stay only while its owner is signed in here and for
  * OWNED_ATTEMPT_TTL_MS. On sign-out, an ended session, expiry or archival they
  * are replaced by an unresolved marker: the submission ID and when it was
- * made, nothing the client entered. The next send from that account reuses
- * the ID, so the Studio can match it to the original and never add a second
- * request (lib/customer-api.ts). The outcome stays unknown until then.
+ * made, nothing the client entered. A marker means the outcome is unknown and
+ * the answers needed for an identical retry are gone, so nothing more is sent
+ * for that account here. Age doesn't change that, because the Studio may hold
+ * the request however old the marker is. It stays until the client confirms a
+ * separate request (archiveAttempt).
  */
 export type Intake = 1 | 2;
 
@@ -37,11 +39,17 @@ export const OWNED_ATTEMPT_PREFIX = "cosmos-quote-attempt:";
 const ARCHIVE_INFIX = "-archive-";
 /** An unconfirmed attempt's answers are kept this long for an identical retry. */
 export const OWNED_ATTEMPT_TTL_MS = 7 * 24 * 60 * 60 * 1000;
-/** A marker is a reminder, and stops reserving its ID after this long. */
-export const UNRESOLVED_TTL_MS = 30 * 24 * 60 * 60 * 1000;
+/** A set-aside marker, already decided by the client, is kept this long. */
+export const ARCHIVED_MARKER_TTL_MS = 30 * 24 * 60 * 60 * 1000;
 
-/** An attempt whose outcome is unknown: its ID, never its answers. */
-export type UnresolvedAttempt = { submission_id: string; savedAt: number };
+/**
+ * An attempt whose outcome is unknown: its ID (null if the record was too
+ * damaged to hold one), never its answers.
+ */
+export type UnresolvedAttempt = {
+  submission_id: string | null;
+  savedAt: number;
+};
 
 type StoredRecord = Record<string, unknown>;
 
@@ -60,17 +68,8 @@ export function writeOwnedAttempt(
   owner: string,
   intake: Intake,
   now = Date.now(),
-  /** Reuses a marker's ID, so a conflict means the original arrived. */
-  resumed = false,
 ) {
-  return JSON.stringify({
-    version: 1,
-    owner,
-    intake,
-    savedAt: now,
-    attempt,
-    ...(resumed ? { resumed } : {}),
-  });
+  return JSON.stringify({ version: 1, owner, intake, savedAt: now, attempt });
 }
 
 export function readOwnedAttempt(
@@ -95,7 +94,7 @@ export function readOwnedAttempt(
 }
 
 export function writeUnresolved(
-  submission_id: string,
+  submission_id: string | null,
   owner: string,
   intake: Intake,
   savedAt = Date.now(),
@@ -106,22 +105,18 @@ export function writeUnresolved(
 export function readUnresolved(
   raw: string | null,
   owner: string,
-  intake: Intake,
-  now = Date.now(),
 ): UnresolvedAttempt | null {
   const value = parseRecord(raw);
   if (
     value?.version !== 2 ||
     value.owner !== owner ||
-    value.intake !== intake ||
     typeof value.savedAt !== "number" ||
-    value.savedAt > now ||
-    now - value.savedAt > UNRESOLVED_TTL_MS ||
-    !z.uuid().safeParse(value.submission_id).success
+    (value.submission_id !== null &&
+      !z.uuid().safeParse(value.submission_id).success)
   )
     return null;
   return {
-    submission_id: value.submission_id as string,
+    submission_id: value.submission_id as string | null,
     savedAt: value.savedAt,
   };
 }
@@ -133,27 +128,22 @@ function storedId(value: StoredRecord | null) {
   return z.uuid().safeParse(id).success ? (id as string) : null;
 }
 
-/** The marker that replaces a record, or null when it has no usable ID. */
-function retired(
-  value: StoredRecord | null,
-  owner: string,
-  now: number,
-): string | null {
-  const id = storedId(value);
-  if (!id) return null;
-  const intake = value?.intake === 1 ? 1 : 2;
+/**
+ * The marker that replaces a record, whatever state it's in. A record too
+ * damaged to give an ID still leaves one, so an uncertain send is never
+ * forgotten; its contents are dropped, since they could be anything.
+ */
+function retired(value: StoredRecord | null, owner: string, now: number) {
   const savedAt =
     typeof value?.savedAt === "number" && value.savedAt <= now
       ? value.savedAt
       : now;
-  return now - savedAt > UNRESOLVED_TTL_MS
-    ? null
-    : writeUnresolved(id, owner, intake, savedAt);
-}
-
-function otherIntake(raw: string, owner: string, intake: Intake) {
-  const value = parseRecord(raw);
-  return value?.owner === owner && value.intake !== intake;
+  return writeUnresolved(
+    storedId(value),
+    owner,
+    value?.intake === 1 ? 1 : 2,
+    savedAt,
+  );
 }
 
 export type QuoteSlots = {
@@ -161,20 +151,19 @@ export type QuoteSlots = {
   loadDraft(): QuoteDraft | null;
   saveDraft(draft: QuoteDraft | null): boolean;
   /**
-   * `attempt`: answers to retry exactly. `unresolved`: only the ID is left.
-   * `resumed`: `attempt` reuses a marker's ID. `unreadable`: something was
-   * stored that can't be trusted, and is gone now.
+   * `attempt`: answers to retry exactly. `unresolved`: only the marker is
+   * left, so nothing can be sent. `unreadable`: a signed-out tab's attempt
+   * can't be trusted.
    */
   loadAttempt(): {
     attempt: QuoteAttempt | null;
     unresolved: UnresolvedAttempt | null;
-    resumed: boolean;
     unreadable: boolean;
   };
-  saveAttempt(attempt: QuoteAttempt, resumed?: boolean): boolean;
+  saveAttempt(attempt: QuoteAttempt): boolean;
   clearAttempt(): void;
-  /** Sets the attempt aside under its marker, so a new one can start. */
-  archiveAttempt(submission_id: string): boolean;
+  /** The client's confirmed decision: set this aside so a new one can start. */
+  archiveAttempt(submission_id: string | null): boolean;
   /** Takes this slot's answers out of storage, leaving the marker. */
   retireAttempt(): void;
 };
@@ -213,7 +202,6 @@ function keys(kind: "session" | "local") {
 const noAttempt = {
   attempt: null,
   unresolved: null,
-  resumed: false,
   unreadable: false,
 };
 
@@ -281,46 +269,30 @@ export function quoteSlots(
     loadAttempt: () => {
       const raw = get("local", attemptKey);
       if (!raw) return noAttempt;
-      // A record for another intake version is never sent here, and isn't an
-      // error for this screen either.
-      if (otherIntake(raw, owner, intake)) return noAttempt;
       const attempt = readOwnedAttempt(raw, owner, intake);
-      if (attempt)
-        return {
-          ...noAttempt,
-          attempt,
-          resumed: parseRecord(raw)?.resumed === true,
-        };
-      const unresolved = readUnresolved(raw, owner, intake);
+      if (attempt) return { ...noAttempt, attempt };
+      // Expired, damaged, or made for another intake version: never sent
+      // here, and the fact of it mustn't be overwritten by a new attempt.
+      const unresolved = readUnresolved(raw, owner);
       if (unresolved) return { ...noAttempt, unresolved };
-      // Expired or damaged: its answers can't stay, whatever else is true.
       const marker = retired(parseRecord(raw), owner, Date.now());
       set("local", attemptKey, marker);
-      return {
-        ...noAttempt,
-        unresolved: readUnresolved(marker, owner, intake),
-        unreadable: !marker,
-      };
+      return { ...noAttempt, unresolved: readUnresolved(marker, owner) };
     },
-    saveAttempt: (attempt, resumed = false) =>
-      set(
-        "local",
-        attemptKey,
-        writeOwnedAttempt(attempt, owner, intake, Date.now(), resumed),
-      ),
+    saveAttempt: (attempt) =>
+      set("local", attemptKey, writeOwnedAttempt(attempt, owner, intake)),
     clearAttempt: () => void set("local", attemptKey, null),
     archiveAttempt: (id) =>
       set(
         "local",
-        `${attemptKey}${ARCHIVE_INFIX}${id}`,
+        `${attemptKey}${ARCHIVE_INFIX}${id ?? `unknown-${Date.now()}`}`,
         writeUnresolved(id, owner, intake),
       ) && set("local", attemptKey, null),
-    retireAttempt: () =>
-      void set(
-        "local",
-        attemptKey,
-        retired(parseRecord(get("local", attemptKey)), owner, Date.now()),
-      ),
+    retireAttempt: () => {
+      const raw = get("local", attemptKey);
+      if (raw)
+        set("local", attemptKey, retired(parseRecord(raw), owner, Date.now()));
+    },
   };
 }
 
@@ -355,9 +327,10 @@ export function forgetTabDrafts(except?: string) {
  * known here (a marketing page, or client accounts off).
  *
  * Always: expired answers become markers, archives hold nothing but markers,
- * expired markers go, and a handoff in the old full format goes. With a known
- * session: answers belonging to anyone else become markers, other accounts'
- * tab drafts go, and a signed-out tab keeps only allowlisted choices.
+ * archived markers lapse, and a handoff in the old full format goes. A live
+ * marker never lapses. With a known session: answers belonging to anyone else
+ * become markers, other accounts' tab drafts go, and a signed-out tab keeps
+ * only allowlisted choices.
  */
 export function settleQuoteStorage(current?: string | null, now = Date.now()) {
   quoteHandoff.load();
@@ -366,21 +339,22 @@ export function settleQuoteStorage(current?: string | null, now = Date.now()) {
     const [owner, archived] = key
       .slice(OWNED_ATTEMPT_PREFIX.length)
       .split(ARCHIVE_INFIX);
-    const raw = get("local", key);
-    const value = parseRecord(raw);
-    if (value?.version === 2) {
-      const live =
-        typeof value.savedAt === "number" &&
-        now - value.savedAt <= UNRESOLVED_TTL_MS;
-      if (!live) set("local", key, null);
+    const value = parseRecord(get("local", key));
+    if (archived) {
+      const lapsed =
+        typeof value?.savedAt !== "number" ||
+        now - value.savedAt > ARCHIVED_MARKER_TTL_MS;
+      if (lapsed || !storedId(value)) set("local", key, null);
+      else if (value.version !== 2)
+        set("local", key, retired(value, owner, now));
       continue;
     }
-    const mine = !archived && (current === undefined || current === owner);
+    if (value?.version === 2) continue;
     const fresh =
       typeof value?.savedAt === "number" &&
       value.savedAt <= now &&
       now - value.savedAt <= OWNED_ATTEMPT_TTL_MS;
-    if (mine && (fresh || !storedId(value))) continue; // loadAttempt reports it
+    if (fresh && (current === undefined || current === owner)) continue;
     set("local", key, retired(value, owner, now));
   }
   for (const key of keys("session")) {

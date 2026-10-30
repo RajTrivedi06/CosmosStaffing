@@ -10,11 +10,10 @@ export const attemptSchema = z.strictObject({
 export type QuoteAttempt = z.infer<typeof attemptSchema>;
 
 /** Detached snapshot. Edits to the draft must never change an in-flight retry. */
-export function createQuoteAttempt(
-  answers: QuoteAnswers,
-  submission_id: string = crypto.randomUUID(),
-): QuoteAttempt {
-  return JSON.parse(JSON.stringify({ submission_id, answers }));
+export function createQuoteAttempt(answers: QuoteAnswers): QuoteAttempt {
+  return JSON.parse(
+    JSON.stringify({ submission_id: crypto.randomUUID(), answers }),
+  );
 }
 
 export function readQuoteAttempt(raw: string | null): QuoteAttempt | null {
@@ -66,11 +65,17 @@ export const studioAcknowledgment = z.strictObject({
   status: z.literal("received"),
 });
 
-export function confirmedQuote(status: number, body: unknown): boolean {
+export function confirmedQuote(
+  status: number,
+  body: unknown,
+  /** Customer intake: only the Studio's committed receipt counts. */
+  receiptOnly = false,
+): boolean {
   if (status !== 200 && status !== 202) return false;
   if (studioAcknowledgment.safeParse(body).success) return true;
   // Existing legacy facade acknowledgment, distinct from Studio's receipt.
   return (
+    !receiptOnly &&
     status === 200 &&
     z
       .strictObject({

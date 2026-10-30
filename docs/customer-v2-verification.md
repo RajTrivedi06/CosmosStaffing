@@ -159,12 +159,8 @@ Studio commit `ee9146e`.
 2. **Stored payloads.** An attempt's answers stay only while its owner is
    signed in here and for 7 days. Sign-out, an ended or refused session, expiry
    and archival each replace them with a marker: the submission ID and when it
-   was made, kept 30 days. Archives, including older ones, hold markers only.
-   The next send reuses the ID: 202 means the original never arrived, 200 that
-   it was identical, and 409 that it arrived with other answers. That last case
-   is reported as already received, these answers aren't sent, and the marker
-   clears. Only "Start a separate request", after a confirmation, mints a new
-   ID. No screen says an unknown outcome failed.
+   was made. Archives, including older ones, hold markers only. Retrying is
+   only ever the same ID with the same stored answers.
 3. **Service credential.** Only `401 {code: "unauthorized"}` means sign-in.
    `503 service_auth_failed`, any other 503, and any 401 without that exact
    code (a gateway or preview protection) read as temporarily unavailable, on
@@ -175,6 +171,22 @@ Studio commit `ee9146e`.
    refused send shows its own screen, takes the answers off it and out of
    storage at once, and offers "Sign in again", a real sign-out. The next
    sign-in is a new session with the marker, and the resend keeps the ID.
+
+**Review of `64e751d`: two P1s fixed** (`docs/customer-v2-review-64e751d.md`).
+
+- A 409 no longer means received, and re-entered answers are no longer sent
+  under a marker's ID: both were wrong, because a 409 can mean different
+  content, version or principal, and a lost snapshot can't be rebuilt. Every
+  conflict keeps the attempt unresolved with its original ID. Only a validated
+  200/202 acknowledgment completes a request, and the browser now requires the
+  Studio's receipt in customer mode. Conflict wording is opaque.
+- A marker no longer ages out. Once only a marker is left, the quote stops at a
+  reconciliation screen: the reference, the account, and "Start a separate
+  request" after a confirmation, which is the only way to clear it. It holds on
+  reload and after a sweep from any page. A damaged record leaves a marker with
+  no ID rather than vanishing, and another intake version's record counts too,
+  so a new attempt can't overwrite it. Set-aside markers lapse after 30 days;
+  nothing depends on them. Answers still leave at 7 days at the latest.
 
 **Password recovery, observed.** No revocation code was added. On the website's
 local Auth (`supabase/config.toml`, not the paired project), with two older
@@ -209,14 +221,12 @@ mock and unit tests cover the website's mapping.
 
 **For review:**
 
-- A marker keeps a submission ID in this browser for 30 days, shown only to its
-  owner. After that a send gets a new ID.
-- Re-entered answers under a marker that Studio has never seen become the
-  request; if the original arrived, only the original stands and the client is
-  told so.
-- There's no status lookup by submission ID, so the screen can't say whether an
-  earlier attempt arrived until the client sends again. They're pointed to
-  their account first.
+- A marker stays in this browser until its owner confirms a separate request.
+  It holds an ID and a date, and is shown only to them.
+- There's no owner-verified way to look up a submission ID, so a marker can't
+  resolve itself: the client checks their account or contacts us. If the
+  earlier request did arrive, a separate request they confirm is a second one.
+  Automatic recovery would need that lookup from the Studio; none is assumed.
 - Confirming on another device can't bring choices across; they stay on the
   first browser.
 

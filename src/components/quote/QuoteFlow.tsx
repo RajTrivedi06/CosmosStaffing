@@ -63,8 +63,6 @@ type Status =
   | "signin"
   /** Sending is down for now; the attempt is kept for a retry. */
   | "temporary"
-  /** A resumed attempt's ID was already committed: the original arrived. */
-  | "received"
   /** Another account is now signed in in this browser. */
   | "switched"
   /** The account's email isn't confirmed (customer intake). */
@@ -124,8 +122,6 @@ export function QuoteFlow({
   const honeypotRef = useRef<HTMLInputElement>(null);
   const sendingRef = useRef(false);
   const attemptRef = useRef<QuoteAttempt | null>(null);
-  /** The current attempt reuses an unresolved marker's ID. */
-  const resumedRef = useRef(false);
   const [hasAttempt, setHasAttempt] = useState(false);
   const [unresolved, setUnresolved] = useState<UnresolvedAttempt | null>(null);
   const [attemptRecoveryFailed, setAttemptRecoveryFailed] = useState(false);
@@ -138,12 +134,7 @@ export function QuoteFlow({
     // This tab's draft (this client's, when signed in), or, signed out, the
     // choices left waiting for sign-in.
     const draft = slots.loadDraft() ?? (gated ? quoteHandoff.load() : null);
-    const {
-      attempt,
-      unresolved: marker,
-      resumed,
-      unreadable,
-    } = slots.loadAttempt();
+    const { attempt, unresolved: marker, unreadable } = slots.loadAttempt();
     // Signed in: answers from before sign-in are offered, never loaded.
     const offered = owner && !attempt ? anonymousWork.load() : null;
     const linked = answersFromParams(
@@ -165,7 +156,6 @@ export function QuoteFlow({
         : firstOpenStep(a);
     if (attempt) {
       attemptRef.current = attempt;
-      resumedRef.current = resumed;
       setHasAttempt(true);
       setAnswers(attempt.answers);
       setStep("review");
@@ -344,30 +334,25 @@ export function QuoteFlow({
     }
     // Another tab of this client's may hold an unconfirmed attempt: retry
     // that one, with its ID and answers, before any new request. If only its
-    // ID is left, these answers go under that ID, so the Studio matches them
-    // to the original instead of adding a second request.
-    let reserved: string | undefined;
+    // marker is left, nothing more can be sent.
     if (!attemptRef.current) {
-      const {
-        attempt: pending,
-        unresolved: marker,
-        resumed,
-      } = slots.loadAttempt();
+      const { attempt: pending, unresolved: marker } = slots.loadAttempt();
+      if (marker) {
+        setUnresolved(marker);
+        return;
+      }
       if (pending) {
         attemptRef.current = pending;
-        resumedRef.current = resumed;
         setHasAttempt(true);
         setAnswers(pending.answers);
         setStep("review");
         setError(accountCopy.quote.pendingAttempt);
         return;
       }
-      reserved = marker?.submission_id;
-      resumedRef.current = !!marker;
     }
     // Persist before transport: a reload must never mint a replacement UUID.
-    const attempt = attemptRef.current ?? createQuoteAttempt(answers, reserved);
-    if (!slots.saveAttempt(attempt, resumedRef.current)) {
+    const attempt = attemptRef.current ?? createQuoteAttempt(answers);
+    if (!slots.saveAttempt(attempt)) {
       setDraftStored(false);
       setError(
         "Your browser could not retain this submission for a safe retry. Enable storage or contact us before sending.",
@@ -398,24 +383,13 @@ export function QuoteFlow({
         id?: string;
         code?: string;
       } | null;
-      if (confirmedQuote(res.status, body)) {
+      if (confirmedQuote(res.status, body, intake === 2)) {
         setStatus("sent");
         slots.saveDraft(null);
         quoteHandoff.clear();
         slots.clearAttempt();
         attemptRef.current = null;
         setUnresolved(null);
-        return;
-      }
-      // The reserved ID is already committed with other answers, so the
-      // original arrived and these weren't sent. The outcome is known now.
-      if (resumedRef.current && body?.code === "idempotency_conflict") {
-        slots.clearAttempt();
-        attemptRef.current = null;
-        resumedRef.current = false;
-        setHasAttempt(false);
-        setUnresolved(null);
-        setStatus("received");
         return;
       }
       // A different account owns this browser now: take these answers off the
@@ -462,15 +436,15 @@ export function QuoteFlow({
   };
 
   const startSeparateRequest = () => {
-    const held = attemptRef.current?.submission_id ?? unresolved?.submission_id;
-    if (sendingRef.current || !held) return;
+    if (sendingRef.current || (!attemptRef.current && !unresolved)) return;
     if (
       !window.confirm(
         "Your previous request may already be saved. A separate request can create another inquiry. Contact us if you only need to change or resolve the previous request. Start a genuinely separate request?",
       )
     )
       return;
-    if (!slots.archiveAttempt(held)) {
+    const held = attemptRef.current ?? unresolved;
+    if (!slots.archiveAttempt(held?.submission_id ?? null)) {
       setError(
         "Keep this tab open and contact us. The original attempt could not be retained safely.",
       );
@@ -478,7 +452,6 @@ export function QuoteFlow({
     }
     if (attemptRef.current) setStep("contact");
     attemptRef.current = null;
-    resumedRef.current = false;
     setHasAttempt(false);
     setUnresolved(null);
     setStatus("idle");
@@ -561,7 +534,9 @@ export function QuoteFlow({
     );
   }
 
-  if (status === "received") {
+  // Only a marker is left, so there's nothing to retry and no way to tell what
+  // happened. Nothing is sent from here until the client decides.
+  if (unresolved && status !== "sent") {
     return (
       <div
         className={`quote-shell ${styles.shell}`}
@@ -571,18 +546,29 @@ export function QuoteFlow({
         <QuoteTop signedIn />
         <main id="main" className="quote-card">
           <div className="quote-step" role="status">
-            <h1>{accountCopy.quote.receivedTitle}</h1>
-            <p className="quote-help">{accountCopy.quote.received}</p>
+            <h1>{accountCopy.quote.unresolvedTitle}</h1>
+            <p className="quote-help">{accountCopy.quote.unresolved}</p>
+            {unresolved.submission_id && (
+              <p className="quote-note">
+                {accountCopy.quote.unresolvedReference}:{" "}
+                {unresolved.submission_id}
+              </p>
+            )}
+            {error && (
+              <p className="quote-alert" role="alert">
+                {error}
+              </p>
+            )}
             <div className="quote-actions">
               <button
                 type="button"
                 className="btn btn-glass"
-                onClick={() => setStatus("idle")}
+                onClick={startSeparateRequest}
               >
                 Start a separate request
               </button>
               <Link className="btn btn-primary" href={accountCopy.path}>
-                Back to my account
+                {accountCopy.quote.unresolvedAccount}
               </Link>
             </div>
           </div>
@@ -684,36 +670,6 @@ export function QuoteFlow({
               </div>
             </section>
           )}
-          {unresolved && !hasAttempt && (
-            <section
-              className="quote-alert border-line bg-paper"
-              aria-labelledby="unresolved-title"
-            >
-              <h2
-                id="unresolved-title"
-                className="mb-2 text-lg leading-snug font-semibold tracking-tight"
-              >
-                {accountCopy.quote.unresolvedTitle}
-              </h2>
-              <p>{accountCopy.quote.unresolved}</p>
-              <p className="quote-note">
-                {accountCopy.quote.unresolvedReference}:{" "}
-                {unresolved.submission_id}
-              </p>
-              <div className="quote-account-actions mt-3">
-                <button
-                  type="button"
-                  className="btn btn-glass"
-                  onClick={startSeparateRequest}
-                >
-                  Start a separate request
-                </button>
-                <Link className="btn btn-primary" href={accountCopy.path}>
-                  {accountCopy.quote.unresolvedAccount}
-                </Link>
-              </div>
-            </section>
-          )}
           <p className="quote-count">
             Step {index + 1} of {steps.length}
           </p>
@@ -797,7 +753,7 @@ export function QuoteFlow({
             ["conflict", "rate_limited", "invalid"].includes(status) && (
               <div className="quote-alert" role="alert">
                 {status === "conflict"
-                  ? "This request ID is already associated with different answers. We kept the original attempt. Contact us to resolve it; retrying will not create a new ID."
+                  ? "We can't match this request ID to its earlier attempt, so we haven't treated it as received or as failed. We kept the original attempt. Contact us to resolve it; retrying will not create a new ID."
                   : status === "rate_limited"
                     ? "Too many attempts were made. Wait ten minutes before retrying the same request. Your answers are still here."
                     : "The request could not be accepted. We kept its original answers and ID. Contact us to correct it before starting a separate request."}

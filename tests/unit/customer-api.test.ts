@@ -185,6 +185,8 @@ describe("intake v2", () => {
     [401, "<html>Protected preview</html>", 503, "unavailable"],
     // Success status without a valid committed acknowledgment: unknown outcome.
     [202, { ok: true }, 502, "delivery_failed"],
+    [200, { ok: true, id: "not-a-receipt" }, 502, "delivery_failed"],
+    [202, { ...ack, status: "booked" }, 502, "delivery_failed"],
     [200, { ...ack, receipt_id: "not-a-uuid" }, 502, "delivery_failed"],
     [404, { ok: false, code: "not_found" }, 502, "delivery_failed"],
     [500, "oops", 502, "delivery_failed"],

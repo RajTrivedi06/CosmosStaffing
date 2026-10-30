@@ -1,8 +1,8 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
+  ARCHIVED_MARKER_TTL_MS,
   OWNED_ATTEMPT_PREFIX,
   OWNED_ATTEMPT_TTL_MS,
-  UNRESOLVED_TTL_MS,
   anonymousWork,
   forgetOnSignOut,
   quoteSlots,
@@ -38,12 +38,7 @@ const attempt = {
   answers: homeQuote,
 } as QuoteAttempt;
 
-const none = {
-  attempt: null,
-  unresolved: null,
-  resumed: false,
-  unreadable: false,
-};
+const none = { attempt: null, unresolved: null, unreadable: false };
 
 class MemoryStorage {
   data = new Map<string, string>();
@@ -108,8 +103,13 @@ describe("account-bound send attempts", () => {
     expect(quoteSlots(BOB, 2).loadAttempt()).toEqual(none);
     // Nor does the signed-out screen.
     expect(quoteSlots(null, 1).loadAttempt().attempt).toBeNull();
-    // A different intake version for Alice is ignored, not an error.
-    expect(quoteSlots(ALICE, 1).loadAttempt()).toEqual(none);
+  });
+
+  it("never sends another intake version's attempt, or forgets it", () => {
+    quoteSlots(ALICE, 2).saveAttempt(attempt);
+    const seen = quoteSlots(ALICE, 1).loadAttempt();
+    expect(seen.attempt).toBeNull();
+    expect(seen.unresolved?.submission_id).toBe(attempt.submission_id);
   });
 
   it("keeps the anonymous attempt where it was while accounts are off", () => {
@@ -140,15 +140,8 @@ describe("attempts whose outcome is unknown", () => {
       savedAt: now,
       submission_id: attempt.submission_id,
     });
-    expect(readUnresolved(raw, ALICE, 2, now)).toEqual({
-      ...marker,
-      savedAt: now,
-    });
-    expect(readUnresolved(raw, BOB, 2, now)).toBeNull();
-    expect(readUnresolved(raw, ALICE, 1, now)).toBeNull();
-    expect(
-      readUnresolved(raw, ALICE, 2, now + UNRESOLVED_TTL_MS + 1),
-    ).toBeNull();
+    expect(readUnresolved(raw, ALICE)).toEqual({ ...marker, savedAt: now });
+    expect(readUnresolved(raw, BOB)).toBeNull();
   });
 
   it("sign-out leaves the marker and none of the answers", () => {
@@ -240,28 +233,50 @@ describe("attempts whose outcome is unknown", () => {
     expect(quoteSlots(null, 1).loadAttempt().attempt).toBeNull();
   });
 
-  it("markers lapse, so an old one doesn't reserve its ID for good", () => {
+  it("age alone never removes a marker or permits a new ID", () => {
     local.setItem(key, writeUnresolved(attempt.submission_id, ALICE, 2, now));
-    settleQuoteStorage(undefined, now + UNRESOLVED_TTL_MS - 1);
-    expect(local.getItem(key)).not.toBeNull();
-    settleQuoteStorage(undefined, now + UNRESOLVED_TTL_MS + 1);
-    expect(local.getItem(key)).toBeNull();
+    // Past the old 30-day limit, then much further, from any page or the quote.
+    for (const later of [
+      now + ARCHIVED_MARKER_TTL_MS + 1,
+      now + 10 * 365 * 24 * 60 * 60 * 1000,
+    ]) {
+      settleQuoteStorage(undefined, later);
+      settleQuoteStorage(ALICE, later);
+      settleQuoteStorage(null, later);
+      // Every read, not just the first: a reload sees the same thing.
+      for (let reload = 0; reload < 2; reload++) {
+        const { attempt: payload, unresolved } = quoteSlots(
+          ALICE,
+          2,
+        ).loadAttempt();
+        expect(payload).toBeNull();
+        expect(unresolved).toMatchObject(marker);
+      }
+    }
   });
 
-  it("a resumed attempt is filed under the same slot and remembered", () => {
-    local.setItem(key, writeUnresolved(attempt.submission_id, ALICE, 2));
-    quoteSlots(ALICE, 2).saveAttempt(attempt, true);
-    expect(quoteSlots(ALICE, 2).loadAttempt()).toEqual({
-      ...none,
-      attempt,
-      resumed: true,
-    });
-    quoteSlots(ALICE, 2).retireAttempt();
-    clean();
-    expect(quoteSlots(ALICE, 2).loadAttempt().unresolved).toMatchObject(marker);
+  it("only a confirmed separate request sets a marker aside", () => {
+    local.setItem(key, writeUnresolved(attempt.submission_id, ALICE, 2, now));
+    expect(quoteSlots(ALICE, 2).archiveAttempt(attempt.submission_id)).toBe(
+      true,
+    );
+    expect(quoteSlots(ALICE, 2).loadAttempt()).toEqual(none);
+    // The decided record may lapse; nothing else depends on it.
+    settleQuoteStorage(undefined);
+    expect(stored().join()).toContain(attempt.submission_id);
+    settleQuoteStorage(undefined, Date.now() + ARCHIVED_MARKER_TTL_MS + 1);
+    expect(local.data.size).toBe(0);
   });
 
-  it("a damaged record keeps its ID if it can; otherwise goes, and says so", () => {
+  it("a retried send can't overwrite a marker from another tab", () => {
+    const tab = quoteSlots(ALICE, 2);
+    expect(tab.loadAttempt()).toEqual(none);
+    local.setItem(key, writeUnresolved(attempt.submission_id, ALICE, 2, now));
+    // What the send path checks immediately before minting an ID.
+    expect(tab.loadAttempt().unresolved).toMatchObject(marker);
+  });
+
+  it("a damaged record keeps its ID if it can, and is never forgotten", () => {
     local.setItem(
       key,
       JSON.stringify({
@@ -276,11 +291,22 @@ describe("attempts whose outcome is unknown", () => {
     clean();
 
     local.setItem(key, `not json ${homeQuote.email}`);
-    expect(quoteSlots(ALICE, 2).loadAttempt()).toEqual({
-      ...none,
-      unreadable: true,
-    });
-    expect(local.getItem(key)).toBeNull();
+    for (let reload = 0; reload < 2; reload++) {
+      const { attempt: payload, unresolved } = quoteSlots(
+        ALICE,
+        2,
+      ).loadAttempt();
+      expect(payload).toBeNull();
+      expect(unresolved?.submission_id).toBeNull();
+    }
+    clean();
+    // The same from a page that doesn't know who is signed in.
+    local.setItem(key, `not json ${homeQuote.email}`);
+    settleQuoteStorage(null);
+    clean();
+    expect(quoteSlots(ALICE, 2).loadAttempt().unresolved).toBeTruthy();
+    expect(quoteSlots(ALICE, 2).archiveAttempt(null)).toBe(true);
+    expect(quoteSlots(ALICE, 2).loadAttempt()).toEqual(none);
   });
 });
 

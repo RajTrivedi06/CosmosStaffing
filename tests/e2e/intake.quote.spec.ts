@@ -82,7 +82,7 @@ test("conflict preserves original attempt; a separate request requires an explic
   await review(page);
   await send(page);
   await expect(page.locator(".quote-card").getByRole("alert")).toContainText(
-    "already associated with different answers",
+    "We can't match this request ID to its earlier attempt",
   );
   await retry(page);
   expect(requests[1]).toEqual(requests[0]);

@@ -165,6 +165,10 @@ it("never treats a receipt as success on a failed status", () => {
   expect(confirmedQuote(202, ack)).toBe(true);
   expect(confirmedQuote(200, { ok: true, id: "legacy" })).toBe(true);
   expect(confirmedQuote(202, { ok: true, id: "legacy" })).toBe(false);
+  // Customer intake: only the Studio's receipt completes a request.
+  expect(confirmedQuote(202, ack, true)).toBe(true);
+  expect(confirmedQuote(200, ack, true)).toBe(true);
+  expect(confirmedQuote(200, { ok: true, id: "legacy" }, true)).toBe(false);
 });
 it.each([
   "https://studio.cosmosservicesllc.com/api/webhooks/website",
