@@ -441,6 +441,35 @@ test("only a validated receipt completes a request", async ({ page }) => {
   expect((await stubState(page, email)).requests).toBe(1);
 });
 
+test("a send the edge limits keeps its attempt and resends nothing", async ({
+  page,
+}) => {
+  const email = uniqueEmail("limited");
+  await signUpAndConfirm(page, email);
+  await anonymousAnswers(page, "Lia Limited", email);
+  await adoptAndReview(page, "Lia Limited", email);
+  const sends = countSends(page);
+  await page.route(
+    "**/api/quote",
+    (route) =>
+      route.fulfill({
+        status: 429,
+        contentType: "text/plain",
+        body: "Too Many Requests",
+      }),
+    { times: 1 },
+  );
+  await page.getByRole("button", { name: "Send my request" }).click();
+  await expect(page.getByText("Too many attempts were made.")).toBeVisible();
+  await page.waitForTimeout(1_000);
+  expect(sends.count).toBe(1);
+  await expect(page.getByText("Lia Limited")).toBeVisible();
+
+  await page.getByRole("button", { name: "Try again" }).click();
+  await expect(page.getByRole("heading", { name: SENT })).toBeVisible();
+  expect((await stubState(page, email)).requests).toBe(1);
+});
+
 test("age doesn't remove a marker or allow a new ID", async ({ page }) => {
   const email = uniqueEmail("aged");
   await signUpAndConfirm(page, email);

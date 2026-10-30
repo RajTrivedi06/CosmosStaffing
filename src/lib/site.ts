@@ -656,7 +656,8 @@ export const account = {
     reload: "Continue",
     unverified:
       "Confirm your email address before sending. Check your inbox for the confirmation link; your answers are saved.",
-    followInAccount: "You can follow it in your account.",
+    followInAccount:
+      "You can follow it in your account. Our team arranges scheduling and payment with you directly, and calls before and after each job.",
   },
   errors: {
     credentials: "That email and password don't match an account.",
@@ -669,5 +670,10 @@ export const account = {
     unavailable:
       "Sign-in isn't available right now. Please try again in a moment.",
     off: "Client accounts aren't open yet. You can still contact us directly.",
+    interrupted: {
+      title: "Please wait a moment",
+      body: "That didn't go through. There may have been too many attempts from your connection. Wait a minute, then try again.",
+      action: "Try again",
+    },
   },
 } as const;
