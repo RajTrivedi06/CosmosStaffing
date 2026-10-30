@@ -170,7 +170,9 @@ Studio commit `ee9146e`.
    Studio before continuing to any destination, not only Studio pages. A
    refused send shows its own screen, takes the answers off it and out of
    storage at once, and offers "Sign in again", a real sign-out. The next
-   sign-in is a new session with the marker, and the resend keeps the ID.
+   sign-in creates a new session. The retained marker blocks sending until the
+   customer reconciles the earlier request or explicitly confirms a separate
+   request with a new ID.
 
 **Review of `64e751d`: two P1s fixed** (`docs/customer-v2-review-64e751d.md`).
 
