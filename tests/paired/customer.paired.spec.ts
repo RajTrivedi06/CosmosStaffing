@@ -991,10 +991,13 @@ test("sensitive data an earlier version stored leaves the browser", async ({
   await context.close();
 });
 
-test("a wrong server credential is an operational failure at the Studio", async () => {
-  const page = await aliceContext.newPage();
-  await page.goto("/account");
-  const { access_token } = (await readSession(aliceContext)) as unknown as {
+test("a wrong server credential is an operational failure at the Studio", async ({
+  browser,
+  baseURL,
+  contextOptions,
+}) => {
+  const { context, page } = await signedIn(browser, baseURL!, contextOptions);
+  const { access_token } = (await readSession(context)) as unknown as {
     access_token: string;
   };
   const res = await page.request.get(`${STUDIO}/api/customer/v2/account`, {
@@ -1010,10 +1013,8 @@ test("a wrong server credential is an operational failure at the Studio", async 
     code: "service_auth_failed",
   });
   // The same session, with the right credential, is still accepted.
-  expect((await studioAs(aliceContext, page)("GET", "/account")).status).toBe(
-    200,
-  );
-  await page.close();
+  expect((await studioAs(context, page)("GET", "/account")).status).toBe(200);
+  await context.close();
 });
 
 test("through the website, a wrong server credential reads as temporary and loses nothing", async ({
