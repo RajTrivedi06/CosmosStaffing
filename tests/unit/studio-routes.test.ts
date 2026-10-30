@@ -88,6 +88,7 @@ describe("Studio forwarding", () => {
     expect(headers.map((rule) => rule.source)).toEqual([
       "/account",
       "/account/:path*",
+      "/account/confirm",
     ]);
   });
 

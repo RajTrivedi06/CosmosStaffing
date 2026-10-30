@@ -38,17 +38,26 @@ const nextConfig: NextConfig = {
       ]),
     ];
   },
-  // Client account pages are private: never cached, indexed or referred on.
-  // (proxy.ts also marks them no-store whenever it refreshes a session.)
+  // Client account pages are private: never cached or indexed (proxy.ts also
+  // marks them no-store whenever it refreshes a session).
+  //
+  // Referrer-Policy is "same-origin", not "no-referrer": under no-referrer
+  // browsers send `Origin: null` on a native form POST (before hydration or
+  // without JavaScript), and Next's Server Action CSRF check rightly refuses
+  // it. same-origin still never sends the address to another site. The
+  // confirmation link carries a one-time token in its address, so
+  // /account/confirm (listed last, so it wins) keeps no-referrer.
   async headers() {
-    return ["/account", "/account/:path*"].map((source) => ({
-      source,
-      headers: [
-        { key: "Cache-Control", value: "private, no-store" },
-        { key: "X-Robots-Tag", value: "noindex, nofollow, noarchive" },
-        { key: "Referrer-Policy", value: "no-referrer" },
-      ],
-    }));
+    const privateHeaders = (referrer: string) => [
+      { key: "Cache-Control", value: "private, no-store" },
+      { key: "X-Robots-Tag", value: "noindex, nofollow, noarchive" },
+      { key: "Referrer-Policy", value: referrer },
+    ];
+    return [
+      { source: "/account", headers: privateHeaders("same-origin") },
+      { source: "/account/:path*", headers: privateHeaders("same-origin") },
+      { source: "/account/confirm", headers: privateHeaders("no-referrer") },
+    ];
   },
   // The Studio's recipient pages and portal, forwarded before this site's
   // own pages and public files are checked so nothing here can shadow them.

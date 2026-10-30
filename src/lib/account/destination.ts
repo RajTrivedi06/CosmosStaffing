@@ -41,6 +41,8 @@ export const SIGN_IN_REASONS = [
   "wrong_account",
   "link_expired",
   "signed_out",
+  /** Signed out here, but the Auth provider couldn't confirm the session ended. */
+  "signed_out_local",
   "password_updated",
 ] as const;
 export type SignInReason = (typeof SIGN_IN_REASONS)[number];

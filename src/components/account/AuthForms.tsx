@@ -1,6 +1,13 @@
 "use client";
 
-import { useActionState, useEffect, useId, useState } from "react";
+import {
+  useActionState,
+  useEffect,
+  useId,
+  useRef,
+  useState,
+  type Ref,
+} from "react";
 import { account } from "@/lib/site";
 import { quoteHandoff } from "@/lib/quote-handoff";
 import {
@@ -71,9 +78,11 @@ function EmailField({
 function PasswordField({
   label = "Password",
   isNew = false,
+  inputRef,
 }: {
   label?: string;
   isNew?: boolean;
+  inputRef?: Ref<HTMLInputElement>;
 }) {
   const id = useId();
   const [shown, setShown] = useState(false);
@@ -84,6 +93,7 @@ function PasswordField({
       </label>
       <div className="account-password">
         <input
+          ref={inputRef}
           id={id}
           name="password"
           className="input quote-input"
@@ -123,7 +133,13 @@ function Submit({ pending, label }: { pending: boolean; label: string }) {
 export function SignInForm({ next }: { next: string }) {
   const [state, action, pending] = useActionState(signIn, {}, "/account/login");
   const [email, setEmail] = useState("");
+  const passwordRef = useRef<HTMLInputElement>(null);
   useGoTo(state);
+  // A refused sign-in keeps the email (state.email) and clears the password;
+  // put the cursor back in the password for an immediate retry.
+  useEffect(() => {
+    if (state.error && state.email) passwordRef.current?.focus();
+  }, [state]);
   return (
     <>
       <form
@@ -136,12 +152,14 @@ export function SignInForm({ next }: { next: string }) {
         }}
       >
         <input type="hidden" name="next" value={next} />
-        <EmailField invalid={!!state.error} />
-        <PasswordField />
+        <EmailField defaultValue={state.email} invalid={!!state.error} />
+        <PasswordField inputRef={passwordRef} />
         <Alert state={state} />
         <Submit pending={pending} label={account.signIn.submit} />
       </form>
-      {state.unconfirmed && <ResendForm email={email} next={next} />}
+      {state.unconfirmed && (
+        <ResendForm email={email || state.email || ""} next={next} />
+      )}
     </>
   );
 }
@@ -164,7 +182,7 @@ export function SignUpForm({ next }: { next: string }) {
   return (
     <form action={action} className="account-form">
       <input type="hidden" name="next" value={next} />
-      <EmailField key={suggested} defaultValue={suggested} />
+      <EmailField key={suggested} defaultValue={state.email ?? suggested} />
       <PasswordField isNew />
       <Alert state={state} />
       <Submit pending={pending} label={account.signUp.submit} />
@@ -222,7 +240,7 @@ export function ForgotForm({ next }: { next: string }) {
   return (
     <form action={action} className="account-form">
       <input type="hidden" name="next" value={next} />
-      <EmailField invalid={!!state.error} />
+      <EmailField defaultValue={state.email} invalid={!!state.error} />
       <Alert state={state} />
       <Submit pending={pending} label={account.forgot.submit} />
     </form>

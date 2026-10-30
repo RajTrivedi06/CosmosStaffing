@@ -559,6 +559,8 @@ export const account = {
     link_expired:
       "That link has expired or was already used. Sign in, or ask for a new link.",
     signed_out: "You've signed out.",
+    signed_out_local:
+      "You've signed out on this device. We couldn't reach our sign-in service to end the session there too; it will expire on its own.",
     password_updated: "Your password has been changed.",
   },
   home: {

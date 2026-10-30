@@ -6,6 +6,7 @@ import {
   authConfig,
   cookieOptions,
   hasSessionCookie,
+  isClientAuthCookie,
   isLoopbackHost,
 } from "./config";
 
@@ -51,6 +52,20 @@ export async function authClient() {
       },
     },
   });
+}
+
+/**
+ * Forgets the client session on this device: expires every cookie in its
+ * namespace, whatever the Auth provider said. Other roles' cookies stay.
+ */
+export async function clearClientCookies() {
+  const store = await cookies();
+  const hostname = ((await headers()).get("host") ?? "").replace(/:\d+$/, "");
+  const { name: _, ...options } = cookieOptions(hostname);
+  void _;
+  for (const { name } of store.getAll())
+    if (isClientAuthCookie(name))
+      store.set(name, "", { ...options, maxAge: 0 });
 }
 
 /** Who is signed in. Always verified (getClaims), never read from the cookie alone. */

@@ -84,7 +84,10 @@ async function signIn(page: Page, email: string, password = PASSWORD) {
 async function signOut(page: Page) {
   await page.goto("/account");
   await page.getByRole("button", { name: account.home.signOut }).click();
-  await expect(page).toHaveURL(/\/account\/login\?reason=signed_out$/);
+  // Sign-out waits up to 3 s for Supabase before forgetting the session.
+  await expect(page).toHaveURL(/\/account\/login\?reason=signed_out$/, {
+    timeout: 10_000,
+  });
 }
 
 test("a new client reviews, signs up, confirms in a new tab and sends without signing in again", async ({
@@ -397,4 +400,123 @@ test("account screens fit a phone without sideways scrolling", async ({
         expect(box.height, `${path} tap target`).toBeGreaterThanOrEqual(44);
     }
   }
+});
+
+test("a refused sign-in keeps the email, clears the password and retries at once", async ({
+  page,
+}) => {
+  const email = await confirmedAccount(page, "retry");
+  await signOut(page);
+  await signIn(page, email, "not-the-password");
+  await expect(page.locator("main").getByRole("alert")).toHaveText(
+    account.errors.credentials,
+  );
+  await expect(page.getByLabel("Email")).toHaveValue(email);
+  const password = page.getByLabel("Password", { exact: true });
+  await expect(password).toHaveValue("");
+  await expect(password).toBeFocused();
+  await password.fill(PASSWORD);
+  await page
+    .getByRole("button", { name: account.signIn.submit, exact: true })
+    .click();
+  await expect(page).toHaveURL(/\/account$/);
+});
+
+test("account pages keep referrers on this site; the token link sends none", async ({
+  page,
+}) => {
+  for (const path of ["/account/login", "/account/signup", "/account/forgot"]) {
+    const res = await page.request.get(path);
+    expect(res.headers()["referrer-policy"], path).toBe("same-origin");
+  }
+  const confirm = await page.request.get(
+    "/account/confirm?token_hash=synthetic&type=email",
+    { maxRedirects: 0 },
+  );
+  expect(confirm.status()).toBe(303);
+  expect(confirm.headers()["referrer-policy"]).toBe("no-referrer");
+});
+
+test.describe("without JavaScript", () => {
+  test.use({ javaScriptEnabled: false });
+
+  test("native sign-in works, keeps the email when refused, and sends the real Origin", async ({
+    page,
+    browser,
+  }) => {
+    // The account is made in a normal (JavaScript) browser context.
+    const setup = await browser.newPage();
+    const email = await confirmedAccount(setup, "nojs");
+    await setup.close();
+
+    await page.goto("/account/login");
+    await page.getByLabel("Email").fill(email);
+    await page.getByLabel("Password", { exact: true }).fill("not-the-password");
+    const refused = page.waitForRequest((r) => r.method() === "POST");
+    await page
+      .getByRole("button", { name: account.signIn.submit, exact: true })
+      .click();
+    const origin = (await refused).headers().origin;
+    expect(origin).toBe(new URL(page.url()).origin);
+    await expect(page.locator("main").getByRole("alert")).toHaveText(
+      account.errors.credentials,
+    );
+    await expect(page.getByLabel("Email")).toHaveValue(email);
+    await expect(page.getByLabel("Password", { exact: true })).toHaveValue("");
+
+    await page.getByLabel("Password", { exact: true }).fill(PASSWORD);
+    await page
+      .getByRole("button", { name: account.signIn.submit, exact: true })
+      .click();
+    await expect(page).toHaveURL(/\/account$/);
+    await expect(page.getByText(email)).toBeVisible();
+  });
+
+  test("a sign-in posted from another site is refused and signs no one in", async ({
+    page,
+    browser,
+  }) => {
+    const setup = await browser.newPage();
+    const email = await confirmedAccount(setup, "csrf");
+    await setup.close();
+
+    // The real form's fields, including Next's Server Action reference.
+    await page.goto("/account/login");
+    const fields = await page
+      .locator("main form input[name]")
+      .evaluateAll((inputs) =>
+        (inputs as HTMLInputElement[]).map((input) => [
+          input.name,
+          input.value,
+        ]),
+      );
+    const multipart: Record<string, string> = Object.fromEntries(fields);
+    multipart.email = email;
+    multipart.password = PASSWORD;
+    expect(
+      Object.keys(multipart).some((name) => name.startsWith("$ACTION")),
+    ).toBe(true);
+
+    for (const origin of ["https://evil.example", "null"]) {
+      const res = await page.request.post("/account/login", {
+        multipart,
+        headers: { origin },
+        maxRedirects: 0,
+      });
+      expect(res.status(), origin).toBeGreaterThanOrEqual(400);
+      const setCookie = res
+        .headersArray()
+        .filter((h) => h.name.toLowerCase() === "set-cookie")
+        .map((h) => h.value)
+        .join("\n");
+      expect(setCookie, origin).not.toContain("cosmos-client-auth");
+    }
+    expect(
+      (await page.context().cookies()).some((c) =>
+        c.name.startsWith("cosmos-client-auth"),
+      ),
+    ).toBe(false);
+    await page.goto("/account");
+    await expect(page).toHaveURL(/\/account\/login\?reason=signin_required$/);
+  });
 });

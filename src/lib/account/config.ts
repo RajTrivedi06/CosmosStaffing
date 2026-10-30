@@ -28,6 +28,19 @@ export function hasSessionCookie(list: { name: string }[]) {
   );
 }
 
+/**
+ * Every cookie in the client-session namespace: the session (whole or
+ * chunked) and the SDK's code verifiers (`cosmos-client-auth-…`). Staff and
+ * cleaner sessions use Supabase's default `sb-…` names and never match.
+ */
+export function isClientAuthCookie(name: string) {
+  return (
+    name === AUTH_COOKIE ||
+    name.startsWith(`${AUTH_COOKIE}.`) ||
+    name.startsWith(`${AUTH_COOKIE}-`)
+  );
+}
+
 const LOOPBACK = new Set(["localhost", "127.0.0.1", "[::1]"]);
 
 export function isLoopbackHost(hostname: string) {

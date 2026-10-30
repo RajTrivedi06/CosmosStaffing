@@ -4,7 +4,11 @@ import { redirect } from "next/navigation";
 import { z } from "zod";
 import type { AuthError } from "@supabase/supabase-js";
 import { account } from "@/lib/site";
-import { authClient, siteOrigin } from "@/lib/account/server";
+import {
+  authClient,
+  clearClientCookies,
+  siteOrigin,
+} from "@/lib/account/server";
 import {
   ACCOUNT_HOME,
   destinationOr,
@@ -23,6 +27,12 @@ export type FormState = {
   /** Sign-up done: show "check your email" for this address. */
   sentTo?: string;
   notice?: string;
+  /**
+   * The email as typed, so a refused submit keeps it. React resets a form
+   * after its action; the field's default value restores this. Passwords are
+   * never returned, so they clear.
+   */
+  email?: string;
   /** A forwarded Studio page; the browser opens it with a full page load. */
   goTo?: string;
 };
@@ -52,30 +62,33 @@ async function confirmLink(next: string) {
 export async function signIn(_: FormState, form: FormData): Promise<FormState> {
   const supabase = await authClient();
   if (!supabase) return { error: errors.off };
-  const address = email.safeParse(String(form.get("email") ?? "").trim());
+  const typed = String(form.get("email") ?? "").slice(0, 200);
+  const address = email.safeParse(typed.trim());
   const secret = String(form.get("password") ?? "");
-  if (!address.success) return { error: errors.email };
-  if (!secret || secret.length > 72) return { error: errors.credentials };
+  if (!address.success) return { error: errors.email, email: typed };
+  if (!secret || secret.length > 72)
+    return { error: errors.credentials, email: typed };
 
   const { error } = await supabase.auth.signInWithPassword({
     email: address.data,
     password: secret,
   });
   if (error?.code === "email_not_confirmed")
-    return { error: errors.unconfirmed, unconfirmed: true };
+    return { error: errors.unconfirmed, unconfirmed: true, email: typed };
   if (error?.code === "invalid_credentials" || error?.status === 400)
-    return { error: errors.credentials };
-  if (error) return failure(error);
+    return { error: errors.credentials, email: typed };
+  if (error) return { ...failure(error), email: typed };
   return arrive(destinationOr(form.get("next")));
 }
 
 export async function signUp(_: FormState, form: FormData): Promise<FormState> {
   const supabase = await authClient();
   if (!supabase) return { error: errors.off };
-  const address = email.safeParse(String(form.get("email") ?? "").trim());
+  const typed = String(form.get("email") ?? "").slice(0, 200);
+  const address = email.safeParse(typed.trim());
   const secret = password.safeParse(String(form.get("password") ?? ""));
-  if (!address.success) return { error: errors.email };
-  if (!secret.success) return { error: errors.weakPassword };
+  if (!address.success) return { error: errors.email, email: typed };
+  if (!secret.success) return { error: errors.weakPassword, email: typed };
   const next = destinationOr(form.get("next"));
 
   const { data, error } = await supabase.auth.signUp({
@@ -86,7 +99,7 @@ export async function signUp(_: FormState, form: FormData): Promise<FormState> {
   // An email that already has a confirmed account gets the same answer as a
   // new one, so this page never reveals which addresses have accounts.
   if (error?.code === "user_already_exists") return { sentTo: address.data };
-  if (error) return failure(error);
+  if (error) return { ...failure(error), email: typed };
   // Confirmation switched off for this project: the session already exists.
   if (data.session) return arrive(next);
   return { sentTo: address.data };
@@ -116,14 +129,17 @@ export async function requestReset(
 ): Promise<FormState> {
   const supabase = await authClient();
   if (!supabase) return { error: errors.off };
-  const address = email.safeParse(String(form.get("email") ?? "").trim());
-  if (!address.success) return { error: errors.email };
+  const typed = String(form.get("email") ?? "").slice(0, 200);
+  const address = email.safeParse(typed.trim());
+  if (!address.success) return { error: errors.email, email: typed };
   const next = destinationOr(form.get("next"));
   const { error } = await supabase.auth.resetPasswordForEmail(address.data, {
     redirectTo: await confirmLink(next),
   });
-  // Same answer whether or not the account exists; only limits are shown.
-  if (error?.status === 429) return failure(error);
+  // Supabase accepts a request the same way whether or not the account
+  // exists, so "sent" never reveals one. Only a refused or failed request
+  // (limits, outage) says so, and offers a retry; it never claims an email.
+  if (error) return { ...failure(error), email: typed };
   return { notice: account.forgot.sent };
 }
 
@@ -147,12 +163,36 @@ export async function updatePassword(
 }
 
 /**
- * Signs out on this device only. After a "wrong account" link, it returns to
- * the sign-in page with the same destination, so the right account can sign in.
+ * Signs out on this device. Supabase is asked to end this session
+ * (`scope: "local"`, so other devices and roles are untouched); whatever it
+ * answers, every client-session cookie here is expired, so a refresh or
+ * provider failure can't leave the client signed in. The page then says
+ * which happened: ended with Supabase too, or only on this device.
+ * After a "wrong account" link it returns to sign-in with the same
+ * destination, so the right account can sign in.
  */
 export async function signOut(form: FormData) {
-  const supabase = await authClient();
-  await supabase?.auth.signOut({ scope: "local" });
+  let ended = false;
+  try {
+    const supabase = await authClient();
+    if (supabase) {
+      // An expired session refreshes first, and the SDK retries an outage
+      // with backoff; don't keep someone waiting to sign out.
+      const result = await Promise.race([
+        supabase.auth.signOut({ scope: "local" }),
+        new Promise<null>((done) =>
+          setTimeout(() => done(null), SIGN_OUT_WAIT_MS),
+        ),
+      ]);
+      ended = result !== null && !result.error;
+    }
+  } catch {
+    ended = false;
+  }
+  await clearClientCookies();
   const next = destinationOr(form.get("next"));
-  redirect(signInHref(next, "signed_out"));
+  redirect(signInHref(next, ended ? "signed_out" : "signed_out_local"));
 }
+
+/** How long sign-out waits for Supabase before forgetting the session locally. */
+const SIGN_OUT_WAIT_MS = 3_000;

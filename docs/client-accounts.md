@@ -23,7 +23,17 @@ website-side sign-in only; it is not authenticated Studio integration.
   accounts are told so and can ask for the link again.
 - **Forgot / reset** (`/account/forgot`, `/account/reset`). Never says whether
   an email has an account; signing up with a taken email looks identical.
-- **Sign out**: this device only; also forgets a quote waiting for sign-in.
+  "Sent" is shown only when Supabase accepted the request (it accepts the
+  same way for unknown emails); a refused or failed request says so, keeps
+  the email and offers a retry, and never claims an email went out.
+- **Sign out**: asks Supabase to end this session (`scope: "local"`, waiting
+  at most 3 s), then expires every `cosmos-client-auth` cookie (whole, chunked
+  and code verifiers) whatever it answered; `sb-…` staff/cleaner cookies are
+  untouched. The page says "signed out" only when Supabase confirmed it, and
+  "signed out on this device" when it couldn't be reached (the session then
+  just expires). Also forgets a quote waiting for sign-in.
+- **Refused sign-in** keeps the typed email, clears the password and puts
+  the cursor there; with or without JavaScript.
 - **Account home** (`/account`): email, New request, Sign out, and the
   client's records. The v2 account endpoints (`GET /account`, `/requests`,
   `/requests/:id`) are not wired up yet, so `accountOverview`
@@ -39,17 +49,17 @@ website-side sign-in only; it is not authenticated Studio integration.
 
 ## How it works
 
-| Concern                 | Implementation                                                                                                                                                                                                                                              |
-| ----------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Library                 | `@supabase/ssr` 0.12.7 and `@supabase/supabase-js` 2.118.0 (pinned), server only. No browser Supabase client and no tokens in JavaScript.                                                                                                                   |
-| Identity checks         | `getClaims()` everywhere (`src/lib/account/server.ts`), never `getSession()`.                                                                                                                                                                               |
-| Session refresh         | `src/proxy.ts` (Next 16 proxy), only on `/account*`, `/quote` and `/api/quote`, never on the Studio's forwarded paths. Applies Supabase's no-cache headers on refresh and marks the page `private, no-store`.                                               |
-| Cookies                 | `cosmos-client-auth` (+ `.N` chunks, PKCE verifier): host-only (no Domain), `HttpOnly`, `SameSite=Lax`, `Secure` except on loopback dev hosts. The name deliberately differs from Supabase's default `sb-<ref>-auth-token`, which cleaners' `/me` uses.     |
-| Private responses       | `/account*`: `Cache-Control: private, no-store`, `X-Robots-Tag: noindex, nofollow, noarchive`, `Referrer-Policy: no-referrer` (next.config `headers()`), plus `robots` metadata. `/account/confirm` answers 303 with a relative Location.                   |
-| Return-to               | `src/lib/account/destination.ts`: an allowlist of whole paths, `/account`, `/quote`, `/q/<token>`, `/pay/<token>` (16–128 URL-safe chars). Anything else, including every absolute, protocol-relative, backslash, query or `/me` value, becomes `/account`. |
-| Studio destinations     | Opened with a full page load (`ContinueTo`, plain `<a>`), never next/link.                                                                                                                                                                                  |
-| Answers through sign-in | `src/lib/quote-handoff.ts`: the reviewed draft goes to `localStorage` (so a confirmation opened in a new tab finds it), versioned, 24-hour expiry, cleared on send and on sign-out. Never in a URL. The sign-up page offers the quote's email from it.      |
-| Off switch              | Accounts are on only when `AUTH_SUPABASE_URL` and `AUTH_SUPABASE_PUBLISHABLE_KEY` are set. Unset, every account page says accounts aren't open and the quote behaves exactly as before.                                                                     |
+| Concern                 | Implementation                                                                                                                                                                                                                                                                                                                                                                                                         |
+| ----------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Library                 | `@supabase/ssr` 0.12.7 and `@supabase/supabase-js` 2.118.0 (pinned), server only. No browser Supabase client and no tokens in JavaScript.                                                                                                                                                                                                                                                                              |
+| Identity checks         | `getClaims()` everywhere (`src/lib/account/server.ts`), never `getSession()`.                                                                                                                                                                                                                                                                                                                                          |
+| Session refresh         | `src/proxy.ts` (Next 16 proxy), only on `/account*`, `/quote` and `/api/quote`, never on the Studio's forwarded paths. Applies Supabase's no-cache headers on refresh and marks the page `private, no-store`.                                                                                                                                                                                                          |
+| Cookies                 | `cosmos-client-auth` (+ `.N` chunks, PKCE verifier): host-only (no Domain), `HttpOnly`, `SameSite=Lax`, `Secure` except on loopback dev hosts. The name deliberately differs from Supabase's default `sb-<ref>-auth-token`, which cleaners' `/me` uses.                                                                                                                                                                |
+| Private responses       | `/account*`: `Cache-Control: private, no-store`, `X-Robots-Tag: noindex, nofollow, noarchive`, `Referrer-Policy: same-origin` (next.config `headers()`; `no-referrer` made browsers send `Origin: null` on native form posts, which Next's Server Action CSRF check refuses), `/account/confirm`'s one-time token link `no-referrer`, plus `robots` metadata. `/account/confirm` answers 303 with a relative Location. |
+| Return-to               | `src/lib/account/destination.ts`: an allowlist of whole paths, `/account`, `/quote`, `/q/<token>`, `/pay/<token>` (16–128 URL-safe chars). Anything else, including every absolute, protocol-relative, backslash, query or `/me` value, becomes `/account`.                                                                                                                                                            |
+| Studio destinations     | Opened with a full page load (`ContinueTo`, plain `<a>`), never next/link.                                                                                                                                                                                                                                                                                                                                             |
+| Answers through sign-in | `src/lib/quote-handoff.ts`: the reviewed draft goes to `localStorage` (so a confirmation opened in a new tab finds it), versioned, 24-hour expiry, cleared on send and on sign-out. Never in a URL. The sign-up page offers the quote's email from it.                                                                                                                                                                 |
+| Off switch              | Accounts are on only when `AUTH_SUPABASE_URL` and `AUTH_SUPABASE_PUBLISHABLE_KEY` are set. Unset, every account page says accounts aren't open and the quote behaves exactly as before.                                                                                                                                                                                                                                |
 
 Studio intake is unchanged: the website still uses the v1 adapter with
 `identity: {status: "pending"}`, and production Studio delivery stays blocked
@@ -149,6 +159,13 @@ change) has **not started**; the gaps are listed in
   redirect allowlist (25 rejected inputs), config and cookie flags, handoff
   expiry/tampering, account view states (synthetic display data only), facade
   401 for signed-out/expired sessions, origin check.
+- **Unit, real SDK with synthetic Auth HTTP answers**
+  (`tests/unit/account-actions.test.ts`): sign-out of an expired session
+  during an Auth 503 clears all client cookie chunks and verifiers, keeps
+  `sb-…` cookies, says "this device only" and leaves no restorable session;
+  a confirmed sign-out says so; recovery reports "sent" only on acceptance
+  (500/503/429 show unavailable or rate-limited with the email kept);
+  refused sign-ins keep the email and never echo the password.
 - **Browser, real local Supabase Auth** (`tests/e2e/account.auth.spec.ts`,
   `npm run test:e2e:auth`, desktop and Pixel 7): needs `supabase start`
   (this repo's stack, API 54621, Mailpit 54624). Sign-up → confirm in a new
@@ -156,7 +173,11 @@ change) has **not started**; the gaps are listed in
   reused link; enumeration; unsafe `next` values; return to `/q/<token>`
   (the Studio stub); wrong account; corrupted session → expired + facade 401;
   sign-out clears cookie and handoff; full reset; phone layout and tap
-  targets; cookie flags; no personal data in any URL. 24 tests × 2 runs passed.
+  targets; cookie flags; no personal data in any URL. Added 2026-10-30:
+  refused sign-in keeps the email and retries at once; JavaScript-disabled
+  native sign-in (refused and accepted) sends the real Origin; a native post
+  from another origin (or `Origin: null`) is refused and sets no session;
+  scoped Referrer-Policy headers.
 - These results are **website-local Auth only** (a separate isolated local
   project), recorded before the v2.1 contract was published.
 - **Not tested: paired with the Studio.** The v2.1 contract now exists, but
