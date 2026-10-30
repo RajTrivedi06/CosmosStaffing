@@ -1042,8 +1042,12 @@ test("through the website, a wrong server credential reads as temporary and lose
   await finishQuestions(page, { name, email: alice.email });
 
   // This site's process now presents a credential the Studio refuses. The
-  // launcher generates it, in that process only.
+  // launcher generates it, in that process only. Tabs wait off-site, or the
+  // dev server would reload them as it comes back, mid-step; this tab's
+  // storage is still there on return.
+  await page.goto("about:blank");
   restartWebsite("invalid");
+  await page.goto("/quote");
   await expect(
     page.getByRole("button", { name: "Send my request" }),
   ).toBeVisible({ timeout: 30_000 });
@@ -1089,6 +1093,7 @@ test("through the website, a wrong server credential reads as temporary and lose
 
   // Correct configuration back: the same session reads its records, and the
   // same attempt goes through once.
+  await page.goto("about:blank");
   restartWebsite("correct");
   await page.goto("/account");
   await expect(details).toHaveCount(before);
