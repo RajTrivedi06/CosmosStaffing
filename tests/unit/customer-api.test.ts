@@ -178,6 +178,11 @@ describe("intake v2", () => {
     [422, { ok: false, code: "invalid" }, 422, "invalid"],
     [413, { ok: false, code: "too_large" }, 413, "too_large"],
     [503, { ok: false, code: "unavailable" }, 503, "unavailable"],
+    // Contract 2.2: a refused server credential is never the client's problem.
+    [503, { ok: false, code: "service_auth_failed" }, 503, "unavailable"],
+    // Only Studio's exact answer means the session failed.
+    [401, { ok: false, code: "something_else" }, 503, "unavailable"],
+    [401, "<html>Protected preview</html>", 503, "unavailable"],
     // Success status without a valid committed acknowledgment: unknown outcome.
     [202, { ok: true }, 502, "delivery_failed"],
     [200, { ...ack, receipt_id: "not-a-uuid" }, 502, "delivery_failed"],
@@ -268,6 +273,9 @@ describe("account reads", () => {
     [401, { ok: false, code: "unauthorized" }, "unauthorized"],
     [403, { ok: false, code: "email_unverified" }, "unverified"],
     [503, { ok: false, code: "unavailable" }, "unavailable"],
+    [503, { ok: false, code: "service_auth_failed" }, "unavailable"],
+    [401, { ok: false, code: "something_else" }, "unavailable"],
+    [401, "<html>Protected preview</html>", "unavailable"],
     [200, { ok: true, items: "nope" }, "unavailable"],
   ])("maps %i to %s", async (status, body, reason) => {
     studio(status, body);

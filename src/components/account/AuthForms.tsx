@@ -9,7 +9,6 @@ import {
   type Ref,
 } from "react";
 import { account } from "@/lib/site";
-import { quoteHandoff } from "@/lib/quote-handoff";
 import { withNext } from "@/lib/account/destination";
 import {
   requestReset,
@@ -177,19 +176,13 @@ export function SignUpForm({ next }: { next: string }) {
     {},
     withNext("/account/signup", next),
   );
-  // Offer the email from a quote waiting on this device, if there is one.
-  const [suggested, setSuggested] = useState<string>();
-  useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect -- localStorage is browser-only
-    setSuggested(quoteHandoff.load()?.answers.email || undefined);
-  }, []);
   useGoTo(state);
 
   if (state.sentTo) return <CheckEmail email={state.sentTo} next={next} />;
   return (
     <form action={action} className="account-form">
       <input type="hidden" name="next" value={next} />
-      <EmailField key={suggested} defaultValue={state.email ?? suggested} />
+      <EmailField defaultValue={state.email} />
       <PasswordField isNew />
       <Alert state={state} />
       <Submit pending={pending} label={account.signUp.submit} />

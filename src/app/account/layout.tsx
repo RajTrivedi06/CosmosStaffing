@@ -2,6 +2,9 @@ import type { Metadata, Viewport } from "next";
 import Link from "next/link";
 import { connection } from "next/server";
 import { siteConfig } from "@/lib/site";
+import { clientSession } from "@/lib/account/server";
+import { ownerTag } from "@/lib/account/owner";
+import { QuoteStorageSweep } from "@/components/quote/QuoteStorageSweep";
 
 export const metadata: Metadata = {
   robots: { index: false, follow: false },
@@ -22,8 +25,16 @@ export default async function AccountLayout({
   // Every account page answers per request. Without this, a build made
   // without the auth settings would prerender "accounts off" for good.
   await connection();
+  const session = await clientSession();
   return (
     <div className="quote-shell account-shell">
+      {session.state !== "off" && (
+        <QuoteStorageSweep
+          owner={
+            session.state === "signed_in" ? ownerTag(session.client.id) : null
+          }
+        />
+      )}
       <header className="quote-top">
         <Link href="/" className="wordmark">
           {siteConfig.shortName}

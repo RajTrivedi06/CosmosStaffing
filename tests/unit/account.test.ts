@@ -24,6 +24,7 @@ import {
 import { accountOverview, type AccountOverview } from "@/lib/account/records";
 import { AccountOverviewView } from "@/components/account/AccountOverview";
 import { account } from "@/lib/site";
+import { carriedAnswers, firstOpenStep, preAccountSteps } from "@/lib/quote";
 import { homeQuote } from "./fixtures";
 
 const token = "AbC_dEf-123456789012";
@@ -132,36 +133,119 @@ describe("auth configuration", () => {
 
 describe("quote handoff through sign-in", () => {
   const now = 1_800_000_000_000;
-  const draft = { answers: homeQuote, step: "review" as const };
+  const choices = {
+    service: homeQuote.service,
+    property: homeQuote.property,
+    bedrooms: homeQuote.bedrooms,
+    bathrooms: homeQuote.bathrooms,
+    frequency: homeQuote.frequency,
+    condition: homeQuote.condition,
+  };
 
-  it("restores the reviewed answers", () => {
-    expect(
-      readQuoteHandoff(writeQuoteHandoff(draft, now), now + 60_000),
-    ).toEqual(draft);
+  it("stores only the allowlisted choices", () => {
+    const raw = writeQuoteHandoff(homeQuote, now);
+    for (const value of [
+      homeQuote.name,
+      homeQuote.email,
+      homeQuote.phone,
+      homeQuote.zip,
+      homeQuote.notes,
+    ])
+      expect(raw).not.toContain(value);
+    expect(Object.keys(JSON.parse(raw).answers).sort()).toEqual(
+      [
+        ...Object.keys(choices),
+        "email",
+        "extras",
+        "name",
+        "notes",
+        "phone",
+      ].sort(),
+    );
+    expect(JSON.parse(raw).answers).toMatchObject({
+      ...choices,
+      name: "",
+      email: "",
+      phone: "",
+      notes: "",
+      extras: [],
+    });
+  });
+
+  it("restores them, ready for the questions after sign-in", () => {
+    const restored = readQuoteHandoff(
+      writeQuoteHandoff(homeQuote, now),
+      now + 60_000,
+    );
+    expect(restored?.answers).toMatchObject(choices);
+    expect(restored?.answers.zip).toBeUndefined();
+    expect(firstOpenStep(restored!.answers)).toBe("location");
   });
 
   it("expires after a day and rejects tampered or future copies", () => {
-    const saved = writeQuoteHandoff(draft, now);
+    const saved = writeQuoteHandoff(homeQuote, now);
     expect(readQuoteHandoff(saved, now + HANDOFF_TTL_MS + 1)).toBeNull();
     expect(readQuoteHandoff(saved, now - 1)).toBeNull();
     expect(readQuoteHandoff("{", now)).toBeNull();
     expect(
+      readQuoteHandoff(JSON.stringify({ version: 2, savedAt: now }), now),
+    ).toBeNull();
+  });
+
+  it("never reads the old full-answers format", () => {
+    expect(
       readQuoteHandoff(
-        JSON.stringify({ version: 2, savedAt: now, draft }),
+        JSON.stringify({
+          version: 1,
+          savedAt: now,
+          draft: { answers: homeQuote, step: "review" },
+        }),
         now,
       ),
     ).toBeNull();
   });
 
-  it("keeps only valid answers from a damaged copy", () => {
+  it("drops free text stored in a choice field", () => {
     const raw = JSON.stringify({
-      version: 1,
+      version: 2,
       savedAt: now,
-      draft: { answers: { ...homeQuote, zip: "x".repeat(50) }, step: "review" },
+      answers: { ...choices, property: "12 Private Lane", name: "Hidden" },
     });
     const restored = readQuoteHandoff(raw, now);
-    expect(restored?.answers.zip).toBeUndefined();
-    expect(restored?.answers.email).toBe(homeQuote.email);
+    expect(restored?.answers.property).toBeUndefined();
+    expect(restored?.answers.name).toBe("");
+  });
+});
+
+describe("what a signed-out visitor is asked", () => {
+  it("stops before where, when, notes and contact details", () => {
+    expect(preAccountSteps(homeQuote)).toEqual([
+      "service",
+      "property",
+      "size",
+      "frequency",
+      "condition",
+      "review",
+    ]);
+  });
+
+  it("carries nothing a person typed", () => {
+    const carried = carriedAnswers({
+      ...homeQuote,
+      timing: "asap",
+      date: "2026-12-01",
+      extras: ["sensitivities"],
+    });
+    expect(carried).toMatchObject({
+      name: "",
+      email: "",
+      phone: "",
+      notes: "",
+      extras: [],
+    });
+    expect(carried.zip).toBeUndefined();
+    expect(carried.date).toBeUndefined();
+    expect(carried.timing).toBeUndefined();
   });
 });
 

@@ -3,6 +3,7 @@ import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import { siteConfig } from "@/lib/site";
 import { LenisProvider } from "@/components/providers/LenisProvider";
+import { QuoteStorageSweep } from "@/components/quote/QuoteStorageSweep";
 import { baseOpenGraph, shareImage } from "@/lib/metadata";
 import { MOTION_SCRIPT } from "@/lib/motion";
 
@@ -60,6 +61,7 @@ export default function RootLayout({
       </head>
       <body>
         <LenisProvider>{children}</LenisProvider>
+        <QuoteStorageSweep />
       </body>
     </html>
   );

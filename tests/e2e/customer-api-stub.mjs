@@ -1,4 +1,4 @@
-// A MOCK of the Studio's customer API v2 (contract revision 2.1) for the
+// A MOCK of the Studio's customer API v2 (contract revision 2.2) for the
 // website's browser tests. It is not the Studio and proves nothing about it:
 // it reads the bearer token's claims WITHOUT verifying the signature, keeps
 // synthetic records in memory, and models only the documented responses.
@@ -19,6 +19,8 @@ let jobNumber = 1000;
 const failNextIntake = new Set();
 /** Emails whose tokens this mock now refuses, as a revoked session would be. */
 const rejected = new Set();
+/** Emails whose calls fail as a wrong server credential would (2.2). */
+const serviceFailing = new Set();
 
 const send = (res, status, body) => {
   res.writeHead(status, {
@@ -66,7 +68,15 @@ createServer((req, res) => {
       return send(res, 200, { ok: true });
     }
     if (url.pathname === "/__stub/reject") {
-      rejected.add(url.searchParams.get("email"));
+      const email = url.searchParams.get("email");
+      if (url.searchParams.get("rejected") === "false") rejected.delete(email);
+      else rejected.add(email);
+      return send(res, 200, { ok: true });
+    }
+    if (url.pathname === "/__stub/service-auth") {
+      const email = url.searchParams.get("email");
+      if (url.searchParams.get("failing") === "true") serviceFailing.add(email);
+      else serviceFailing.delete(email);
       return send(res, 200, { ok: true });
     }
     if (url.pathname === "/__stub/state") {
@@ -83,9 +93,12 @@ createServer((req, res) => {
 
     if (!url.pathname.startsWith("/api/customer/v2/"))
       return fail(res, 404, "not_found");
+    // Contract 2.2: the server credential fails before any customer identity.
     if (!secret || req.headers["x-webhook-secret"] !== secret)
-      return fail(res, 401, "unauthorized");
+      return fail(res, 503, "service_auth_failed");
     const who = claims(req.headers.authorization);
+    if (who && serviceFailing.has(who.email))
+      return fail(res, 503, "service_auth_failed");
     if (!who || rejected.has(who.email)) return fail(res, 401, "unauthorized");
     // Browser cookies must never arrive here.
     if (req.headers.cookie) return fail(res, 422, "invalid");

@@ -11,7 +11,7 @@ import {
 } from "@/lib/customer-api-contract";
 
 /**
- * The Studio's customer API v2 (contract revision 2.1), called only from this
+ * The Studio's customer API v2 (contract revision 2.2), called only from this
  * site's server with the signed-in client's access token and the server
  * credential. Studio verifies the token, the live session and ownership on
  * every call; nothing the browser sends is passed on as identity.
@@ -124,6 +124,15 @@ const codeOf = (body: unknown) => {
   return parsed.success ? parsed.data.code : null;
 };
 
+/**
+ * Studio refused the client's session. Only its exact answer counts (contract
+ * revision 2.2): a refused server credential is 503 service_auth_failed, an
+ * operational failure that signing in again could never fix, and so is
+ * anything else that happens to carry a 401.
+ */
+const customerRejected = (status: number, body: unknown) =>
+  status === 401 && codeOf(body) === "unauthorized";
+
 export type IntakeResult = { status: number; body: object };
 
 /**
@@ -160,7 +169,7 @@ export async function deliverCustomerQuote(
   if ((status === 200 || status === 202) && ack.success)
     return { status, body: ack.data };
   const code = codeOf(body);
-  if (status === 401)
+  if (customerRejected(status, body))
     return { status: 401, body: { ok: false, code: "sign_in_required" } };
   if (status === 403 && code === "email_unverified")
     return { status: 403, body: { ok: false, code: "email_unverified" } };
@@ -171,7 +180,8 @@ export async function deliverCustomerQuote(
       status,
       body: { ok: false, code: status === 413 ? "too_large" : "invalid" },
     };
-  if (status === 503)
+  // Any other 401 isn't about the client (a gateway or preview protection, say).
+  if (status === 503 || status === 401)
     return { status: 503, body: { ok: false, code: "unavailable" } };
   // Malformed acknowledgment, 404 or anything unexpected: the request may or
   // may not be saved, so the attempt is kept for an identical retry.
@@ -200,7 +210,8 @@ function read<T>(result: Call, parse: (body: unknown) => T | null): Read<T> {
       ? { ok: false, reason: "unavailable" }
       : { ok: true, data };
   }
-  if (status === 401) return { ok: false, reason: "unauthorized" };
+  if (customerRejected(status, body))
+    return { ok: false, reason: "unauthorized" };
   if (status === 403 && codeOf(body) === "email_unverified")
     return { ok: false, reason: "unverified" };
   // Missing and someone else's look the same, by design.

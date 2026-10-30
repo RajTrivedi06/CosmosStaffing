@@ -1,6 +1,8 @@
+import { execFileSync } from "node:child_process";
 import { expect, test, type Page } from "@playwright/test";
 import { account } from "../../src/lib/site";
 import { homeQuote } from "../unit/fixtures";
+import { finishQuestions, sessionTokens, storedText } from "./quote-helpers";
 
 /**
  * Client accounts against REAL local Supabase Auth (supabase/config.toml) and
@@ -102,7 +104,8 @@ test("a new client reviews, signs up, confirms in a new tab and sends without si
   const urls: string[] = [];
   context.on("request", (request) => urls.push(request.url()));
 
-  // A finished quote waiting at review in this tab.
+  // Full answers an earlier version left in this tab. A visitor can't enter
+  // these now, and only the choices survive.
   await page.goto("/");
   await page.evaluate(
     (draft) =>
@@ -116,11 +119,14 @@ test("a new client reviews, signs up, confirms in a new tab and sends without si
   await expect(
     page.getByRole("button", { name: "Send my request" }),
   ).toHaveCount(0);
+  await expect(page.getByText(answers.name)).toHaveCount(0);
 
   await page.getByRole("link", { name: account.quote.create }).click();
   await expect(page).toHaveURL(/\/account\/signup\?next=%2Fquote$/);
-  // The quote's email is offered, from this device, not the link.
-  await expect(page.getByLabel("Email")).toHaveValue(email);
+  // Nothing personal waits on this device for sign-up to offer.
+  expect(await storedText(page)).not.toContain(email);
+  await expect(page.getByLabel("Email")).toHaveValue("");
+  await page.getByLabel("Email").fill(email);
   await page.getByLabel("Password", { exact: true }).fill(PASSWORD);
   await page.getByRole("button", { name: account.signUp.submit }).click();
   await expect(page.getByText(email)).toBeVisible();
@@ -133,6 +139,8 @@ test("a new client reviews, signs up, confirms in a new tab and sends without si
   await expect(tab).toHaveURL(/\/quote(\?|$)/);
   // Answers from before sign-in wait for the client to adopt them.
   await tab.getByRole("button", { name: account.quote.adopt }).click();
+  // The choices came across; everything personal is asked now.
+  await finishQuestions(tab, answers);
   await expect(
     tab.getByText(`${account.quote.signedInAs} ${email}`),
   ).toBeVisible();
@@ -301,10 +309,7 @@ test("a link for another account says so without its details", async ({
   await expect(page.getByLabel("Email")).toBeVisible();
 });
 
-test("an ended session asks to sign in again, keeping quote answers", async ({
-  page,
-  context,
-}) => {
+test("an ended session asks to sign in again", async ({ page, context }) => {
   await confirmedAccount(page, "expired");
   await ownAddress(page);
   // Break the session as an expired, unrefreshable one would be.
@@ -319,7 +324,7 @@ test("an ended session asks to sign in again, keeping quote answers", async ({
   await expect(page).toHaveURL(/\/account\/login\?reason=session_expired$/);
   await expect(page.getByText(account.reasons.session_expired)).toBeVisible();
 
-  // Mid-send: the facade refuses and the quote keeps its answers.
+  // Mid-send: the facade refuses.
   await context.addCookies(
     cookies
       .filter((c) => c.name.startsWith("cosmos-client-auth"))
@@ -341,7 +346,7 @@ test("signing out ends the session and forgets a waiting quote", async ({
   await page.evaluate(() =>
     localStorage.setItem(
       "cosmos-quote-handoff",
-      JSON.stringify({ version: 1 }),
+      JSON.stringify({ version: 2, savedAt: Date.now(), answers: {} }),
     ),
   );
   await signOut(page);
@@ -387,6 +392,60 @@ test("a forgotten password is reset by email link", async ({ page }) => {
   await page.goto("/account/login");
   await signIn(page, email, "a-brand-new-password");
   await expect(page).toHaveURL(/\/account$/);
+});
+
+test("a password reset ends the client's other sessions at Auth", async ({
+  page,
+  browser,
+  baseURL,
+}) => {
+  const AUTH = "http://127.0.0.1:54621";
+  const apikey = /^PUBLISHABLE_KEY="?([^"\n]+)"?$/m.exec(
+    execFileSync("supabase", ["status", "-o", "env"], {
+      encoding: "utf8",
+      stdio: ["ignore", "pipe", "ignore"],
+    }),
+  )![1];
+  const email = await confirmedAccount(page, "other-session");
+
+  // The same client, signed in on another device.
+  const other = await browser.newContext({ baseURL });
+  const device = await other.newPage();
+  await device.goto("/account/login");
+  await signIn(device, email);
+  await expect(device).toHaveURL(/\/account$/);
+  const { access_token, refresh_token } = await sessionTokens(other);
+  const live = () =>
+    page.request.get(`${AUTH}/auth/v1/user`, {
+      headers: { apikey, Authorization: `Bearer ${access_token}` },
+    });
+  expect((await live()).status()).toBe(200);
+
+  const before = await mailCount(page, email);
+  await page.goto("/account/forgot");
+  await page.getByLabel("Email").fill(email);
+  await page.getByRole("button", { name: account.forgot.submit }).click();
+  await expect(page.getByText(account.forgot.sent)).toBeVisible();
+  await page.goto(await emailLink(page, email, before));
+  await page.getByLabel("New password").fill(`${PASSWORD}-new`);
+  await page.getByRole("button", { name: account.reset.submit }).click();
+  await expect(page.getByText(account.reasons.password_updated)).toBeVisible();
+
+  // Its token hasn't expired, but Auth has ended the session behind it.
+  expect(
+    JSON.parse(Buffer.from(access_token.split(".")[1], "base64url").toString())
+      .exp * 1000,
+  ).toBeGreaterThan(Date.now());
+  expect((await live()).status()).toBe(403);
+  const refreshed = await page.request.post(
+    `${AUTH}/auth/v1/token?grant_type=refresh_token`,
+    { headers: { apikey }, data: { refresh_token } },
+  );
+  expect(refreshed.status()).toBe(400);
+  // The one that changed the password carries on.
+  await page.goto("/account");
+  await expect(page).toHaveURL(/\/account$/);
+  await other.close();
 });
 
 test("account screens fit a phone without sideways scrolling", async ({

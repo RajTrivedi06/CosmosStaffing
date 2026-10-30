@@ -110,7 +110,11 @@ test("conflict preserves original attempt; a separate request requires an explic
     (id) => sessionStorage.getItem(`cosmos-quote-attempt-archive-${id}`),
     requests[0].submission_id,
   );
-  expect(JSON.parse(archived!)).toEqual(requests[0]);
+  // Only the ID stays: nothing the visitor entered.
+  expect(JSON.parse(archived!)).toEqual({
+    submission_id: requests[0].submission_id,
+    savedAt: expect.any(Number),
+  });
 });
 
 for (const scenario of [

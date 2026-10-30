@@ -621,14 +621,27 @@ export const account = {
     },
   },
   quote: {
-    title: "Create an account to send",
-    body: "Sending a request needs a Cosmos account. You'll confirm your email once; your answers are saved on this device while you do.",
+    title: "Create an account to continue",
+    body: "Next we'll ask where and when, and how to reach you. Those details need a Cosmos account. You'll confirm your email once; the choices above are saved on this device while you do.",
     create: "Create account",
     signIn: "Sign in",
     signedInAs: "Sending as",
     backToAccount: "My account",
+    sessionEndedTitle: "Please sign in again",
     sessionEnded:
-      "Your session ended before we could send this. Sign in again; your answers are saved.",
+      "Your session ended before we could confirm this request. For your privacy, its answers leave this browser now. When you're back, enter them again and we'll match them to this request, so it can't be sent twice.",
+    sessionEndedAction: "Sign in again",
+    temporarilyUnavailable:
+      "Sending isn't available for the moment. Your answers are still here and your request ID is kept, so trying again can't create a duplicate. Please try again in a few minutes, or contact us.",
+    // Only this attempt's ID is left in the browser (lib/quote-store.ts).
+    unresolvedTitle: "We couldn't confirm an earlier request",
+    unresolved:
+      "A request from this account may already be with us. Check your account before sending another. If you send new answers here, we'll match them to that earlier request, so it can't be sent twice.",
+    unresolvedReference: "Reference",
+    unresolvedAccount: "Check my account",
+    receivedTitle: "We already have your earlier request",
+    received:
+      "It reached us before your session ended, so the answers you just entered weren't sent. You'll find it in your account. Contact us to change it, or start a separate request.",
     // Signed-in client: answers and attempts belong to one account.
     adoptTitle: "You started a request before signing in",
     adoptBody:

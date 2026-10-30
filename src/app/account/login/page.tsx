@@ -58,9 +58,9 @@ export default async function SignInPage({ searchParams }: Props) {
           </div>
         </section>
       );
-    if (!isStudioDestination(next)) redirect(next);
-    // A Studio page sent them here, or is about to. If it refuses this session,
-    // continuing would only bounce back, so end it and keep the destination.
+    // The local token can verify while the session behind it is revoked.
+    // Continuing would only bounce back here, from a Studio page or from the
+    // quote's send, so end it and keep the destination.
     if (await studioRefusesSession())
       return (
         <section className="account-section">
@@ -68,6 +68,7 @@ export default async function SignInPage({ searchParams }: Props) {
           <SessionRejected next={next} />
         </section>
       );
+    if (!isStudioDestination(next)) redirect(next);
     return (
       <section className="account-section">
         <h1>You&apos;re signed in</h1>

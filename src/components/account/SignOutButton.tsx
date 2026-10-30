@@ -4,9 +4,9 @@ import { signOut } from "@/app/account/actions";
 import { forgetOnSignOut } from "@/lib/quote-store";
 
 /**
- * Signs out on this device. Also forgets quote drafts in this browser, which
- * hold contact details (lib/quote-store.ts: an unconfirmed send attempt stays
- * filed under its owner, for an identical retry after signing back in).
+ * Signs out on this device. Also forgets quote answers in this browser, which
+ * hold contact details (lib/quote-store.ts: an unconfirmed send attempt keeps
+ * only its ID, so signing back in can't create a duplicate).
  */
 export function SignOutButton({
   next,

@@ -402,6 +402,48 @@ export function answersFromParams(params: URLSearchParams) {
   return shared;
 }
 
+/**
+ * With client accounts on, a signed-out visitor answers only these questions.
+ * Where, when, notes and contact details come after signing in.
+ */
+const PRE_ACCOUNT_STEPS: StepId[] = [
+  "service",
+  "property",
+  "size",
+  "frequency",
+  "condition",
+];
+
+export function preAccountSteps(a: QuoteAnswers): StepId[] {
+  return stepsFor(a).filter(
+    (step) => step === "review" || PRE_ACCOUNT_STEPS.includes(step),
+  );
+}
+
+/**
+ * The only answers kept for a signed-out visitor, and carried through sign-in.
+ * An explicit list, each value a real option (so free text can't arrive in
+ * one of these fields); nothing else on an answer set survives this.
+ */
+const CARRIED = [
+  "service",
+  "property",
+  "bedrooms",
+  "bathrooms",
+  "area",
+  "frequency",
+  "condition",
+] as const;
+
+export function carriedAnswers(a: Partial<QuoteAnswers>): QuoteAnswers {
+  const params = new URLSearchParams();
+  for (const key of CARRIED) {
+    const value = a[key];
+    if (value) params.set(key, value);
+  }
+  return { ...EMPTY_ANSWERS, extras: [], ...answersFromParams(params) };
+}
+
 /** The first question still to answer, or the review when all are done. */
 export function firstOpenStep(a: QuoteAnswers): StepId {
   return stepsFor(a).find((s) => stepError(s, a)) ?? "review";

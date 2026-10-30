@@ -1,6 +1,7 @@
 import { expect, test, type BrowserContext, type Page } from "@playwright/test";
 import { account } from "../../src/lib/site";
 import { homeQuote } from "../unit/fixtures";
+import { choicesLink, finishQuestions, storedText } from "./quote-helpers";
 
 /**
  * Customer intake (QUOTE_DELIVERY_MODE=customer) in the real browser, with
@@ -14,6 +15,7 @@ import { homeQuote } from "../unit/fixtures";
 const MAILPIT = "http://127.0.0.1:54624";
 const STUB = "http://127.0.0.1:3398";
 const PASSWORD = "calm-and-clean-42";
+const SENT = "Thank you. Your request is in.";
 
 const uniqueEmail = (tag: string) =>
   `customer-${tag}-${Date.now()}-${Math.random().toString(36).slice(2, 7)}@example.test`;
@@ -89,7 +91,21 @@ async function signOut(page: Page) {
   );
 }
 
-/** Signed-out answers waiting in this tab, as if typed before signing in. */
+/** The mock refuses this account's session, as a revoked one would be. */
+async function rejectSession(page: Page, email: string, rejected = true) {
+  await page.request.post(
+    `${STUB}/__stub/reject?email=${encodeURIComponent(email)}&rejected=${rejected}`,
+  );
+}
+
+/** The mock fails like a wrong server credential (contract 2.2), for one account. */
+async function serviceAuth(page: Page, email: string, failing: boolean) {
+  await page.request.post(
+    `${STUB}/__stub/service-auth?email=${encodeURIComponent(email)}&failing=${failing}`,
+  );
+}
+
+/** Full answers in this tab: what an earlier version stored before sign-in. */
 async function anonymousAnswers(page: Page, name: string, email: string) {
   await page.goto("/");
   await page.evaluate(
@@ -99,17 +115,22 @@ async function anonymousAnswers(page: Page, name: string, email: string) {
   );
 }
 
-/** Open the quote, take over the waiting answers, arrive at review. */
-async function adoptAndReview(page: Page, name: string) {
+/** Open the quote, take over the waiting choices, finish, arrive at review. */
+async function adoptAndReview(page: Page, name: string, email: string) {
   await page.goto("/quote");
   await expect(
     page.getByRole("heading", { name: account.quote.adoptTitle }),
   ).toBeVisible();
-  // Not loaded until the client says so.
-  await expect(page.getByText(name)).toHaveCount(0);
   await page.getByRole("button", { name: account.quote.adopt }).click();
+  // Only choices came across: nothing personal is carried through sign-in.
+  await expect(page.getByLabel("ZIP code")).toHaveValue("");
+  await expect(page.getByText(name)).toHaveCount(0);
+  await finishQuestions(page, { name, email });
   await expect(page.getByText(name)).toBeVisible();
 }
+
+/** What's left of an attempt whose outcome is unknown. */
+const noteTitle = account.quote.unresolvedTitle;
 
 const ownAddress = (context: BrowserContext) =>
   context.setExtraHTTPHeaders({
@@ -129,6 +150,7 @@ test("a new client confirms in a new tab, adopts their answers, sends once and s
   await anonymousAnswers(page, "Ada Newcomer", email);
   await page.goto("/quote");
   await page.getByRole("link", { name: account.quote.create }).click();
+  await page.getByLabel("Email").fill(email);
   await page.getByLabel("Password", { exact: true }).fill(PASSWORD);
   await page.getByRole("button", { name: account.signUp.submit }).click();
   await expect(page.getByText(email)).toBeVisible();
@@ -136,7 +158,7 @@ test("a new client confirms in a new tab, adopts their answers, sends once and s
   const tab = await context.newPage();
   await tab.goto(await emailLink(page, email));
   await expect(tab).toHaveURL(/\/quote(\?|$)/);
-  await adoptAndReview(tab, "Ada Newcomer");
+  await adoptAndReview(tab, "Ada Newcomer", email);
   await tab.getByRole("button", { name: "Send my request" }).click();
   await expect(
     tab.getByRole("heading", { name: "Thank you. Your request is in." }),
@@ -178,7 +200,7 @@ test("a lost response retries with the same ID; a repeat request gets a new one"
   const email = uniqueEmail("retry");
   await signUpAndConfirm(page, email);
   await anonymousAnswers(page, "Rita Retry", email);
-  await adoptAndReview(page, "Rita Retry");
+  await adoptAndReview(page, "Rita Retry", email);
 
   // The mock commits the request, then the answer is lost.
   await failNextIntake(page, email);
@@ -198,7 +220,7 @@ test("a lost response retries with the same ID; a repeat request gets a new one"
 
   // A genuinely new request is a new submission.
   await anonymousAnswers(page, "Rita Again", email);
-  await adoptAndReview(page, "Rita Again");
+  await adoptAndReview(page, "Rita Again", email);
   await page.getByRole("button", { name: "Send my request" }).click();
   await expect(
     page.getByRole("heading", { name: "Thank you. Your request is in." }),
@@ -215,7 +237,7 @@ test("signing out in another tab takes the answers off this one", async ({
   const email = uniqueEmail("tabs");
   await signUpAndConfirm(page, email);
   await anonymousAnswers(page, "Tess Tabs", email);
-  await adoptAndReview(page, "Tess Tabs");
+  await adoptAndReview(page, "Tess Tabs", email);
 
   const other = await context.newPage();
   await signOut(other);
@@ -238,7 +260,7 @@ test("if the session changes with no signal, nothing is sent as the new account"
   await signOut(page);
   await signUpAndConfirm(page, alice);
   await anonymousAnswers(page, "Alice Private", alice);
-  await adoptAndReview(page, "Alice Private");
+  await adoptAndReview(page, "Alice Private", alice);
 
   // Alice's session ends without a sign-out here; Bob signs in elsewhere.
   await context.clearCookies();
@@ -262,7 +284,7 @@ test("if the session changes with no signal, nothing is sent as the new account"
   ).toHaveCount(0);
 });
 
-test("an unconfirmed attempt waits for its own account, never another", async ({
+test("after sign-out only the attempt's ID stays, for its own account; identical answers replay", async ({
   page,
 }) => {
   const alice = uniqueEmail("keep-a");
@@ -271,7 +293,7 @@ test("an unconfirmed attempt waits for its own account, never another", async ({
   await signOut(page);
   await signUpAndConfirm(page, alice);
   await anonymousAnswers(page, "Alice Pending", alice);
-  await adoptAndReview(page, "Alice Pending");
+  await adoptAndReview(page, "Alice Pending", alice);
   await failNextIntake(page, alice);
   await page.getByRole("button", { name: "Send my request" }).click();
   await expect(
@@ -281,21 +303,202 @@ test("an unconfirmed attempt waits for its own account, never another", async ({
   expect(saved.requests).toBe(1);
 
   await signOut(page);
+  const after = await storedText(page);
+  for (const value of [
+    "Alice Pending",
+    alice,
+    homeQuote.phone,
+    homeQuote.notes,
+  ])
+    expect(after).not.toContain(value);
+  expect(after).toContain(saved.submissions[0]);
+
+  // Bob sees nothing of it, and can't replay it.
   await signIn(page, bob);
   await page.goto("/quote");
-  await expect(page.getByText("Alice Pending")).toHaveCount(0);
+  await expect(page.getByRole("heading", { name: noteTitle })).toHaveCount(0);
   await expect(page.getByRole("button", { name: "Try again" })).toHaveCount(0);
 
   await signOut(page);
   await signIn(page, alice);
-  await page.goto("/quote");
-  await expect(page.getByText("Alice Pending")).toBeVisible();
-  await page.getByRole("button", { name: "Try again" }).click();
-  await expect(
-    page.getByRole("heading", { name: "Thank you. Your request is in." }),
-  ).toBeVisible();
-  // The same submission, replayed: still one request.
+  await page.goto(choicesLink);
+  // Unknown, not failed: nothing says it wasn't sent.
+  await expect(page.getByRole("heading", { name: noteTitle })).toBeVisible();
+  await expect(page.getByText(saved.submissions[0])).toBeVisible();
+  await finishQuestions(page, { name: "Alice Pending", email: alice });
+  const replay = page.waitForResponse("**/api/quote");
+  await page.getByRole("button", { name: "Send my request" }).click();
+  expect((await replay).status()).toBe(200);
+  await expect(page.getByRole("heading", { name: SENT })).toBeVisible();
+  // The same submission, replayed: still one request, and the marker is gone.
   expect(await stubState(page, alice)).toEqual(saved);
+  expect(await storedText(page)).not.toContain(saved.submissions[0]);
+});
+
+test("new answers under a held ID can't add a request when the original arrived", async ({
+  page,
+}) => {
+  const email = uniqueEmail("arrived");
+  await signUpAndConfirm(page, email);
+  await anonymousAnswers(page, "Ann Arrived", email);
+  await adoptAndReview(page, "Ann Arrived", email);
+  await failNextIntake(page, email);
+  await page.getByRole("button", { name: "Send my request" }).click();
+  await expect(
+    page.getByText("We couldn't confirm that your request was saved."),
+  ).toBeVisible();
+  const saved = await stubState(page, email);
+
+  await signOut(page);
+  await signIn(page, email);
+  await page.goto(choicesLink);
+  await finishQuestions(page, { name: "Ann Different", email });
+  await page.getByRole("button", { name: "Send my request" }).click();
+  await expect(
+    page.getByRole("heading", { name: account.quote.receivedTitle }),
+  ).toBeVisible();
+  expect(await stubState(page, email)).toEqual(saved);
+  expect(await storedText(page)).not.toContain(saved.submissions[0]);
+  await page.reload();
+  await expect(page.getByRole("heading", { name: noteTitle })).toHaveCount(0);
+});
+
+test("a held ID is reused only until the client explicitly starts a separate request", async ({
+  page,
+}) => {
+  const email = uniqueEmail("separate");
+  await signUpAndConfirm(page, email);
+  await anonymousAnswers(page, "Sam Separate", email);
+  await adoptAndReview(page, "Sam Separate", email);
+  await failNextIntake(page, email);
+  await page.getByRole("button", { name: "Send my request" }).click();
+  await expect(
+    page.getByText("We couldn't confirm that your request was saved."),
+  ).toBeVisible();
+  const [first] = (await stubState(page, email)).submissions;
+
+  await signOut(page);
+  await signIn(page, email);
+  await page.goto(choicesLink);
+  page.once("dialog", (dialog) => dialog.dismiss());
+  await page.getByRole("button", { name: "Start a separate request" }).click();
+  await expect(page.getByRole("heading", { name: noteTitle })).toBeVisible();
+  page.once("dialog", (dialog) => dialog.accept());
+  await page.getByRole("button", { name: "Start a separate request" }).click();
+  await expect(page.getByRole("heading", { name: noteTitle })).toHaveCount(0);
+
+  await finishQuestions(page, { name: "Sam Second", email });
+  await page.getByRole("button", { name: "Send my request" }).click();
+  await expect(page.getByRole("heading", { name: SENT })).toBeVisible();
+  const { requests, submissions } = await stubState(page, email);
+  expect(requests).toBe(2);
+  expect(submissions).toContain(first);
+  expect(new Set(submissions).size).toBe(2);
+});
+
+test("a signed-out visitor is asked only for choices, and stores nothing else", async ({
+  page,
+}) => {
+  await page.goto(`${choicesLink}&timing=asap`);
+  // The link's choices are done, so the next screen is the account gate.
+  await expect(
+    page.getByRole("heading", { name: account.quote.title }),
+  ).toBeVisible();
+  await expect(page.getByLabel("ZIP code")).toHaveCount(0);
+  await expect(page.getByLabel("Name")).toHaveCount(0);
+  await expect(page.getByText("Step 6 of 6")).toBeVisible();
+
+  await page.getByRole("link", { name: account.quote.create }).click();
+  await expect(page).toHaveURL(/\/account\/signup\?next=%2Fquote$/);
+  const handoff = await page.evaluate(() =>
+    JSON.parse(localStorage.getItem("cosmos-quote-handoff")!),
+  );
+  expect(handoff.version).toBe(2);
+  expect(handoff.answers).toMatchObject({
+    service: "regular",
+    name: "",
+    email: "",
+    phone: "",
+    notes: "",
+    extras: [],
+  });
+  expect(handoff.answers.zip).toBeUndefined();
+  expect(handoff.answers.timing).toBeUndefined();
+});
+
+test("sensitive data an earlier version stored is removed", async ({
+  page,
+}) => {
+  const legacy = { answers: homeQuote, step: "review" };
+  await page.goto("/");
+  await page.evaluate(
+    ({ legacy, attempt }) => {
+      localStorage.setItem(
+        "cosmos-quote-handoff",
+        JSON.stringify({ version: 1, savedAt: Date.now(), draft: legacy }),
+      );
+      sessionStorage.setItem("cosmos-quote-draft", JSON.stringify(legacy));
+      sessionStorage.setItem("cosmos-quote-attempt", JSON.stringify(attempt));
+    },
+    {
+      legacy,
+      attempt: { submission_id: crypto.randomUUID(), answers: homeQuote },
+    },
+  );
+  // A marketing page clears the handoff, without knowing who is signed in.
+  await page.goto("/");
+  await expect
+    .poll(() =>
+      page.evaluate(() => localStorage.getItem("cosmos-quote-handoff")),
+    )
+    .toBeNull();
+  // The sign-in page knows nobody is, and clears the tab too.
+  await page.goto("/account/login");
+  await expect.poll(() => storedText(page)).not.toContain(homeQuote.email);
+  expect(await storedText(page)).not.toContain(homeQuote.notes);
+});
+
+test("a refused server credential reads as temporary, keeps the session and the attempt", async ({
+  page,
+}) => {
+  const email = uniqueEmail("service");
+  await signUpAndConfirm(page, email);
+  await anonymousAnswers(page, "Sid Service", email);
+  await adoptAndReview(page, "Sid Service", email);
+  await serviceAuth(page, email, true);
+
+  const first = page.waitForRequest("**/api/quote");
+  const refused = page.waitForResponse("**/api/quote");
+  await page.getByRole("button", { name: "Send my request" }).click();
+  const response = await refused;
+  expect(response.status()).toBe(503);
+  // Nothing about the credential reaches the browser.
+  expect(await response.json()).toEqual({ ok: false, code: "unavailable" });
+  await expect(
+    page.getByText(account.quote.temporarilyUnavailable),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("heading", { name: account.quote.sessionEndedTitle }),
+  ).toHaveCount(0);
+  await expect(page.getByText("Sid Service")).toBeVisible();
+
+  // The account page and sign-in don't ask for a new session either.
+  await page.goto("/account");
+  await expect(page.getByText(account.home.unavailable.title)).toBeVisible();
+  await expect(page.getByText(account.home.rejected.title)).toHaveCount(0);
+  await page.goto("/account/login?next=%2Fquote");
+  await expect(page).toHaveURL(/\/quote/);
+
+  // The same attempt, unchanged, once it recovers.
+  await serviceAuth(page, email, false);
+  await expect(page.getByRole("button", { name: "Try again" })).toBeVisible();
+  const again = page.waitForRequest("**/api/quote");
+  await page.getByRole("button", { name: "Try again" }).click();
+  await expect(page.getByRole("heading", { name: SENT })).toBeVisible();
+  expect((await again).postDataJSON().submission_id).toBe(
+    (await first).postDataJSON().submission_id,
+  );
+  expect((await stubState(page, email)).requests).toBe(1);
 });
 
 test("another customer's request reads as not found", async ({ page }) => {
@@ -305,7 +508,7 @@ test("another customer's request reads as not found", async ({ page }) => {
   await signOut(page);
   await signUpAndConfirm(page, alice);
   await anonymousAnswers(page, "Alice Owner", alice);
-  await adoptAndReview(page, "Alice Owner");
+  await adoptAndReview(page, "Alice Owner", alice);
   await page.getByRole("button", { name: "Send my request" }).click();
   await expect(
     page.getByRole("heading", { name: "Thank you. Your request is in." }),
@@ -327,14 +530,75 @@ test("another customer's request reads as not found", async ({ page }) => {
   await expect(page.getByText(account.home.noRequests)).toBeVisible();
 });
 
+test("a session the Studio refuses during a send needs a real new sign-in, without a loop", async ({
+  page,
+}) => {
+  const email = uniqueEmail("quote-loop");
+  await signUpAndConfirm(page, email);
+  await anonymousAnswers(page, "Rae Revoked", email);
+  await adoptAndReview(page, "Rae Revoked", email);
+  await rejectSession(page, email);
+
+  const send = page.waitForRequest("**/api/quote");
+  await page.getByRole("button", { name: "Send my request" }).click();
+  await expect(
+    page.getByRole("heading", { name: account.quote.sessionEndedTitle }),
+  ).toBeVisible();
+  const { submission_id } = (await send).postDataJSON();
+  // The screen and storage are clear at once; only the ID stays.
+  await expect(page.getByText("Rae Revoked")).toHaveCount(0);
+  const stored = await storedText(page);
+  for (const value of ["Rae Revoked", email, homeQuote.phone])
+    expect(stored).not.toContain(value);
+  expect(stored).toContain(submission_id);
+
+  // Sign-in doesn't bounce to the quote while this session still verifies.
+  const documents: string[] = [];
+  page.on("framenavigated", (frame) => documents.push(frame.url()));
+  await page.goto("/account/login?next=%2Fquote");
+  await page.waitForTimeout(500);
+  await expect(page).toHaveURL(/\/account\/login\?next=%2Fquote$/);
+  await expect(page.getByText(account.home.rejected.title)).toBeVisible();
+  expect(documents.length).toBeLessThan(3);
+
+  // The way out is a real sign-out, keeping the destination.
+  await page
+    .getByRole("button", { name: account.home.rejected.action })
+    .click();
+  await expect(page).toHaveURL(
+    /\/account\/login\?next=%2Fquote&reason=signed_out/,
+    { timeout: 10_000 },
+  );
+  expect(
+    (await page.context().cookies()).filter((c) =>
+      /^cosmos-client-auth(\.\d+)?$/.test(c.name),
+    ),
+  ).toEqual([]);
+
+  // A genuine new session, back at the quote, holding the same ID.
+  await rejectSession(page, email, false);
+  await page.getByLabel("Email").fill(email);
+  await page.getByLabel("Password", { exact: true }).fill(PASSWORD);
+  await page
+    .getByRole("button", { name: account.signIn.submit, exact: true })
+    .click();
+  await expect(page).toHaveURL(/\/quote(\?|$)/);
+  await expect(page.getByRole("heading", { name: noteTitle })).toBeVisible();
+  await page.goto(choicesLink);
+  await finishQuestions(page, { name: "Rae Revoked", email });
+  const resend = page.waitForRequest("**/api/quote");
+  await page.getByRole("button", { name: "Send my request" }).click();
+  await expect(page.getByRole("heading", { name: SENT })).toBeVisible();
+  expect((await resend).postDataJSON().submission_id).toBe(submission_id);
+  expect((await stubState(page, email)).requests).toBe(1);
+});
+
 test("a session the Studio rejects asks to sign in again, without a redirect loop", async ({
   page,
 }) => {
   const email = uniqueEmail("rejected");
   await signUpAndConfirm(page, email);
-  await page.request.post(
-    `${STUB}/__stub/reject?email=${encodeURIComponent(email)}`,
-  );
+  await rejectSession(page, email);
   // The local session still verifies; only the Studio refuses it.
   await page.goto("/account");
   await expect(page).toHaveURL(/\/account$/);
@@ -355,30 +619,45 @@ test("a session the Studio rejects asks to sign in again, without a redirect loo
   await expect(page.getByLabel("Email")).toBeVisible();
 });
 
-test("an ended session keeps the attempt for the same account to resend", async ({
+test("an ended session leaves only the ID, and the resend keeps it", async ({
   page,
   context,
 }) => {
   const email = uniqueEmail("expired");
   await signUpAndConfirm(page, email);
   await anonymousAnswers(page, "Eve Expiring", email);
-  await adoptAndReview(page, "Eve Expiring");
+  await adoptAndReview(page, "Eve Expiring", email);
   const cookies = await context.cookies();
   await context.addCookies(
     cookies
       .filter((c) => c.name.startsWith("cosmos-client-auth"))
       .map((c) => ({ ...c, value: "base64-eyJleHBpcmVkIjp0cnVlfQ" })),
   );
+  const send = page.waitForRequest("**/api/quote");
   await page.getByRole("button", { name: "Send my request" }).click();
   await expect(page.getByText(account.quote.sessionEnded)).toBeVisible();
   expect((await stubState(page, email)).requests).toBe(0);
+  const { submission_id } = (await send).postDataJSON();
 
-  await signIn(page, email);
-  await page.goto("/quote");
-  await expect(page.getByText("Eve Expiring")).toBeVisible();
-  await page.getByRole("button", { name: /Send my request|Try again/ }).click();
-  await expect(
-    page.getByRole("heading", { name: "Thank you. Your request is in." }),
-  ).toBeVisible();
+  await page
+    .getByRole("button", { name: account.quote.sessionEndedAction })
+    .click();
+  await expect(page).toHaveURL(/\/account\/login\?next=%2Fquote/, {
+    timeout: 10_000,
+  });
+  await page.getByLabel("Email").fill(email);
+  await page.getByLabel("Password", { exact: true }).fill(PASSWORD);
+  await page
+    .getByRole("button", { name: account.signIn.submit, exact: true })
+    .click();
+  await expect(page).toHaveURL(/\/quote(\?|$)/);
+  await expect(page.getByRole("heading", { name: noteTitle })).toBeVisible();
+  await expect(page.getByText("Eve Expiring")).toHaveCount(0);
+  await page.goto(choicesLink);
+  await finishQuestions(page, { name: "Eve Expiring", email });
+  const resend = page.waitForRequest("**/api/quote");
+  await page.getByRole("button", { name: "Send my request" }).click();
+  await expect(page.getByRole("heading", { name: SENT })).toBeVisible();
+  expect((await resend).postDataJSON().submission_id).toBe(submission_id);
   expect((await stubState(page, email)).requests).toBe(1);
 });

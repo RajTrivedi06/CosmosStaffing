@@ -28,7 +28,9 @@ site, which has been removed.)
   `docs/client-accounts.md`.
 - `src/lib/customer-api.ts` — the Studio's customer API v2 (intake and account
   records), server only, gated; `src/lib/quote-store.ts` — whose quote drafts
-  and send attempts are whose, per account and intake version.
+  and send attempts are whose, per account and intake version, and what may
+  stay in the browser (answers leave at sign-out, expiry and archival; a
+  signed-out visitor keeps only allowlisted choices).
 - `src/lib/site.ts` — central site config and copy. Unconfirmed policies and
   promises render as `[PLACEHOLDER: …]`; never invent them.
 - `src/lib/quote.ts` — quote questions, branching and validation.

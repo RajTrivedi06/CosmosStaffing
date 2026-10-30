@@ -10,7 +10,9 @@ import {
   anonymousWork,
   forgetTabDrafts,
   quoteSlots,
+  settleQuoteStorage,
   type Intake,
+  type UnresolvedAttempt,
 } from "@/lib/quote-store";
 import type { QuoteIntakeMode } from "@/lib/quote-intake";
 import { updateQuoteAnswers, type QuoteDraft } from "@/lib/quote-draft";
@@ -20,6 +22,7 @@ import {
   type QuoteAttempt,
 } from "@/lib/quote-attempt";
 import { localCalendarDate, preferredDateError } from "@/lib/quote-date";
+import { SignOutButton } from "@/components/account/SignOutButton";
 import { PreferredDate } from "./PreferredDate";
 import styles from "./QuoteFlow.module.css";
 import {
@@ -32,6 +35,7 @@ import {
   firstOpenStep,
   frequencyOptions,
   isTexasZip,
+  preAccountSteps,
   propertyOptions,
   sizeOptions,
   spaceKind,
@@ -55,8 +59,12 @@ type Status =
   | "conflict"
   | "rate_limited"
   | "invalid"
-  /** The facade needs a signed-in client (session missing or ended). */
+  /** The session is missing, ended, or the Studio refused it. */
   | "signin"
+  /** Sending is down for now; the attempt is kept for a retry. */
+  | "temporary"
+  /** A resumed attempt's ID was already committed: the original arrived. */
+  | "received"
   /** Another account is now signed in in this browser. */
   | "switched"
   /** The account's email isn't confirmed (customer intake). */
@@ -71,14 +79,15 @@ type Status =
  * bookmarked. Nothing claims success until /api/quote confirms the request
  * was delivered.
  *
- * With client accounts on, sending needs a signed-in client: questions,
- * review, then sign up or sign in, then send. The reviewed answers wait on
- * this device meanwhile (lib/quote-handoff.ts), even if the confirmation email
- * opens in another tab.
+ * With client accounts on, a signed-out visitor answers only the choice
+ * questions (preAccountSteps), then signs up or signs in. Those choices wait
+ * on this device (lib/quote-handoff.ts), even if the confirmation email opens
+ * in another tab. Where, when, notes and contact details are asked after
+ * signing in, and sending needs a signed-in client.
  *
  * A signed-in client's drafts and send attempts are filed under their owner
- * tag (lib/quote-store.ts). Answers started while signed out are only
- * offered to them ("Use these answers"); nothing moves between accounts.
+ * tag (lib/quote-store.ts). Choices made while signed out are only offered to
+ * them ("Use these answers"); nothing moves between accounts.
  */
 export function QuoteFlow({
   intakeMode,
@@ -91,7 +100,12 @@ export function QuoteFlow({
 }) {
   const owner = account?.owner ?? null;
   const intake: Intake = intakeMode === "customer" ? 2 : 1;
-  const slots = useMemo(() => quoteSlots(owner, intake), [owner, intake]);
+  const slots = useMemo(
+    () => quoteSlots(owner, intake, accountsOn),
+    [owner, intake, accountsOn],
+  );
+  // Signed out with accounts on: only the questions a visitor answers first.
+  const gated = accountsOn && !account;
   // Answers from before sign-in, waiting for the client to adopt or discard.
   const [adoptable, setAdoptable] = useState<QuoteDraft | null>(null);
   const reduce = useReducedMotion();
@@ -110,18 +124,26 @@ export function QuoteFlow({
   const honeypotRef = useRef<HTMLInputElement>(null);
   const sendingRef = useRef(false);
   const attemptRef = useRef<QuoteAttempt | null>(null);
+  /** The current attempt reuses an unresolved marker's ID. */
+  const resumedRef = useRef(false);
   const [hasAttempt, setHasAttempt] = useState(false);
+  const [unresolved, setUnresolved] = useState<UnresolvedAttempt | null>(null);
   const [attemptRecoveryFailed, setAttemptRecoveryFailed] = useState(false);
 
   // Restore this tab's draft. Answers in the link (a shared quote, or a
   // service chosen on the site) win over the draft, and the flow opens on
   // the first question they leave open.
   useEffect(() => {
-    // This tab's draft (this client's, when signed in), or, signed out, a
-    // reviewed quote left waiting for sign-in.
-    const draft =
-      slots.loadDraft() ?? (accountsOn && !owner ? quoteHandoff.load() : null);
-    const { attempt, unreadable } = slots.loadAttempt();
+    settleQuoteStorage(accountsOn ? owner : undefined);
+    // This tab's draft (this client's, when signed in), or, signed out, the
+    // choices left waiting for sign-in.
+    const draft = slots.loadDraft() ?? (gated ? quoteHandoff.load() : null);
+    const {
+      attempt,
+      unresolved: marker,
+      resumed,
+      unreadable,
+    } = slots.loadAttempt();
     // Signed in: answers from before sign-in are offered, never loaded.
     const offered = owner && !attempt ? anonymousWork.load() : null;
     const linked = answersFromParams(
@@ -135,25 +157,36 @@ export function QuoteFlow({
     /* eslint-disable react-hooks/set-state-in-effect -- one-time restore from the URL and sessionStorage, which the server cannot read */
     if (unreadable) setAttemptRecoveryFailed(true);
     if (offered) setAdoptable(offered);
+    if (marker) setUnresolved(marker);
+    // The first open question this visitor may answer, or the review.
+    const openStep = (a: QuoteAnswers) =>
+      gated
+        ? (preAccountSteps(a).find((s) => stepError(s, a)) ?? "review")
+        : firstOpenStep(a);
     if (attempt) {
       attemptRef.current = attempt;
+      resumedRef.current = resumed;
       setHasAttempt(true);
       setAnswers(attempt.answers);
       setStep("review");
     } else if (differs) {
       const merged = updateQuoteAnswers(base, linked);
       setAnswers(merged);
-      setStep(firstOpenStep(merged));
+      setStep(openStep(merged));
     } else if (draft) {
       setAnswers(draft.answers);
-      setStep(draft.step);
+      setStep(
+        !gated || preAccountSteps(draft.answers).includes(draft.step)
+          ? draft.step
+          : openStep(draft.answers),
+      );
     }
     setReady(true);
     /* eslint-enable react-hooks/set-state-in-effect */
-  }, [accountsOn, owner, slots]);
+  }, [accountsOn, gated, owner, slots]);
 
   useEffect(() => {
-    if (!ready || status === "sent") return;
+    if (!ready || status === "sent" || status === "signin") return;
     const saved = slots.saveDraft({ answers, step });
     // Storage availability is external browser state, not derived React state.
     // eslint-disable-next-line react-hooks/set-state-in-effect
@@ -216,21 +249,16 @@ export function QuoteFlow({
     if (status === "sent") headingRef.current?.focus({ preventScroll: true });
   }, [status]);
 
-  const steps = stepsFor(answers);
+  const steps = gated ? preAccountSteps(answers) : stepsFor(answers);
   const index = Math.max(0, steps.indexOf(step));
   const isReview = step === "review";
   const awaitingStudio =
     intakeMode === "studio_pending" || status === "studio_pending";
-  const needsAccount =
-    accountsOn && (!account || status === "signin") && !awaitingStudio;
+  const needsAccount = gated && !awaitingStudio;
 
-  /** Keep the reviewed answers on this device, then go and sign in. */
+  /** Keep the choices so far on this device, then go and sign in. */
   const leaveToSignIn = (event: React.MouseEvent<HTMLAnchorElement>) => {
-    // A signed-in client's session ended: their draft and attempt stay filed
-    // under their account, never in the anonymous handoff another person
-    // signing in here would be offered.
-    if (owner) return;
-    if (quoteHandoff.save({ answers, step: "review" })) return;
+    if (quoteHandoff.save(answers)) return;
     event.preventDefault();
     setError(
       "Your browser can't save your answers while you sign in. Allow site storage, or contact us instead.",
@@ -241,7 +269,7 @@ export function QuoteFlow({
   const adopt = () => {
     if (!adoptable) return;
     setAnswers(adoptable.answers);
-    setStep(adoptable.step);
+    setStep(firstOpenStep(adoptable.answers));
     anonymousWork.clear();
     setAdoptable(null);
   };
@@ -315,21 +343,31 @@ export function QuoteFlow({
       return;
     }
     // Another tab of this client's may hold an unconfirmed attempt: retry
-    // that one, with its ID and answers, before any new request.
+    // that one, with its ID and answers, before any new request. If only its
+    // ID is left, these answers go under that ID, so the Studio matches them
+    // to the original instead of adding a second request.
+    let reserved: string | undefined;
     if (!attemptRef.current) {
-      const { attempt: pending } = slots.loadAttempt();
+      const {
+        attempt: pending,
+        unresolved: marker,
+        resumed,
+      } = slots.loadAttempt();
       if (pending) {
         attemptRef.current = pending;
+        resumedRef.current = resumed;
         setHasAttempt(true);
         setAnswers(pending.answers);
         setStep("review");
         setError(accountCopy.quote.pendingAttempt);
         return;
       }
+      reserved = marker?.submission_id;
+      resumedRef.current = !!marker;
     }
     // Persist before transport: a reload must never mint a replacement UUID.
-    const attempt = attemptRef.current ?? createQuoteAttempt(answers);
-    if (!slots.saveAttempt(attempt)) {
+    const attempt = attemptRef.current ?? createQuoteAttempt(answers, reserved);
+    if (!slots.saveAttempt(attempt, resumedRef.current)) {
       setDraftStored(false);
       setError(
         "Your browser could not retain this submission for a safe retry. Enable storage or contact us before sending.",
@@ -366,25 +404,46 @@ export function QuoteFlow({
         quoteHandoff.clear();
         slots.clearAttempt();
         attemptRef.current = null;
+        setUnresolved(null);
+        return;
+      }
+      // The reserved ID is already committed with other answers, so the
+      // original arrived and these weren't sent. The outcome is known now.
+      if (resumedRef.current && body?.code === "idempotency_conflict") {
+        slots.clearAttempt();
+        attemptRef.current = null;
+        resumedRef.current = false;
+        setHasAttempt(false);
+        setUnresolved(null);
+        setStatus("received");
         return;
       }
       // A different account owns this browser now: take these answers off the
-      // screen. They stay filed under their own account.
+      // screen and out of storage. Only the attempt's marker stays, under its
+      // own account.
       if (body?.code === "account_mismatch") {
         forgetTabDrafts();
+        slots.retireAttempt();
         attemptRef.current = null;
         setHasAttempt(false);
         setAnswers(EMPTY_ANSWERS);
         setStatus("switched");
         return;
       }
+      // Nothing the client entered waits in storage for a session that ended.
+      if (body?.code === "sign_in_required") {
+        slots.saveDraft(null);
+        slots.retireAttempt();
+        setStatus("signin");
+        return;
+      }
       setStatus(
-        body?.code === "sign_in_required"
-          ? "signin"
-          : body?.code === "email_unverified"
-            ? "unverified"
-            : body?.code === "studio_pending"
-              ? "studio_pending"
+        body?.code === "email_unverified"
+          ? "unverified"
+          : body?.code === "studio_pending"
+            ? "studio_pending"
+            : intake === 2 && body?.code === "unavailable"
+              ? "temporary"
               : body?.code === "idempotency_conflict"
                 ? "conflict"
                 : res.status === 429
@@ -403,24 +462,27 @@ export function QuoteFlow({
   };
 
   const startSeparateRequest = () => {
-    if (sendingRef.current || !attemptRef.current) return;
+    const held = attemptRef.current?.submission_id ?? unresolved?.submission_id;
+    if (sendingRef.current || !held) return;
     if (
       !window.confirm(
         "Your previous request may already be saved. A separate request can create another inquiry. Contact us if you only need to change or resolve the previous request. Start a genuinely separate request?",
       )
     )
       return;
-    if (!slots.archiveAttempt(attemptRef.current)) {
+    if (!slots.archiveAttempt(held)) {
       setError(
         "Keep this tab open and contact us. The original attempt could not be retained safely.",
       );
       return;
     }
+    if (attemptRef.current) setStep("contact");
     attemptRef.current = null;
+    resumedRef.current = false;
     setHasAttempt(false);
+    setUnresolved(null);
     setStatus("idle");
     setError(null);
-    setStep("contact");
   };
 
   const motionProps = {
@@ -462,6 +524,66 @@ export function QuoteFlow({
               <a className="btn btn-primary" href="/quote">
                 {accountCopy.quote.reload}
               </a>
+            </div>
+          </div>
+        </main>
+        <QuoteFoot />
+      </div>
+    );
+  }
+
+  // Sign-out here is the way to a real new session: the sign-in page can't
+  // offer one while this session's cookies still verify. It leaves only the
+  // attempt's marker in this browser.
+  if (status === "signin") {
+    return (
+      <div
+        className={`quote-shell ${styles.shell}`}
+        ref={shellRef}
+        data-lenis-prevent
+      >
+        <QuoteTop />
+        <main id="main" className="quote-card">
+          <div className="quote-step" role="alert">
+            <h1>{accountCopy.quote.sessionEndedTitle}</h1>
+            <p className="quote-help">{accountCopy.quote.sessionEnded}</p>
+            <div className="quote-actions">
+              <SignOutButton
+                next="/quote"
+                label={accountCopy.quote.sessionEndedAction}
+                className="btn btn-primary"
+              />
+            </div>
+          </div>
+        </main>
+        <QuoteFoot />
+      </div>
+    );
+  }
+
+  if (status === "received") {
+    return (
+      <div
+        className={`quote-shell ${styles.shell}`}
+        ref={shellRef}
+        data-lenis-prevent
+      >
+        <QuoteTop signedIn />
+        <main id="main" className="quote-card">
+          <div className="quote-step" role="status">
+            <h1>{accountCopy.quote.receivedTitle}</h1>
+            <p className="quote-help">{accountCopy.quote.received}</p>
+            <div className="quote-actions">
+              <button
+                type="button"
+                className="btn btn-glass"
+                onClick={() => setStatus("idle")}
+              >
+                Start a separate request
+              </button>
+              <Link className="btn btn-primary" href={accountCopy.path}>
+                Back to my account
+              </Link>
             </div>
           </div>
         </main>
@@ -562,6 +684,36 @@ export function QuoteFlow({
               </div>
             </section>
           )}
+          {unresolved && !hasAttempt && (
+            <section
+              className="quote-alert border-line bg-paper"
+              aria-labelledby="unresolved-title"
+            >
+              <h2
+                id="unresolved-title"
+                className="mb-2 text-lg leading-snug font-semibold tracking-tight"
+              >
+                {accountCopy.quote.unresolvedTitle}
+              </h2>
+              <p>{accountCopy.quote.unresolved}</p>
+              <p className="quote-note">
+                {accountCopy.quote.unresolvedReference}:{" "}
+                {unresolved.submission_id}
+              </p>
+              <div className="quote-account-actions mt-3">
+                <button
+                  type="button"
+                  className="btn btn-glass"
+                  onClick={startSeparateRequest}
+                >
+                  Start a separate request
+                </button>
+                <Link className="btn btn-primary" href={accountCopy.path}>
+                  {accountCopy.quote.unresolvedAccount}
+                </Link>
+              </div>
+            </section>
+          )}
           <p className="quote-count">
             Step {index + 1} of {steps.length}
           </p>
@@ -577,6 +729,7 @@ export function QuoteFlow({
                     headingRef={headingRef}
                     onEdit={(to) => go(to, -1)}
                     locked={hasAttempt}
+                    onlySteps={gated ? steps : undefined}
                     ready={ready}
                     onReady={stepReady}
                   />
@@ -680,6 +833,11 @@ export function QuoteFlow({
               {accountCopy.quote.unverified}
             </div>
           )}
+          {isReview && status === "temporary" && (
+            <div className="quote-alert" role="alert">
+              {accountCopy.quote.temporarilyUnavailable}
+            </div>
+          )}
           {isReview && status === "unavailable" && (
             <div className="quote-alert" role="alert">
               <strong>We couldn&apos;t send this online yet.</strong> Online
@@ -711,11 +869,7 @@ export function QuoteFlow({
               >
                 {accountCopy.quote.title}
               </h2>
-              <p>
-                {status === "signin"
-                  ? accountCopy.quote.sessionEnded
-                  : accountCopy.quote.body}
-              </p>
+              <p>{accountCopy.quote.body}</p>
             </section>
           )}
           {isReview && accountsOn && account && !needsAccount && (
@@ -737,7 +891,7 @@ export function QuoteFlow({
             )}
             {isReview && needsAccount ? (
               <div className="quote-account-actions">
-                {/* Full page loads: the answers wait in this device's storage. */}
+                {/* Full page loads: the choices wait in this device's storage. */}
                 <a
                   className="btn btn-glass"
                   href="/account/login?next=%2Fquote"
@@ -823,6 +977,8 @@ type StepProps = {
   headingRef: React.RefObject<HTMLHeadingElement | null>;
   onEdit: (step: StepId) => void;
   locked: boolean;
+  /** Review only these questions (a signed-out visitor's). */
+  onlySteps?: StepId[];
   ready: boolean;
   onReady: () => void;
 };
@@ -835,6 +991,7 @@ function Step({
   headingRef,
   onEdit,
   locked,
+  onlySteps,
   ready,
   onReady,
 }: StepProps) {
@@ -1162,21 +1319,23 @@ function Step({
           )}
           <ShareLink />
           <dl className="quote-review">
-            {summarize(a).map((row) => (
-              <div key={row.step}>
-                <dt>{row.label}</dt>
-                <dd>{row.value}</dd>
-                <button
-                  type="button"
-                  className="quote-edit"
-                  disabled={locked}
-                  onClick={() => onEdit(row.step)}
-                >
-                  Change
-                  <span className="sr-only"> {row.label.toLowerCase()}</span>
-                </button>
-              </div>
-            ))}
+            {summarize(a)
+              .filter((row) => !onlySteps || onlySteps.includes(row.step))
+              .map((row) => (
+                <div key={row.step}>
+                  <dt>{row.label}</dt>
+                  <dd>{row.value}</dd>
+                  <button
+                    type="button"
+                    className="quote-edit"
+                    disabled={locked}
+                    onClick={() => onEdit(row.step)}
+                  >
+                    Change
+                    <span className="sr-only"> {row.label.toLowerCase()}</span>
+                  </button>
+                </div>
+              ))}
           </dl>
         </>
       );

@@ -170,6 +170,8 @@ describe("customer intake through /api/quote", () => {
       [409, "idempotency_conflict"],
       [403, "email_unverified"],
       [502, "delivery_failed"],
+      // Operational: the client keeps their session and attempt.
+      [503, "unavailable"],
     ] as const) {
       deliverCustomerQuote.mockResolvedValueOnce({
         status,

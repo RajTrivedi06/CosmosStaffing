@@ -1,11 +1,16 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
+  OWNED_ATTEMPT_PREFIX,
   OWNED_ATTEMPT_TTL_MS,
+  UNRESOLVED_TTL_MS,
   anonymousWork,
   forgetOnSignOut,
   quoteSlots,
   readOwnedAttempt,
+  readUnresolved,
+  settleQuoteStorage,
   writeOwnedAttempt,
+  writeUnresolved,
 } from "@/lib/quote-store";
 import { ATTEMPT_KEY, type QuoteAttempt } from "@/lib/quote-attempt";
 import { DRAFT_KEY } from "@/lib/quote-draft";
@@ -18,12 +23,27 @@ import type {
 } from "@/lib/customer-api-contract";
 import { homeQuote } from "./fixtures";
 
+/** Nothing a client entered: these must never outlive their session. */
+const SENSITIVE = [
+  homeQuote.name,
+  homeQuote.email,
+  homeQuote.phone,
+  homeQuote.notes,
+  '"zip"',
+];
 const ALICE = "a".repeat(32);
 const BOB = "b".repeat(32);
 const attempt = {
   submission_id: "00000000-0000-4000-8000-000000000301",
   answers: homeQuote,
 } as QuoteAttempt;
+
+const none = {
+  attempt: null,
+  unresolved: null,
+  resumed: false,
+  unreadable: false,
+};
 
 class MemoryStorage {
   data = new Map<string, string>();
@@ -83,48 +103,239 @@ describe("account-bound send attempts", () => {
     const alice = quoteSlots(ALICE, 2);
     expect(alice.saveAttempt(attempt)).toBe(true);
     // Shared storage: another tab of Alice's finds it.
-    expect(quoteSlots(ALICE, 2).loadAttempt()).toEqual({
-      attempt,
-      unreadable: false,
-    });
+    expect(quoteSlots(ALICE, 2).loadAttempt()).toEqual({ ...none, attempt });
     // Bob, in the same browser, sees nothing.
-    expect(quoteSlots(BOB, 2).loadAttempt()).toEqual({
-      attempt: null,
-      unreadable: false,
-    });
+    expect(quoteSlots(BOB, 2).loadAttempt()).toEqual(none);
     // Nor does the signed-out screen.
     expect(quoteSlots(null, 1).loadAttempt().attempt).toBeNull();
     // A different intake version for Alice is ignored, not an error.
-    expect(quoteSlots(ALICE, 1).loadAttempt()).toEqual({
-      attempt: null,
-      unreadable: false,
-    });
+    expect(quoteSlots(ALICE, 1).loadAttempt()).toEqual(none);
   });
 
-  it("keeps the anonymous attempt where it was", () => {
+  it("keeps the anonymous attempt where it was while accounts are off", () => {
     session.setItem(ATTEMPT_KEY, JSON.stringify(attempt));
     expect(quoteSlots(null, 1).loadAttempt().attempt).toEqual(attempt);
     expect(quoteSlots(ALICE, 2).loadAttempt().attempt).toBeNull();
+    // With accounts on, only a signed-in client has attempts.
+    expect(quoteSlots(null, 1, true).loadAttempt().attempt).toBeNull();
+  });
+});
+
+describe("attempts whose outcome is unknown", () => {
+  const now = 1_800_000_000_000;
+  const key = `${OWNED_ATTEMPT_PREFIX}${ALICE}`;
+  const stored = () => [...local.data.values(), ...session.data.values()];
+  const clean = () => {
+    for (const raw of stored())
+      for (const value of SENSITIVE) expect(raw).not.toContain(value);
+  };
+  const marker = { submission_id: attempt.submission_id };
+
+  it("keeps only the ID and when, for its owner", () => {
+    const raw = writeUnresolved(attempt.submission_id, ALICE, 2, now);
+    expect(JSON.parse(raw)).toEqual({
+      version: 2,
+      owner: ALICE,
+      intake: 2,
+      savedAt: now,
+      submission_id: attempt.submission_id,
+    });
+    expect(readUnresolved(raw, ALICE, 2, now)).toEqual({
+      ...marker,
+      savedAt: now,
+    });
+    expect(readUnresolved(raw, BOB, 2, now)).toBeNull();
+    expect(readUnresolved(raw, ALICE, 1, now)).toBeNull();
+    expect(
+      readUnresolved(raw, ALICE, 2, now + UNRESOLVED_TTL_MS + 1),
+    ).toBeNull();
+  });
+
+  it("sign-out leaves the marker and none of the answers", () => {
+    quoteSlots(ALICE, 2).saveAttempt(attempt);
+    forgetOnSignOut();
+    clean();
+    const { attempt: payload, unresolved } = quoteSlots(ALICE, 2).loadAttempt();
+    expect(payload).toBeNull();
+    expect(unresolved).toMatchObject(marker);
+    // Bob, on the same browser, sees nothing of it.
+    expect(quoteSlots(BOB, 2).loadAttempt()).toEqual(none);
+  });
+
+  it("expiry leaves the marker and none of the answers", () => {
+    local.setItem(key, writeOwnedAttempt(attempt, ALICE, 2, now));
+    settleQuoteStorage(undefined, now + OWNED_ATTEMPT_TTL_MS + 1);
+    clean();
+    expect(local.getItem(key)).toBe(
+      writeUnresolved(attempt.submission_id, ALICE, 2, now),
+    );
+  });
+
+  it("an expired record found by the quote screen is retired too", () => {
+    local.setItem(
+      key,
+      writeOwnedAttempt(
+        attempt,
+        ALICE,
+        2,
+        Date.now() - OWNED_ATTEMPT_TTL_MS - 1,
+      ),
+    );
+    expect(quoteSlots(ALICE, 2).loadAttempt().unresolved).toMatchObject(marker);
+    clean();
+  });
+
+  it("keeps a live attempt for the client signed in here, and only them", () => {
+    quoteSlots(ALICE, 2).saveAttempt(attempt);
+    settleQuoteStorage(ALICE);
+    expect(quoteSlots(ALICE, 2).loadAttempt().attempt).toEqual(attempt);
+    // Unknown session (a marketing page): nothing changes either.
+    settleQuoteStorage(undefined);
+    expect(quoteSlots(ALICE, 2).loadAttempt().attempt).toEqual(attempt);
+    // Her session ended, or Bob signed in: her answers go, wherever noticed.
+    settleQuoteStorage(BOB);
+    clean();
+    expect(quoteSlots(ALICE, 2).loadAttempt().unresolved).toMatchObject(marker);
+  });
+
+  it("a session that ended does the same as signing out", () => {
+    quoteSlots(ALICE, 2).saveAttempt(attempt);
+    quoteSlots(ALICE, 2).saveDraft({ answers: homeQuote, step: "review" });
+    settleQuoteStorage(null);
+    clean();
+    expect(quoteSlots(ALICE, 2).loadDraft()).toBeNull();
+  });
+
+  it("archives hold a marker only, including older ones", () => {
+    quoteSlots(ALICE, 2).saveAttempt(attempt);
+    expect(quoteSlots(ALICE, 2).archiveAttempt(attempt.submission_id)).toBe(
+      true,
+    );
+    clean();
+    expect(quoteSlots(ALICE, 2).loadAttempt()).toEqual(none);
+    expect(stored().join()).toContain(attempt.submission_id);
+
+    const older = `${key}-archive-00000000-0000-4000-8000-000000000302`;
+    local.setItem(
+      older,
+      writeOwnedAttempt(
+        { ...attempt, submission_id: older.slice(-36) },
+        ALICE,
+        2,
+      ),
+    );
+    session.setItem(`${ATTEMPT_KEY}-archive-x`, JSON.stringify(attempt));
+    settleQuoteStorage(undefined);
+    clean();
+    expect(JSON.parse(local.getItem(older)!).version).toBe(2);
+    expect(session.getItem(`${ATTEMPT_KEY}-archive-x`)).toContain(
+      attempt.submission_id,
+    );
+  });
+
+  it("anonymous archives hold a marker only", () => {
+    quoteSlots(null, 1).saveAttempt(attempt);
+    quoteSlots(null, 1).archiveAttempt(attempt.submission_id);
+    clean();
+    expect(quoteSlots(null, 1).loadAttempt().attempt).toBeNull();
+  });
+
+  it("markers lapse, so an old one doesn't reserve its ID for good", () => {
+    local.setItem(key, writeUnresolved(attempt.submission_id, ALICE, 2, now));
+    settleQuoteStorage(undefined, now + UNRESOLVED_TTL_MS - 1);
+    expect(local.getItem(key)).not.toBeNull();
+    settleQuoteStorage(undefined, now + UNRESOLVED_TTL_MS + 1);
+    expect(local.getItem(key)).toBeNull();
+  });
+
+  it("a resumed attempt is filed under the same slot and remembered", () => {
+    local.setItem(key, writeUnresolved(attempt.submission_id, ALICE, 2));
+    quoteSlots(ALICE, 2).saveAttempt(attempt, true);
+    expect(quoteSlots(ALICE, 2).loadAttempt()).toEqual({
+      ...none,
+      attempt,
+      resumed: true,
+    });
+    quoteSlots(ALICE, 2).retireAttempt();
+    clean();
+    expect(quoteSlots(ALICE, 2).loadAttempt().unresolved).toMatchObject(marker);
+  });
+
+  it("a damaged record keeps its ID if it can; otherwise goes, and says so", () => {
+    local.setItem(
+      key,
+      JSON.stringify({
+        version: 1,
+        owner: ALICE,
+        intake: 2,
+        savedAt: "soon",
+        attempt,
+      }),
+    );
+    expect(quoteSlots(ALICE, 2).loadAttempt().unresolved).toMatchObject(marker);
+    clean();
+
+    local.setItem(key, `not json ${homeQuote.email}`);
+    expect(quoteSlots(ALICE, 2).loadAttempt()).toEqual({
+      ...none,
+      unreadable: true,
+    });
+    expect(local.getItem(key)).toBeNull();
   });
 });
 
 describe("answers from before sign-in", () => {
-  it("are found for an explicit offer, never loaded as an account's draft", () => {
+  it("are found for an explicit offer, as choices only", () => {
     session.setItem(
       DRAFT_KEY,
       JSON.stringify({ answers: homeQuote, step: "review" }),
     );
     expect(quoteSlots(ALICE, 2).loadDraft()).toBeNull();
-    expect(anonymousWork.load()?.answers.email).toBe(homeQuote.email);
+    const offered = anonymousWork.load();
+    expect(offered?.answers.service).toBe(homeQuote.service);
+    expect(JSON.stringify(offered)).not.toContain(homeQuote.email);
     anonymousWork.clear();
     expect(anonymousWork.load()).toBeNull();
   });
 
-  it("sign-out forgets drafts but keeps an unconfirmed attempt for its owner", () => {
+  it("a signed-out visitor's draft stores choices only when accounts are on", () => {
+    const slots = quoteSlots(null, 2, true);
+    slots.saveDraft({ answers: homeQuote, step: "condition" });
+    const raw = session.getItem(DRAFT_KEY)!;
+    for (const value of SENSITIVE) expect(raw).not.toContain(value);
+    expect(slots.loadDraft()?.step).toBe("condition");
+    // Accounts off: the tab's draft is the whole quote, as it always was.
+    quoteSlots(null, 1).saveDraft({ answers: homeQuote, step: "contact" });
+    expect(session.getItem(DRAFT_KEY)).toContain(homeQuote.email);
+  });
+
+  it("purges sensitive anonymous data stored by an earlier version", () => {
     local.setItem(
       HANDOFF_KEY,
-      writeQuoteHandoff({ answers: homeQuote, step: "review" }),
+      JSON.stringify({
+        version: 1,
+        savedAt: Date.now(),
+        draft: { answers: homeQuote, step: "review" },
+      }),
     );
+    session.setItem(
+      DRAFT_KEY,
+      JSON.stringify({ answers: homeQuote, step: "review" }),
+    );
+    session.setItem(ATTEMPT_KEY, JSON.stringify(attempt));
+    // Any page removes the old handoff, without knowing who is signed in.
+    settleQuoteStorage(undefined);
+    expect(local.getItem(HANDOFF_KEY)).toBeNull();
+    // Once the session is known, the tab keeps choices only.
+    settleQuoteStorage(null);
+    for (const raw of session.data.values())
+      for (const value of SENSITIVE) expect(raw).not.toContain(value);
+    expect(session.getItem(ATTEMPT_KEY)).toBeNull();
+    expect(anonymousWork.load()?.answers.service).toBe(homeQuote.service);
+  });
+
+  it("sign-out forgets drafts and keeps a marker for the owner", () => {
+    local.setItem(HANDOFF_KEY, writeQuoteHandoff(homeQuote));
     session.setItem(
       DRAFT_KEY,
       JSON.stringify({ answers: homeQuote, step: "review" }),
@@ -134,7 +345,9 @@ describe("answers from before sign-in", () => {
     forgetOnSignOut();
     expect(local.getItem(HANDOFF_KEY)).toBeNull();
     expect(session.data.size).toBe(0);
-    expect(quoteSlots(ALICE, 2).loadAttempt().attempt).toEqual(attempt);
+    expect(quoteSlots(ALICE, 2).loadAttempt().unresolved?.submission_id).toBe(
+      attempt.submission_id,
+    );
   });
 });
 

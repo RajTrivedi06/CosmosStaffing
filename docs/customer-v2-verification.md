@@ -2,7 +2,9 @@
 
 For website Codex's independent review. Implements the Studio's customer-auth
 contract, **revision 2.1, API v2, Studio commit `cc738d2`**, on website base
-`bdb8c97`. No later contract change existed when this was built.
+`bdb8c97`; the sections up to "Open before production" describe `23ca9ec`. The
+[review findings round](#review-findings-round-on-23ca9ec) below moves the
+website to revision 2.2 and says what is and isn't verified for it.
 
 **Production stays blocked.** Nothing is pushed or deployed, no hosted setting
 changed, and no real message or payment was sent.
@@ -140,6 +142,59 @@ it recurred once, in the form above.
 
 No backend defect was found.
 
+## Review findings round (on `23ca9ec`)
+
+Four findings from Codex's review of `23ca9ec`, built against revision 2.2,
+Studio commit `ee9146e`.
+
+1. **Anonymous data.** With accounts on, a signed-out visitor is asked only the
+   choice questions (`preAccountSteps`). Only an explicit allowlist is kept or
+   carried through sign-in (`carriedAnswers` in `src/lib/quote.ts`): service,
+   property, bedrooms, bathrooms, area, frequency, condition, each a real
+   option, so free text can't arrive in one of these fields. ZIP code, timing,
+   date, extras, notes and contact details are asked after sign-in. The handoff
+   is now version 2 and any other version is removed unread;
+   `QuoteStorageSweep` runs on every page and `settleQuoteStorage` reduces the
+   tab once the session is known. The sign-up page no longer pre-fills an email.
+2. **Stored payloads.** An attempt's answers stay only while its owner is
+   signed in here and for 7 days. Sign-out, an ended or refused session, expiry
+   and archival each replace them with a marker: the submission ID and when it
+   was made, kept 30 days. Archives, including older ones, hold markers only.
+   The next send reuses the ID: 202 means the original never arrived, 200 that
+   it was identical, and 409 that it arrived with other answers. That last case
+   is reported as already received, these answers aren't sent, and the marker
+   clears. Only "Start a separate request", after a confirmation, mints a new
+   ID. No screen says an unknown outcome failed.
+3. **Service credential.** Only `401 {code: "unauthorized"}` means sign-in.
+   `503 service_auth_failed`, any other 503, and any 401 without that exact
+   code (a gateway or preview protection) read as temporarily unavailable, on
+   customer intake and account reads. The session and attempt stay, and the
+   browser only ever sees `unavailable`. Intake v1 keeps its own wording.
+4. **Revoked session through `/quote`.** The sign-in page now checks with the
+   Studio before continuing to any destination, not only Studio pages. A
+   refused send shows its own screen, takes the answers off it and out of
+   storage at once, and offers "Sign in again", a real sign-out. The next
+   sign-in is a new session with the marker, and the resend keeps the ID.
+
+**Password recovery, observed.** No revocation code was added. On the website's
+local Auth (`supabase/config.toml`, not the paired project), with two older
+sessions signed in and their JWTs valid for about 59 more minutes, a recovery
+password update gave: older session at Auth `/user` 403; its refresh 400
+`refresh_token_not_found`; the recovery session 200; old password 400; new
+password 200. `tests/e2e/account.auth.spec.ts` pins the same result through the
+website's real `/account/reset` page. The website's own local JWT check can't
+see this until the token needs refreshing, so the older device's website
+session stays signed in until then or until a Studio read refuses it. **The
+Studio's answer to that older token is not observed yet**; the paired test
+below asserts the expected 401.
+
+**Written but not yet run, pending a paired reservation on revision 2.2:** in
+`tests/paired/customer.paired.spec.ts`, a session revoked during a send, a wrong
+server credential at the real Studio, and two-session recovery against the
+Studio. The earlier paired flows were adapted to the new question order. A wrong
+server credential end to end through a website process is not yet covered; the
+mock and unit tests cover the website's mapping.
+
 ## Open before production
 
 **Lifecycle (website):**
@@ -149,20 +204,21 @@ No backend defect was found.
 - Password change outside recovery: with secure password change on, an older
   session's `updateUser` can need reauthentication; today that shows the generic
   unavailable message. Recovery itself passed paired.
-- Recovery doesn't revoke other sessions; the contract says it may need to.
+- Recovery's effect on other sessions at the real Studio isn't observed yet;
+  see the findings round.
 
 **For review:**
 
-- An anonymous draft on a shared browser can be offered to the next person who
-  signs in there within 24 hours, until sign-out or send clears it. It is never
-  loaded without their choice.
-- An unconfirmed attempt holds contact details in localStorage for up to 7 days,
-  through sign-out, so that it can't become a duplicate. It is shown only to its
-  owner. After expiry a retry would be a new request.
-- Confirming on another device can't bring answers across; they stay on the
+- A marker keeps a submission ID in this browser for 30 days, shown only to its
+  owner. After that a send gets a new ID.
+- Re-entered answers under a marker that Studio has never seen become the
+  request; if the original arrived, only the original stands and the client is
+  told so.
+- There's no status lookup by submission ID, so the screen can't say whether an
+  earlier attempt arrived until the client sends again. They're pointed to
+  their account first.
+- Confirming on another device can't bring choices across; they stay on the
   first browser.
-- A 401 from the Studio during a send asks for sign-in again; it can't tell a
-  revoked session from a wrong server credential.
 
 **Release:**
 

@@ -16,7 +16,7 @@ import {
 
 /**
  * What the account home shows, from the Studio's customer API v2 (contract
- * revision 2.1). The Studio owns these records and decides whose they are;
+ * revision 2.2). The Studio owns these records and decides whose they are;
  * this site shows only what it returns, never sample data or a guess.
  */
 export type AccountItem = {

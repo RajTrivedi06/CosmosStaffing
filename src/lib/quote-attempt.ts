@@ -10,10 +10,11 @@ export const attemptSchema = z.strictObject({
 export type QuoteAttempt = z.infer<typeof attemptSchema>;
 
 /** Detached snapshot. Edits to the draft must never change an in-flight retry. */
-export function createQuoteAttempt(answers: QuoteAnswers): QuoteAttempt {
-  return JSON.parse(
-    JSON.stringify({ submission_id: crypto.randomUUID(), answers }),
-  );
+export function createQuoteAttempt(
+  answers: QuoteAnswers,
+  submission_id: string = crypto.randomUUID(),
+): QuoteAttempt {
+  return JSON.parse(JSON.stringify({ submission_id, answers }));
 }
 
 export function readQuoteAttempt(raw: string | null): QuoteAttempt | null {

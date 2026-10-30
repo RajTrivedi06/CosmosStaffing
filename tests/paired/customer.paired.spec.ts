@@ -9,6 +9,7 @@ import {
 } from "@playwright/test";
 import { account } from "../../src/lib/site";
 import { homeQuote } from "../unit/fixtures";
+import { choicesLink, finishQuestions, storedText } from "../e2e/quote-helpers";
 
 /**
  * REAL paired verification. The website, the running Studio and one isolated
@@ -101,6 +102,7 @@ async function sendAdopted(page: Page, name: string, email: string) {
   await anonymousAnswers(page, name, email);
   await page.goto("/quote");
   await page.getByRole("button", { name: account.quote.adopt }).click();
+  await finishQuestions(page, { name, email });
   await expect(page.getByText(name).first()).toBeVisible();
 }
 
@@ -204,7 +206,9 @@ test("signup, confirmation in a new tab, explicit adoption and an authenticated 
   await anonymousAnswers(page, alice.name, alice.email);
   await page.goto("/quote");
   await page.getByRole("link", { name: account.quote.create }).click();
-  await expect(page.getByLabel("Email")).toHaveValue(alice.email);
+  // Only choices wait on this device.
+  expect(await storedText(page)).not.toContain(alice.email);
+  await page.getByLabel("Email").fill(alice.email);
   await page.getByLabel("Password", { exact: true }).fill(PASSWORD);
   await page.getByRole("button", { name: account.signUp.submit }).click();
   await expect(page.getByText(alice.email)).toBeVisible({ timeout: 20_000 });
@@ -224,6 +228,7 @@ test("signup, confirmation in a new tab, explicit adoption and an authenticated 
   ).toBeVisible();
   await expect(tab.getByText(alice.name)).toHaveCount(0);
   await tab.getByRole("button", { name: account.quote.adopt }).click();
+  await finishQuestions(tab, alice);
   await tab.getByRole("button", { name: "Send my request" }).click();
   await expect(
     tab.getByRole("heading", { name: "Thank you. Your request is in." }),
@@ -657,7 +662,125 @@ test("a session revoked at Auth is refused by the Studio, without a redirect loo
   await context.close();
 });
 
-test("password recovery works through this site's callback", async () => {
+test("a session revoked during a send needs a real new sign-in and can't duplicate", async ({
+  browser,
+  baseURL,
+  contextOptions,
+}) => {
+  const key = /^AUTH_SUPABASE_PUBLISHABLE_KEY=['"]?([^'"\n]+)/m.exec(
+    readFileSync(process.env.PAIRED_WEBSITE_ENV!, "utf8"),
+  )![1];
+  const name = `Alice Held ${stamp}`;
+  const context = await newContext(browser, baseURL!, contextOptions);
+  const page = await context.newPage();
+  await page.goto("/account/login");
+  await signIn(page, alice.email);
+  await expect(page).toHaveURL(/\/account$/, { timeout: 20_000 });
+  const details = page.getByRole("link", { name: "Details" });
+  await expect(details.first()).toBeVisible();
+  const before = await details.count();
+  await page.goto(choicesLink);
+  await finishQuestions(page, { name, email: alice.email });
+
+  const { access_token } = (await readSession(context)) as unknown as {
+    access_token: string;
+  };
+  expect(
+    (
+      await page.request.post(`${AUTH}/auth/v1/logout?scope=global`, {
+        headers: { apikey: key, Authorization: `Bearer ${access_token}` },
+      })
+    ).status(),
+  ).toBe(204);
+
+  const send = page.waitForRequest("**/api/quote");
+  const refused = page.waitForResponse("**/api/quote");
+  await page.getByRole("button", { name: "Send my request" }).click();
+  expect((await refused).status()).toBe(401);
+  await expect(
+    page.getByRole("heading", { name: account.quote.sessionEndedTitle }),
+  ).toBeVisible();
+  const { submission_id } = (await send).postDataJSON();
+  const stored = await storedText(page);
+  expect(stored).not.toContain(name);
+  expect(stored).not.toContain(alice.email);
+  expect(stored).toContain(submission_id);
+
+  // The sign-in page can't bounce back to the quote on the old cookies.
+  const documents: string[] = [];
+  page.on("framenavigated", (frame) => documents.push(frame.url()));
+  await page.goto("/account/login?next=%2Fquote");
+  await page.waitForTimeout(1_000);
+  expect(new URL(page.url()).pathname).toBe("/account/login");
+  expect(documents.length).toBeLessThan(3);
+  await page
+    .getByRole("button", { name: account.home.rejected.action })
+    .click();
+  await expect(page.getByLabel("Email")).toBeVisible({ timeout: 15_000 });
+  expect(clientCookies(await context.cookies())).toEqual([]);
+
+  await signIn(page, alice.email);
+  await expect(page).toHaveURL(/\/quote(\?|$)/, { timeout: 20_000 });
+  await expect(
+    page.getByRole("heading", { name: account.quote.unresolvedTitle }),
+  ).toBeVisible();
+  await page.goto(choicesLink);
+  await finishQuestions(page, { name, email: alice.email });
+  const resend = page.waitForRequest("**/api/quote");
+  const accepted = page.waitForResponse("**/api/quote");
+  await page.getByRole("button", { name: "Send my request" }).click();
+  // The refused send never committed, so this is the one request.
+  expect((await accepted).status()).toBe(202);
+  expect((await resend).postDataJSON().submission_id).toBe(submission_id);
+  await page.goto("/account");
+  await expect(details).toHaveCount(before + 1);
+  await context.close();
+});
+
+test("a wrong server credential is an operational failure at the Studio", async () => {
+  const page = await aliceContext.newPage();
+  await page.goto("/account");
+  const { access_token } = (await readSession(aliceContext)) as unknown as {
+    access_token: string;
+  };
+  const res = await page.request.get(`${STUDIO}/api/customer/v2/account`, {
+    headers: {
+      Authorization: `Bearer ${access_token}`,
+      "X-Webhook-Secret": "synthetic-wrong-credential-000000",
+      Cookie: "",
+    },
+  });
+  expect(res.status()).toBe(503);
+  expect(await res.json()).toEqual({
+    ok: false,
+    code: "service_auth_failed",
+  });
+  // The same session, with the right credential, is still accepted.
+  expect((await studioAs(aliceContext, page)("GET", "/account")).status).toBe(
+    200,
+  );
+  await page.close();
+});
+
+test("password recovery works through this site's callback, and ends other sessions", async ({
+  browser,
+  baseURL,
+  contextOptions,
+}) => {
+  const key = /^AUTH_SUPABASE_PUBLISHABLE_KEY=['"]?([^'"\n]+)/m.exec(
+    readFileSync(process.env.PAIRED_WEBSITE_ENV!, "utf8"),
+  )![1];
+  // The same client on another device, with a request to find afterwards.
+  const other = await newContext(browser, baseURL!, contextOptions);
+  const device = await other.newPage();
+  await device.goto("/account/login");
+  await signIn(device, alice.email);
+  await expect(device).toHaveURL(/\/account$/, { timeout: 20_000 });
+  const asOther = studioAs(other, device);
+  expect((await asOther("GET", "/account")).status).toBe(200);
+  const { refresh_token } = await readSession(other);
+  const records = await device.getByRole("link", { name: "Details" }).count();
+
   const page = await aliceContext.newPage();
   await page.goto("/account/forgot");
   await page.getByLabel("Email").fill(alice.email);
@@ -673,9 +796,28 @@ test("password recovery works through this site's callback", async () => {
   await expect(page.getByText(account.reasons.password_updated)).toBeVisible({
     timeout: 20_000,
   });
+
+  // The other device's token is unexpired, and its session is over.
+  expect(await asOther("GET", "/account")).toEqual({
+    status: 401,
+    body: { ok: false, code: "unauthorized" },
+  });
+  const refreshed = await device.request.post(
+    `${AUTH}/auth/v1/token?grant_type=refresh_token`,
+    { headers: { apikey: key }, data: { refresh_token } },
+  );
+  expect(refreshed.status()).toBe(400);
+  await device.goto("/account");
+  await expect(device.getByText(account.home.rejected.title)).toBeVisible();
+  await other.close();
+
   await page.getByRole("button", { name: account.home.signOut }).click();
   await expect(page).toHaveURL(/\/account\/login/, { timeout: 15_000 });
   await signIn(page, alice.email, `${PASSWORD}-new`);
   await expect(page).toHaveURL(/\/account$/, { timeout: 20_000 });
+  // The same client: their records stayed bound to the account.
+  await expect(page.getByRole("link", { name: "Details" })).toHaveCount(
+    records,
+  );
   await page.close();
 });

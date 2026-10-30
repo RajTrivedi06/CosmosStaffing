@@ -5,6 +5,9 @@
 Studio has now published customer-auth v2, revision 2.1, at `cc738d2` on
 `feat/customer-auth-foundation`:
 [customer-auth-v2.md](../../wt-integration-implementation/docs/03-guides/customer-auth-v2.md).
+Revision 2.2, at `ee9146e`, makes a
+refused server credential 503 `service_auth_failed` and keeps 401 `unauthorized`
+for the customer's session; the website maps only that exact 401 to sign-in.
 This is an additive authenticated API; intake v1 below is unchanged. References
 below to an unresolved authentication decision describe the earlier v1 work.
 The v2 adapter is not implemented by this prerequisite commit. Production Studio
