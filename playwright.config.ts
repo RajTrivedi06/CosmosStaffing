@@ -1,16 +1,61 @@
+import { execFileSync } from "node:child_process";
 import { defineConfig, devices } from "@playwright/test";
 
 const PORT = 3200;
+/** A local stand-in for the Operations Studio (tests/e2e/studio-stub.mjs). */
 const STUDIO_STUB_PORT = 3299;
 const STUDIO_STUB_ORIGIN = `http://127.0.0.1:${STUDIO_STUB_PORT}`;
 
-/** Synthetic Studio only; no real delivery credentials enter these test servers. */
+/**
+ * Real client-account tests (*.auth.spec.ts), opt-in with AUTH_E2E=1 (see
+ * `npm run test:e2e:auth`). They run a second server against this repo's own
+ * local Supabase Auth (supabase/config.toml) and read emails from its Mailpit.
+ * Real Supabase Auth, synthetic accounts; not paired with the Studio.
+ */
+const AUTH_PORT = 3201;
+const AUTH_E2E = process.env.AUTH_E2E === "1";
+function localAuthKey() {
+  const env = execFileSync("supabase", ["status", "-o", "env"], {
+    encoding: "utf8",
+    stdio: ["ignore", "pipe", "ignore"],
+  });
+  const key = /^PUBLISHABLE_KEY="?([^"\n]+)"?$/m.exec(env)?.[1];
+  if (!key) throw new Error("Start the local Supabase stack: supabase start");
+  return key;
+}
+/** Test servers never inherit .env.local's account settings. */
+const NO_ACCOUNTS = {
+  AUTH_SUPABASE_URL: "",
+  AUTH_SUPABASE_PUBLISHABLE_KEY: "",
+};
+const QUIET_DELIVERY = {
+  QUOTE_DELIVERY_MODE: process.env.E2E_QUOTE_MODE || "legacy",
+  QUOTE_STUDIO_TEST_ENABLED: "false",
+  STUDIO_INTAKE_URL: "",
+  WEBSITE_INTAKE_SECRET: "",
+  SUPABASE_URL: "",
+  SUPABASE_SECRET_KEY: "",
+  RESEND_API_KEY: "",
+  QUOTE_TO_EMAIL: "",
+  QUOTE_FROM_EMAIL: "",
+};
+
+/**
+ * Browser tests against a production build: `npm run test:e2e` builds first,
+ * with STUDIO_ORIGIN pointing the Studio's forwarded paths at a local stub,
+ * so no test ever reaches the real Studio. Quote delivery is not configured
+ * for the test server, so the quote tests check the honest "not connected"
+ * message and stub /api/quote for success.
+ */
 export default defineConfig({
   testDir: "tests/e2e",
   fullyParallel: true,
   retries: process.env.CI ? 1 : 0,
   reporter: process.env.CI ? "github" : "list",
-  use: { baseURL: `http://localhost:${PORT}`, trace: "retain-on-failure" },
+  use: {
+    baseURL: `http://localhost:${PORT}`,
+    trace: "retain-on-failure",
+  },
   projects: [
     {
       name: "desktop",
@@ -18,13 +63,33 @@ export default defineConfig({
         ...devices["Desktop Chrome"],
         viewport: { width: 1440, height: 900 },
       },
-      testIgnore: /\.mobile\.spec\.ts$/,
+      testIgnore: /\.(mobile|auth)\.spec\.ts$/,
     },
     {
       name: "mobile",
       use: { ...devices["Pixel 7"] },
       testMatch: /(quote|\.mobile)\.spec\.ts$/,
     },
+    ...(AUTH_E2E
+      ? [
+          {
+            name: "auth-desktop",
+            use: {
+              ...devices["Desktop Chrome"],
+              baseURL: `http://127.0.0.1:${AUTH_PORT}`,
+            },
+            testMatch: /\.auth\.spec\.ts$/,
+          },
+          {
+            name: "auth-mobile",
+            use: {
+              ...devices["Pixel 7"],
+              baseURL: `http://127.0.0.1:${AUTH_PORT}`,
+            },
+            testMatch: /\.auth\.spec\.ts$/,
+          },
+        ]
+      : []),
   ],
   webServer: [
     {
@@ -37,19 +102,32 @@ export default defineConfig({
       command: `npm run start -- -p ${PORT}`,
       url: `http://localhost:${PORT}`,
       reuseExistingServer: !process.env.CI,
+      // Keep any real delivery credentials out of the test server.
       env: {
         NEXT_DIST_DIR: ".next-test",
         STUDIO_ORIGIN: STUDIO_STUB_ORIGIN,
-        QUOTE_DELIVERY_MODE: process.env.E2E_QUOTE_MODE || "legacy",
-        QUOTE_STUDIO_TEST_ENABLED: "false",
-        STUDIO_INTAKE_URL: "",
-        WEBSITE_INTAKE_SECRET: "",
-        SUPABASE_URL: "",
-        SUPABASE_SECRET_KEY: "",
-        RESEND_API_KEY: "",
-        QUOTE_TO_EMAIL: "",
-        QUOTE_FROM_EMAIL: "",
+        ...QUIET_DELIVERY,
+        ...NO_ACCOUNTS,
       },
     },
+    ...(AUTH_E2E
+      ? [
+          {
+            command: `npm run start -- -p ${AUTH_PORT}`,
+            url: `http://127.0.0.1:${AUTH_PORT}`,
+            reuseExistingServer: false,
+            env: {
+              NEXT_DIST_DIR: ".next-test",
+              STUDIO_ORIGIN: STUDIO_STUB_ORIGIN,
+              ...QUIET_DELIVERY,
+              // The quote limiter trusts X-Forwarded-For only behind Vercel's
+              // proxy; here it lets each sending test have its own bucket.
+              VERCEL: "1",
+              AUTH_SUPABASE_URL: "http://127.0.0.1:54621",
+              AUTH_SUPABASE_PUBLISHABLE_KEY: localAuthKey(),
+            },
+          },
+        ]
+      : []),
   ],
 });

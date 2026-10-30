@@ -38,6 +38,18 @@ const nextConfig: NextConfig = {
       ]),
     ];
   },
+  // Client account pages are private: never cached, indexed or referred on.
+  // (proxy.ts also marks them no-store whenever it refreshes a session.)
+  async headers() {
+    return ["/account", "/account/:path*"].map((source) => ({
+      source,
+      headers: [
+        { key: "Cache-Control", value: "private, no-store" },
+        { key: "X-Robots-Tag", value: "noindex, nofollow, noarchive" },
+        { key: "Referrer-Policy", value: "no-referrer" },
+      ],
+    }));
+  },
   // The Studio's recipient pages and portal, forwarded before this site's
   // own pages and public files are checked so nothing here can shadow them.
   // Their no-store/noindex headers live in vercel.json, where the Studio's

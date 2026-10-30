@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { cleaners, siteConfig } from "@/lib/site";
+import { account, cleaners, siteConfig } from "@/lib/site";
 import { getLenis, scrollToHash, scrollToY } from "@/lib/scroll";
 
 /** Ignore scroll movements smaller than this, so the bar never jitters. */
@@ -216,6 +216,9 @@ export function SiteNav() {
           {siteConfig.primaryCta.label}
         </Link>
         <div className="sheet-more">
+          <Link href={account.path} onClick={closeForLink}>
+            {account.signInLabel}
+          </Link>
           <Link href={cleaners.path} onClick={closeForLink}>
             {cleaners.label}
           </Link>

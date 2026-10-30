@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import { connection } from "next/server";
 import { quoteIntakeMode } from "@/lib/quote-intake";
+import { clientSession } from "@/lib/account/server";
 import { pageMetadata } from "@/lib/metadata";
 import { QuoteFlow } from "@/components/quote/QuoteFlow";
 
@@ -21,5 +22,14 @@ export const viewport: Viewport = {
 export default async function QuotePage() {
   // Read the same runtime cutover setting as /api/quote.
   await connection();
-  return <QuoteFlow intakeMode={quoteIntakeMode()} />;
+  const session = await clientSession();
+  return (
+    <QuoteFlow
+      intakeMode={quoteIntakeMode()}
+      accountsOn={session.state !== "off"}
+      account={
+        session.state === "signed_in" ? { email: session.client.email } : null
+      }
+    />
+  );
 }

@@ -82,7 +82,13 @@ describe("Studio forwarding", () => {
     expect(rewrites.beforeFiles).toEqual(DOCUMENTED.rewrites);
     expect(rewrites.afterFiles ?? []).toEqual([]);
     expect(rewrites.fallback ?? []).toEqual([]);
-    expect(nextConfig.headers).toBeUndefined();
+    // headers() here covers only this site's own /account pages; forwarded
+    // Studio responses take theirs from vercel.json.
+    const headers = await nextConfig.headers!();
+    expect(headers.map((rule) => rule.source)).toEqual([
+      "/account",
+      "/account/:path*",
+    ]);
   });
 
   it("never forwards the staff login, the API, Next's assets or /apply", () => {

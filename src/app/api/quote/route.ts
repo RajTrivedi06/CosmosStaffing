@@ -8,6 +8,7 @@ import {
   studioTestConfiguration,
 } from "@/lib/studio-intake";
 import { quoteRateLimit, readQuoteBody } from "@/lib/quote-request-guard";
+import { clientSession } from "@/lib/account/server";
 
 const json = (
   body: object,
@@ -70,6 +71,11 @@ export async function POST(request: Request): Promise<Response> {
       .toLowerCase() !== "application/json"
   )
     return json({ ok: false, code: "unsupported_media_type" }, 415);
+  // With client accounts on, only a verified, signed-in client can send.
+  // The quote screen keeps the answers and asks them to sign in again.
+  const session = await clientSession();
+  if (session.state === "signed_out" || session.state === "expired")
+    return json({ ok: false, code: "sign_in_required" }, 401);
 
   let payload: unknown;
   try {

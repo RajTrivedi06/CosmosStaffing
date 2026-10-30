@@ -3,7 +3,8 @@
 import { useEffect, useId, useRef, useState } from "react";
 import Link from "next/link";
 import { AnimatePresence, motion, useReducedMotion } from "motion/react";
-import { coverage, siteConfig } from "@/lib/site";
+import { account as accountCopy, coverage, siteConfig } from "@/lib/site";
+import { quoteHandoff } from "@/lib/quote-handoff";
 import type { QuoteIntakeMode } from "@/lib/quote-intake";
 import {
   DRAFT_KEY,
@@ -53,7 +54,9 @@ type Status =
   | "studio_pending"
   | "conflict"
   | "rate_limited"
-  | "invalid";
+  | "invalid"
+  /** The facade needs a signed-in client (session missing or ended). */
+  | "signin";
 
 function loadDraft(): QuoteDraft | null {
   try {
@@ -81,8 +84,21 @@ function saveDraft(draft: QuoteDraft | null): boolean {
  * (never contact details), so a quote in progress can be shared or
  * bookmarked. Nothing claims success until /api/quote confirms the request
  * was delivered.
+ *
+ * With client accounts on, sending needs a signed-in client: questions,
+ * review, then sign up or sign in, then send. The reviewed answers wait on
+ * this device meanwhile (lib/quote-handoff.ts), even if the confirmation email
+ * opens in another tab.
  */
-export function QuoteFlow({ intakeMode }: { intakeMode: QuoteIntakeMode }) {
+export function QuoteFlow({
+  intakeMode,
+  accountsOn = false,
+  account = null,
+}: {
+  intakeMode: QuoteIntakeMode;
+  accountsOn?: boolean;
+  account?: { email: string } | null;
+}) {
   const reduce = useReducedMotion();
   const [answers, setAnswers] = useState<QuoteAnswers>(EMPTY_ANSWERS);
   const [step, setStep] = useState<StepId>("service");
@@ -106,7 +122,8 @@ export function QuoteFlow({ intakeMode }: { intakeMode: QuoteIntakeMode }) {
   // service chosen on the site) win over the draft, and the flow opens on
   // the first question they leave open.
   useEffect(() => {
-    const draft = loadDraft();
+    // This tab's draft, or a reviewed quote left waiting for sign-in.
+    const draft = loadDraft() ?? (accountsOn ? quoteHandoff.load() : null);
     let storedAttempt: string | null = null;
     try {
       storedAttempt = sessionStorage.getItem(ATTEMPT_KEY);
@@ -139,7 +156,7 @@ export function QuoteFlow({ intakeMode }: { intakeMode: QuoteIntakeMode }) {
     }
     setReady(true);
     /* eslint-enable react-hooks/set-state-in-effect */
-  }, []);
+  }, [accountsOn]);
 
   useEffect(() => {
     if (!ready || status === "sent") return;
@@ -197,6 +214,18 @@ export function QuoteFlow({ intakeMode }: { intakeMode: QuoteIntakeMode }) {
   const isReview = step === "review";
   const awaitingStudio =
     intakeMode === "studio_pending" || status === "studio_pending";
+  const needsAccount =
+    accountsOn && (!account || status === "signin") && !awaitingStudio;
+
+  /** Keep the reviewed answers on this device, then go and sign in. */
+  const leaveToSignIn = (event: React.MouseEvent<HTMLAnchorElement>) => {
+    if (quoteHandoff.save({ answers, step: "review" })) return;
+    event.preventDefault();
+    setError(
+      "Your browser can't save your answers while you sign in. Allow site storage, or contact us instead.",
+    );
+  };
+
   const update = (patch: Partial<QuoteAnswers>) => {
     if (attemptRef.current) return;
     setAnswers((a) => updateQuoteAnswers(a, patch));
@@ -245,7 +274,13 @@ export function QuoteFlow({ intakeMode }: { intakeMode: QuoteIntakeMode }) {
   };
 
   const send = async () => {
-    if (sendingRef.current || awaitingStudio || attemptRecoveryFailed) return;
+    if (
+      sendingRef.current ||
+      awaitingStudio ||
+      needsAccount ||
+      attemptRecoveryFailed
+    )
+      return;
     // Re-check every applicable question before sending.
     const firstBad = attemptRef.current
       ? undefined
@@ -289,6 +324,7 @@ export function QuoteFlow({ intakeMode }: { intakeMode: QuoteIntakeMode }) {
       if (confirmedQuote(res.status, body)) {
         setStatus("sent");
         saveDraft(null);
+        quoteHandoff.clear();
         try {
           sessionStorage.removeItem(ATTEMPT_KEY);
         } catch {
@@ -298,17 +334,19 @@ export function QuoteFlow({ intakeMode }: { intakeMode: QuoteIntakeMode }) {
         return;
       }
       setStatus(
-        body?.code === "studio_pending"
-          ? "studio_pending"
-          : body?.code === "idempotency_conflict"
-            ? "conflict"
-            : res.status === 429
-              ? "rate_limited"
-              : [400, 413, 415, 422].includes(res.status)
-                ? "invalid"
-                : body?.code === "not_configured"
-                  ? "unavailable"
-                  : "error",
+        body?.code === "sign_in_required"
+          ? "signin"
+          : body?.code === "studio_pending"
+            ? "studio_pending"
+            : body?.code === "idempotency_conflict"
+              ? "conflict"
+              : res.status === 429
+                ? "rate_limited"
+                : [400, 413, 415, 422].includes(res.status)
+                  ? "invalid"
+                  : body?.code === "not_configured"
+                    ? "unavailable"
+                    : "error",
       );
     } catch {
       setStatus("error");
@@ -374,7 +412,7 @@ export function QuoteFlow({ intakeMode }: { intakeMode: QuoteIntakeMode }) {
         ref={shellRef}
         data-lenis-prevent
       >
-        <QuoteTop />
+        <QuoteTop signedIn={accountsOn && !!account} />
         <main id="main" className="quote-card" aria-live="polite">
           <motion.div {...motionProps} key="sent" className="quote-step">
             <h1 ref={headingRef} tabIndex={-1}>
@@ -385,9 +423,15 @@ export function QuoteFlow({ intakeMode }: { intakeMode: QuoteIntakeMode }) {
               <strong>{answers.email}</strong> with your quote.
             </p>
             <div className="quote-actions">
-              <Link className="btn btn-primary" href="/">
-                Back to home
-              </Link>
+              {accountsOn && account ? (
+                <Link className="btn btn-primary" href={accountCopy.path}>
+                  Back to my account
+                </Link>
+              ) : (
+                <Link className="btn btn-primary" href="/">
+                  Back to home
+                </Link>
+              )}
             </div>
           </motion.div>
         </main>
@@ -403,7 +447,7 @@ export function QuoteFlow({ intakeMode }: { intakeMode: QuoteIntakeMode }) {
       data-lenis-prevent
       data-keyboard-nav={keyboardNavigation || undefined}
     >
-      <QuoteTop />
+      <QuoteTop signedIn={accountsOn && !!account} />
       <div
         className="quote-progress"
         aria-hidden="true"
@@ -519,10 +563,14 @@ export function QuoteFlow({ intakeMode }: { intakeMode: QuoteIntakeMode }) {
                 id="client-sign-in-title"
                 className="mb-2 text-lg leading-snug font-semibold tracking-tight"
               >
-                Sign in before sending
+                {accountsOn
+                  ? "Sending isn't open yet"
+                  : "Sign in before sending"}
               </h2>
               <p>
-                Client sign-in and online submission aren&apos;t available yet.{" "}
+                {accountsOn
+                  ? "Online quote requests aren't switched on yet. "
+                  : "Client sign-in and online submission aren't available yet. "}
                 {hasAttempt
                   ? "Your earlier attempt is retained; contact us if its status is unclear. "
                   : "Nothing has been sent. "}
@@ -551,6 +599,30 @@ export function QuoteFlow({ intakeMode }: { intakeMode: QuoteIntakeMode }) {
             </div>
           )}
 
+          {isReview && needsAccount && (
+            <section
+              className="quote-alert border-line bg-paper"
+              aria-labelledby="account-needed-title"
+            >
+              <h2
+                id="account-needed-title"
+                className="mb-2 text-lg leading-snug font-semibold tracking-tight"
+              >
+                {accountCopy.quote.title}
+              </h2>
+              <p>
+                {status === "signin"
+                  ? accountCopy.quote.sessionEnded
+                  : accountCopy.quote.body}
+              </p>
+            </section>
+          )}
+          {isReview && accountsOn && account && !needsAccount && (
+            <p className="quote-note">
+              {accountCopy.quote.signedInAs} <strong>{account.email}</strong>
+            </p>
+          )}
+
           <div className="quote-actions">
             {index > 0 && (
               <button
@@ -562,27 +634,47 @@ export function QuoteFlow({ intakeMode }: { intakeMode: QuoteIntakeMode }) {
                 Back
               </button>
             )}
-            <button
-              type="submit"
-              className="btn btn-primary"
-              disabled={
-                status === "sending" ||
-                transitioning ||
-                !ready ||
-                attemptRecoveryFailed ||
-                (isReview && awaitingStudio)
-              }
-            >
-              {isReview
-                ? awaitingStudio
-                  ? "Client sign-in unavailable"
-                  : status === "sending"
-                    ? "Sending…"
-                    : hasAttempt
-                      ? "Try again"
-                      : "Send my request"
-                : "Continue"}
-            </button>
+            {isReview && needsAccount ? (
+              <div className="quote-account-actions">
+                {/* Full page loads: the answers wait in this device's storage. */}
+                <a
+                  className="btn btn-glass"
+                  href="/account/login?next=%2Fquote"
+                  onClick={leaveToSignIn}
+                >
+                  {accountCopy.quote.signIn}
+                </a>
+                <a
+                  className="btn btn-primary"
+                  href="/account/signup?next=%2Fquote"
+                  onClick={leaveToSignIn}
+                >
+                  {accountCopy.quote.create}
+                </a>
+              </div>
+            ) : (
+              <button
+                type="submit"
+                className="btn btn-primary"
+                disabled={
+                  status === "sending" ||
+                  transitioning ||
+                  !ready ||
+                  attemptRecoveryFailed ||
+                  (isReview && awaitingStudio)
+                }
+              >
+                {isReview
+                  ? awaitingStudio
+                    ? "Client sign-in unavailable"
+                    : status === "sending"
+                      ? "Sending…"
+                      : hasAttempt
+                        ? "Try again"
+                        : "Send my request"
+                  : "Continue"}
+              </button>
+            )}
           </div>
         </form>
       </main>
@@ -591,15 +683,22 @@ export function QuoteFlow({ intakeMode }: { intakeMode: QuoteIntakeMode }) {
   );
 }
 
-function QuoteTop() {
+/** Signed-in clients get their way back to the account; others, home. */
+function QuoteTop({ signedIn = false }: { signedIn?: boolean }) {
   return (
     <header className="quote-top">
       <Link href="/" className="wordmark">
         {siteConfig.shortName}
       </Link>
-      <Link href="/" className="quote-exit">
-        Close
-      </Link>
+      {signedIn ? (
+        <Link href={accountCopy.path} className="quote-exit">
+          {accountCopy.quote.backToAccount}
+        </Link>
+      ) : (
+        <Link href="/" className="quote-exit">
+          Close
+        </Link>
+      )}
     </header>
   );
 }

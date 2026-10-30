@@ -23,6 +23,8 @@ site, which has been removed.)
   contact) with header and footer; `quote/` is the standalone quote screen.
 - `src/app/api/quote/route.ts` — quote endpoint: validates, stores in
   Supabase, emails via Resend (`src/lib/quote-delivery.ts`).
+- `src/app/account/`, `src/lib/account/`, `src/proxy.ts` — client sign-in
+  (Supabase Auth, server only); see `docs/client-accounts.md`.
 - `src/lib/site.ts` — central site config and copy. Unconfirmed policies and
   promises render as `[PLACEHOLDER: …]`; never invent them.
 - `src/lib/quote.ts` — quote questions, branching and validation.
@@ -49,6 +51,8 @@ site, which has been removed.)
 - `npm test` — Vitest unit tests (`tests/unit`).
 - `npm run test:e2e` — build, then Playwright browser tests (`tests/e2e`,
   desktop and phone, port 3200).
+- `npm run test:e2e:auth` — real local Supabase Auth tests (`supabase start`
+  first; port 3201, Mailpit 54624).
 
 ## Conventions
 

@@ -1330,6 +1330,173 @@
     text-underline-offset: 4px;
   }
 
+  /* Review step without an account: sign in or create one to send. */
+  .quote-account-actions {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    gap: 12px;
+    margin-left: auto;
+  }
+  @media (max-width: 480px) {
+    .quote-actions:has(.quote-account-actions) {
+      flex-direction: column-reverse;
+    }
+    .quote-account-actions {
+      flex-direction: column-reverse;
+      width: 100%;
+    }
+    .quote-account-actions .btn {
+      width: 100%;
+    }
+  }
+
+  /* ---- Client accounts (/account) ----
+     The quote's quiet card shell, one task per screen. */
+  .account-shell {
+    grid-template-rows: auto 1fr auto;
+  }
+  .account-card {
+    margin-top: clamp(20px, 8svh, 80px);
+  }
+  .account-section {
+    display: grid;
+    gap: 18px;
+  }
+  .account-section h1 {
+    font-size: clamp(1.9rem, 4.6vw, 2.6rem);
+    line-height: 1.05;
+    letter-spacing: -0.035em;
+    font-weight: 400;
+  }
+  .account-subtitle {
+    font-size: 1.15rem;
+    font-weight: 500;
+    letter-spacing: -0.01em;
+  }
+  .account-form {
+    display: grid;
+    gap: 16px;
+  }
+  .account-form .btn-primary,
+  .account-resend .btn {
+    min-height: 52px;
+    justify-self: stretch;
+  }
+  /* Full-width buttons keep their label centred. */
+  .account-form .btn,
+  .account-actions .btn,
+  .quote-account-actions .btn {
+    justify-content: center;
+    text-align: center;
+  }
+  .account-password {
+    position: relative;
+  }
+  .account-password .input {
+    width: 100%;
+    padding-right: 76px;
+  }
+  .account-reveal {
+    position: absolute;
+    top: 50%;
+    right: 6px;
+    transform: translateY(-50%);
+    min-height: 44px;
+    min-width: 60px;
+    border: 0;
+    border-radius: 12px;
+    background: none;
+    font: 500 0.9rem var(--sans);
+    color: var(--ink);
+    cursor: pointer;
+  }
+  .account-reveal:focus-visible {
+    outline: 2px solid var(--focus);
+  }
+  .account-notice {
+    padding: 14px 16px;
+    border-radius: 14px;
+    background: rgba(255, 255, 255, 0.72);
+    border: 1px solid var(--line-strong);
+    font-size: 0.95rem;
+  }
+  .account-links {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: space-between;
+    gap: 8px 16px;
+    font-size: 0.95rem;
+    color: var(--ink-soft);
+  }
+  .account-links a {
+    display: inline-flex;
+    align-items: center;
+    min-height: 44px;
+    color: var(--ink);
+    text-underline-offset: 4px;
+  }
+  .account-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 12px;
+  }
+  .account-actions .btn {
+    min-height: 52px;
+  }
+  @media (max-width: 480px) {
+    .account-actions,
+    .account-actions form {
+      display: grid;
+      width: 100%;
+    }
+  }
+  .account-card:has(.account-home) {
+    width: min(100%, 720px);
+  }
+  .account-head {
+    display: grid;
+    gap: 6px;
+  }
+  .account-head .quote-help {
+    overflow-wrap: anywhere;
+  }
+  .account-empty {
+    display: grid;
+    gap: 6px;
+    padding: 18px;
+    border-radius: 18px;
+    background: rgba(255, 255, 255, 0.6);
+    border: 1px solid rgba(33, 30, 26, 0.12);
+    color: var(--ink-soft);
+  }
+  .account-empty .account-subtitle {
+    color: var(--ink);
+  }
+  .account-records {
+    display: grid;
+    gap: 26px;
+  }
+  .account-records section {
+    display: grid;
+    gap: 10px;
+  }
+  .account-list {
+    display: grid;
+    border-top: 1px solid rgba(33, 30, 26, 0.12);
+  }
+  .account-list li {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 12px 0;
+    border-bottom: 1px solid rgba(33, 30, 26, 0.12);
+  }
+  .account-item-title {
+    font-weight: 500;
+  }
+
   /* ---- Content pages (/services, /terms, /contact) ---- */
   .page {
     padding-top: calc(env(safe-area-inset-top, 0px) + 110px);

@@ -111,6 +111,39 @@ it("blocks Studio cutover without falling back to legacy or accepting unverified
   expect(deliverQuote).not.toHaveBeenCalled();
 });
 
+describe("POST /api/quote with client accounts on", () => {
+  const session = vi.fn();
+  beforeEach(async () => {
+    vi.doMock("@/lib/account/server", () => ({
+      clientSession: () => session(),
+    }));
+    vi.resetModules();
+    ({ POST } = await import("@/app/api/quote/route"));
+  });
+  afterEach(() => vi.doUnmock("@/lib/account/server"));
+
+  it.each(["signed_out", "expired"])(
+    "asks a %s client to sign in and sends nothing",
+    async (state) => {
+      session.mockResolvedValue({ state });
+      const res = await post(homeQuote);
+      expect(res.status).toBe(401);
+      expect(await res.json()).toEqual({ ok: false, code: "sign_in_required" });
+      expect(res.headers.get("cache-control")).toBe("no-store");
+      expect(deliverQuote).not.toHaveBeenCalled();
+    },
+  );
+
+  it("sends for a verified, signed-in client", async () => {
+    session.mockResolvedValue({
+      state: "signed_in",
+      client: { id: "u1", email: "alex@example.com" },
+    });
+    expect((await post(homeQuote)).status).toBe(200);
+    expect(deliverQuote).toHaveBeenCalledOnce();
+  });
+});
+
 describe("POST /api/quote origin check", () => {
   const from = (origin: string, host: string) =>
     POST(

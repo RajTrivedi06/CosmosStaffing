@@ -33,6 +33,12 @@ No Studio source, schema, deployed database, DNS or Vercel domains were changed
 from here. The later paired test created synthetic inquiries only in the assigned
 isolated database through the existing intake API; see the verification report.
 
+## Client accounts (2026-10-30)
+
+Email/password sign-in, the account home and the quote's sign-in step are
+described, with what the Studio must decide, in
+[client-accounts.md](client-accounts.md).
+
 ## Built on the website (2026-10-29)
 
 | What                                                                                                                                                                                 | Where                                                                                                                                                                |

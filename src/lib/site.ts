@@ -54,6 +54,7 @@ export const siteConfig = {
       { label: "Questions", href: "/services#faq" },
       // Forwarded to the Operations Studio (lib/studio-routes.ts).
       { label: "Terms", href: "/terms" },
+      { label: "Client sign-in", href: "/account" },
       { label: "Clean with Cosmos", href: "/clean-with-cosmos" },
       { label: "Cleaner sign-in", href: "/me/login" },
     ],
@@ -498,5 +499,116 @@ export const contactPage = {
       title: "Clean with Cosmos",
       body: "For independent cleaners in Texas. Learn about the opportunity and onboarding with our team or through a private invitation.",
     },
+  },
+} as const;
+
+/**
+ * Client accounts: email and password, with the email confirmed once at
+ * sign-up (see lib/account). An account lets a client send a quote request
+ * and, once the Studio connects its records, follow their requests, quotes,
+ * visits and payments. Nothing here promises a booking.
+ */
+export const account = {
+  path: "/account",
+  label: "My account",
+  signInLabel: "Client sign-in",
+
+  signIn: {
+    title: "Sign in",
+    lede: "Sign in to your Cosmos account.",
+    submit: "Sign in",
+    forgot: "Forgot your password?",
+    noAccount: "New to Cosmos?",
+    create: "Create an account",
+  },
+  signUp: {
+    title: "Create your account",
+    lede: "One account for your requests and quotes. You'll confirm your email once, then sign in with your password.",
+    submit: "Create account",
+    haveAccount: "Already have an account?",
+    passwordHint: "At least 8 characters.",
+  },
+  checkEmail: {
+    title: "Check your email",
+    body: "We sent a confirmation link to",
+    next: "Open it to finish creating your account. You'll be signed in and brought straight back.",
+    sameDevice:
+      "Open the link on this device to keep your quote answers. They're saved here, not in the link.",
+    resend: "Send the link again",
+    resent: "We sent a new link. It can take a minute to arrive.",
+    existing:
+      "If this email already has an account, no new link is sent: sign in, or reset your password.",
+  },
+  forgot: {
+    title: "Reset your password",
+    lede: "Enter your account email and we'll send you a link to choose a new password.",
+    submit: "Send reset link",
+    sent: "If an account exists for that email, we've sent a link to reset the password. It can take a minute to arrive.",
+  },
+  reset: {
+    title: "Choose a new password",
+    submit: "Save new password",
+    expired:
+      "This reset link has expired or was already used. Ask for a new one.",
+  },
+  reasons: {
+    signin_required: "Sign in to continue.",
+    session_expired: "Your session ended. Sign in again to continue.",
+    wrong_account:
+      "This link belongs to a different account. Sign in with the account that received it.",
+    link_expired:
+      "That link has expired or was already used. Sign in, or ask for a new link.",
+    signed_out: "You've signed out.",
+    password_updated: "Your password has been changed.",
+  },
+  home: {
+    title: "Your account",
+    signedInAs: "Signed in as",
+    newRequest: "New request",
+    signOut: "Sign out",
+    sections: {
+      quotes: "Quotes to review",
+      requests: "Your requests",
+      upcoming: "Upcoming cleanings",
+      completed: "Completed cleanings",
+      payments: "Payments",
+    },
+    empty: {
+      quotes: "No quotes waiting for you.",
+      requests: "No requests yet.",
+      upcoming: "No cleanings scheduled.",
+      completed: "No completed cleanings yet.",
+      payments: "No payments yet.",
+    },
+    notConnected: {
+      title: "Your history isn't shown here yet",
+      body: "We're connecting accounts to our records. Until then, we'll reply to requests and send quotes by email, as usual.",
+    },
+    unavailable: {
+      title: "We couldn't load your account details",
+      body: "Please try again in a moment. Nothing about your requests has changed.",
+    },
+  },
+  quote: {
+    title: "Create an account to send",
+    body: "Sending a request needs a Cosmos account. You'll confirm your email once; your answers are saved on this device while you do.",
+    create: "Create account",
+    signIn: "Sign in",
+    signedInAs: "Sending as",
+    backToAccount: "My account",
+    sessionEnded:
+      "Your session ended before we could send this. Sign in again; your answers are saved.",
+  },
+  errors: {
+    credentials: "That email and password don't match an account.",
+    unconfirmed:
+      "Confirm your email before signing in. We can send the link again.",
+    weakPassword: "Choose a password of at least 8 characters.",
+    email: "Enter a valid email address.",
+    rateLimited:
+      "Too many attempts. Please wait a few minutes before trying again.",
+    unavailable:
+      "Sign-in isn't available right now. Please try again in a moment.",
+    off: "Client accounts aren't open yet. You can still contact us directly.",
   },
 } as const;
