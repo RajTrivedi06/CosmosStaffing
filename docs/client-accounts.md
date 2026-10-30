@@ -8,8 +8,8 @@ upstream contracts; none of that is invented here. Canonical handoff:
 **Status (2026-10-30):** the website implements the Studio's customer-auth
 contract, **revision 2.2, API v2, commit `ee9146e`**
 (`feat/customer-auth-foundation`, `docs/03-guides/customer-auth-v2.md`).
-Revision 2.1 (`cc738d2`) has been
-**verified paired against a running Studio** on one isolated Supabase project. Evidence, its limits and the handoff are in
+It has been **verified paired against a running Studio at that
+commit** on one isolated Supabase project. Evidence, its limits and the handoff are in
 [customer-v2-verification.md](customer-v2-verification.md). **Production stays
 blocked**: nothing here is deployed, and no hosted setting has changed.
 

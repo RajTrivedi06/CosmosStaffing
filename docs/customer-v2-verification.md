@@ -190,24 +190,61 @@ Studio commit `ee9146e`.
   including the tab's draft copy: the paired run caught that copy surviving
   expiry, so a marker now removes it wherever it's noticed.
 
-**Password recovery, observed.** No revocation code was added. On the website's
-local Auth (`supabase/config.toml`, not the paired project), with two older
-sessions signed in and their JWTs valid for about 59 more minutes, a recovery
-password update gave: older session at Auth `/user` 403; its refresh 400
-`refresh_token_not_found`; the recovery session 200; old password 400; new
-password 200. `tests/e2e/account.auth.spec.ts` pins the same result through the
-website's real `/account/reset` page. The website's own local JWT check can't
-see this until the token needs refreshing, so the older device's website
-session stays signed in until then or until a Studio read refuses it. **The
-Studio's answer to that older token is not observed yet**; the paired test
-below asserts the expected 401.
+**Password recovery, observed.** No revocation code was added, because none
+is needed. A recovery password update ended the client's other sessions while
+their JWTs were still unexpired. On the website's local Auth, with about 59
+minutes left on those JWTs: Auth `/user` 403, refresh 400
+`refresh_token_not_found`, the recovery session 200, old password 400, new
+password 200. Paired, through the website's real reset page: the older session's
+token at the Studio 401 `unauthorized`, its refresh 400, and that device's
+account page reads as rejected. New-password sign-in finds the same records.
+Until a Studio read or a refresh, the website's local JWT check still treats the
+older device as signed in.
 
-**Written but not yet run, pending a paired reservation on revision 2.2:** in
-`tests/paired/customer.paired.spec.ts`, a session revoked during a send, a wrong
-server credential at the real Studio, and two-session recovery against the
-Studio. The earlier paired flows were adapted to the new question order. A wrong
-server credential end to end through a website process is not yet covered; the
-mock and unit tests cover the website's mapping.
+### Paired results for this round
+
+**Tested commit `d2341928ea59ea5a79e0592444347c78df8fdb2c`**, Studio `ee9146e`,
+contract 2.2, migration `20261030020000_customer_service_auth_errors.sql`, one
+isolated project (`operations-studio-test-slot4`), website port 3360, Studio 3361. **44 of 44 passed: 22 on desktop, 22 on phone**, on that one commit.
+From a clean checkout of it with `npm ci`: ESLint, TypeScript and Prettier
+clean, 269 unit tests, main suite 77 passed with 2 intentional skips, real Auth
+with mock Studio 70.
+
+Real paired coverage added here:
+
+- A session revoked during a send: 401, the sign-in-again screen, nothing
+  sensitive left, no loop through sign-in, a real new session, then blocked at
+  the marker with no record added until a confirmed separate request (202, a
+  new ID, one new record).
+- A real 409 from the Studio on a changed retry: unresolved, attempt kept.
+  Another account using the same ID gets the identical opaque 409. The untouched
+  snapshot then gets a 200 replay, and one record exists.
+- Expiry and logout: answers and the tab's draft gone, the marker kept, still
+  blocking at 1,000 days on reload and after a sweep, invisible to the next
+  account, and only one record.
+- Sensitive data from an earlier version removed by the sweep.
+- A wrong server credential at the Studio: 503 `service_auth_failed`.
+- A wrong server credential through the running website, using the lease's
+  `--invalid-service-secret` mode: the browser saw 503 `unavailable`, the
+  temporary message, the same session and the stored attempt, with no prompt to
+  sign in. With correct configuration restored, the same session read its
+  records and the same attempt went through once with its original ID.
+- Two-session recovery, as above.
+
+**This run caught one real defect:** after expiry the tab's draft still held the
+answers. `d40d45d` fixes it. Two later commits are test-only: a test reused a
+signed-out context, and the dev server's reload raced a navigation.
+
+**Limits of this evidence.**
+
+- The lease's launcher pins `64e751d`, so it was run unchanged on disk with only
+  that hash replaced in memory; all its other checks ran.
+- It runs `next dev`, so these paired results come from a development server.
+  The production build ran only against mock Studio.
+- The website's actual upstream reply to the wrong credential wasn't captured
+  separately: the browser saw the mapped 503, and the Studio's exact body was
+  checked directly with another wrong credential.
+- A database-hash mismatch through the website wasn't exercised.
 
 ## Open before production
 
@@ -218,8 +255,6 @@ mock and unit tests cover the website's mapping.
 - Password change outside recovery: with secure password change on, an older
   session's `updateUser` can need reauthentication; today that shows the generic
   unavailable message. Recovery itself passed paired.
-- Recovery's effect on other sessions at the real Studio isn't observed yet;
-  see the findings round.
 
 **For review:**
 
@@ -250,7 +285,10 @@ npm run test:e2e:auth
 ```
 
 Paired runs need a live lease, a website serving the candidate on the assigned
-origin, and `PAIRED_WEBSITE_ENV` pointing at the lease's private `website.env`:
+origin, `PAIRED_WEBSITE_ENV` pointing at the lease's private `website.env`, and
+`PAIRED_SITE_CONTROL` pointing at a script that restarts the website (the local
+limiter allows five sends a process, and the credential test needs a wrong
+credential). Its argument is `correct` or `invalid`:
 
 ```bash
 npx playwright test -c playwright.paired.config.ts
