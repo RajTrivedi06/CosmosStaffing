@@ -91,3 +91,24 @@ export async function clientSession(): Promise<ClientSession> {
     hasSessionCookie((await cookies()).getAll());
   return { state: expired ? "expired" : "signed_out" };
 }
+
+/**
+ * The signed-in client and their current access token, for server-to-server
+ * calls to the Studio's customer API. The claims are verified (getClaims);
+ * getSession only supplies the token those claims came from, never identity.
+ * Null when accounts are off or no verified session exists.
+ */
+export async function verifiedAccess(): Promise<{
+  client: Client;
+  token: string;
+} | null> {
+  const supabase = await authClient();
+  if (!supabase) return null;
+  const { data } = await supabase.auth.getClaims();
+  const claims = data?.claims;
+  if (!claims?.sub || typeof claims.email !== "string") return null;
+  const { data: current } = await supabase.auth.getSession();
+  const token = current.session?.access_token;
+  if (!token) return null;
+  return { client: { id: claims.sub, email: claims.email }, token };
+}

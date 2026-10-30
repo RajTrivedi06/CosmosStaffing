@@ -16,7 +16,7 @@
     "format:check": "prettier --check .",
     "test": "vitest run",
     "test:e2e": "NEXT_DIST_DIR=.next-test STUDIO_ORIGIN=http://127.0.0.1:3299 next build && playwright test",
-    "test:e2e:auth": "NEXT_DIST_DIR=.next-test STUDIO_ORIGIN=http://127.0.0.1:3299 next build && AUTH_E2E=1 playwright test --project=auth-desktop --project=auth-mobile"
+    "test:e2e:auth": "NEXT_DIST_DIR=.next-test STUDIO_ORIGIN=http://127.0.0.1:3299 next build && AUTH_E2E=1 playwright test --project=auth-desktop --project=auth-mobile --project=customer-desktop --project=customer-mobile"
   },
   "dependencies": {
     "@supabase/ssr": "0.12.7",

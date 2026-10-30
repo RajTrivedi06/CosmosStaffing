@@ -590,6 +590,35 @@ export const account = {
       title: "We couldn't load your account details",
       body: "Please try again in a moment. Nothing about your requests has changed.",
     },
+    // From the Studio's customer records (lib/account/records.ts).
+    rejected: {
+      title: "Please sign in again",
+      body: "We couldn't confirm your session with our records. Sign in again to see your requests.",
+      action: "Sign in again",
+    },
+    unverified: {
+      title: "Confirm your email to see your requests",
+      body: "Open the confirmation link we emailed you, then come back here.",
+    },
+    noRequests: "You haven't sent a request from this account yet.",
+    quotesIncomplete:
+      "Some quotes couldn't be loaded here. Open a request to see its quotes.",
+    older: "Older requests",
+    newest: "Newest requests",
+  },
+  request: {
+    back: "Back to my account",
+    answers: "What you asked for",
+    quotes: "Quotes",
+    noQuotes: "No quotes sent yet.",
+    payments: "Payments",
+    noPayments: "No payment requests.",
+    moreQuotes: "Only the latest 50 quotes are shown.",
+    morePayments: "Only the latest 50 payment requests are shown.",
+    notFound: {
+      title: "We couldn't find that request",
+      body: "It may not exist, or it may belong to a different account. Check you're signed in with the right email.",
+    },
   },
   quote: {
     title: "Create an account to send",
@@ -600,6 +629,21 @@ export const account = {
     backToAccount: "My account",
     sessionEnded:
       "Your session ended before we could send this. Sign in again; your answers are saved.",
+    // Signed-in client: answers and attempts belong to one account.
+    adoptTitle: "You started a request before signing in",
+    adoptBody:
+      "These answers were entered in this browser while signed out. Use them for this account, or start fresh.",
+    adopt: "Use these answers",
+    discard: "Start fresh",
+    pendingAttempt:
+      "An earlier request from this account hasn't been confirmed yet. Send it again (it won't be duplicated), or contact us.",
+    switchedTitle: "This browser's account changed",
+    switched:
+      "A different account is signed in here now, so this request wasn't sent. Its answers stay with the account that wrote them.",
+    reload: "Continue",
+    unverified:
+      "Confirm your email address before sending. Check your inbox for the confirmation link; your answers are saved.",
+    followInAccount: "You can follow it in your account.",
   },
   errors: {
     credentials: "That email and password don't match an account.",

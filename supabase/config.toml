@@ -159,12 +159,15 @@ site_url = "http://localhost:3000"
 # The public URL that Auth serves on. Defaults to the API external URL with `/auth/v1` appended.
 # external_url = ""
 # A list of *exact* URLs that auth providers are permitted to redirect to post authentication.
-# Client account links (lib/account). Local dev on 3000; browser tests on 3201.
+# Client account links (lib/account). Local dev on 3000; browser tests on
+# 3201 (accounts) and 3202 (customer intake against a mocked Studio).
 additional_redirect_urls = [
   "http://localhost:3000/**",
   "http://127.0.0.1:3000/**",
   "http://localhost:3201/**",
   "http://127.0.0.1:3201/**",
+  "http://localhost:3202/**",
+  "http://127.0.0.1:3202/**",
 ]
 # How long tokens are valid for, in seconds. Defaults to 3600 (1 hour), maximum 604,800 (1 week).
 jwt_expiry = 3600

@@ -12,6 +12,8 @@ import {
 import { SignInForm } from "@/components/account/AuthForms";
 import { SignOutButton } from "@/components/account/SignOutButton";
 import { ContinueTo } from "@/components/account/ContinueTo";
+import { SessionRejected } from "@/components/account/AccountOverview";
+import { studioRefusesSession } from "@/lib/account/records";
 import { AccountsOff, ReasonNote } from "@/components/account/AccountNotes";
 
 export const metadata: Metadata = { title: account.signIn.title };
@@ -57,6 +59,15 @@ export default async function SignInPage({ searchParams }: Props) {
         </section>
       );
     if (!isStudioDestination(next)) redirect(next);
+    // A Studio page sent them here, or is about to. If it refuses this session,
+    // continuing would only bounce back, so end it and keep the destination.
+    if (await studioRefusesSession())
+      return (
+        <section className="account-section">
+          <h1>{account.signIn.title}</h1>
+          <SessionRejected next={next} />
+        </section>
+      );
     return (
       <section className="account-section">
         <h1>You&apos;re signed in</h1>

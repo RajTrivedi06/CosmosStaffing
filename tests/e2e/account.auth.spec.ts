@@ -84,10 +84,12 @@ async function signIn(page: Page, email: string, password = PASSWORD) {
 async function signOut(page: Page) {
   await page.goto("/account");
   await page.getByRole("button", { name: account.home.signOut }).click();
-  // Sign-out waits up to 3 s for Supabase before forgetting the session.
-  await expect(page).toHaveURL(/\/account\/login\?reason=signed_out$/, {
-    timeout: 10_000,
-  });
+  // Either outcome is correct: under parallel mail load local Auth can take
+  // over the 3 s limit, and sign-out then says it couldn't confirm revocation.
+  await expect(page).toHaveURL(
+    /\/account\/login\?reason=signed_out(_local)?$/,
+    { timeout: 10_000 },
+  );
 }
 
 test("a new client reviews, signs up, confirms in a new tab and sends without signing in again", async ({
@@ -129,6 +131,8 @@ test("a new client reviews, signs up, confirms in a new tab and sends without si
   await ownAddress(tab);
   await tab.goto(link);
   await expect(tab).toHaveURL(/\/quote(\?|$)/);
+  // Answers from before sign-in wait for the client to adopt them.
+  await tab.getByRole("button", { name: account.quote.adopt }).click();
   await expect(
     tab.getByText(`${account.quote.signedInAs} ${email}`),
   ).toBeVisible();

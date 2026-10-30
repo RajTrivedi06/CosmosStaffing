@@ -166,52 +166,93 @@ describe("quote handoff through sign-in", () => {
 });
 
 describe("account home", () => {
-  const render = (overview: AccountOverview) =>
+  const render = (overview: AccountOverview, paged = false) =>
     renderToStaticMarkup(
-      createElement(AccountOverviewView, { overview }),
+      createElement(AccountOverviewView, { overview, paged }),
     ).replaceAll("&#x27;", "'");
+  const ready = (
+    patch: Partial<Extract<AccountOverview, { status: "ready" }>> = {},
+  ): AccountOverview => ({
+    status: "ready",
+    quotes: [],
+    requests: [],
+    upcoming: [],
+    completed: [],
+    payments: null,
+    nextCursor: null,
+    quotesIncomplete: false,
+    ...patch,
+  });
 
-  it("shows nothing invented while the Studio's records aren't connected", async () => {
-    const overview = await accountOverview({
-      id: "u1",
-      email: "a@example.com",
-    });
+  it("shows nothing invented while the customer API isn't configured", async () => {
+    const overview = await accountOverview(null);
     expect(overview).toEqual({ status: "not_connected" });
     const html = render(overview);
     expect(html).toContain(account.home.notConnected.title);
     expect(html).not.toContain(account.home.sections.requests);
   });
 
-  it("says when the records can't be loaded", () => {
+  it("says when the records can't be loaded, or the email isn't confirmed", () => {
     expect(render({ status: "unavailable" })).toContain(
       account.home.unavailable.title,
     );
+    expect(render({ status: "unverified" })).toContain(
+      account.home.unverified.title,
+    );
   });
 
-  // Synthetic display shape only; real records come from the Studio contract.
-  it("lists records with quotes first and Studio links as plain anchors", () => {
-    const html = render({
-      status: "ready",
-      quotes: [
-        {
-          id: "synthetic-q",
-          title: "Home cleaning, 3 bedrooms",
-          status: "Quote sent",
-          href: `/q/${token}`,
-          action: "Review quote",
-        },
-      ],
-      requests: [],
-      upcoming: [],
-      completed: [],
-      payments: null,
-    });
+  it("asks to sign in again when the Studio refuses the session", () => {
+    const html = render({ status: "signin" });
+    expect(html).toContain(account.home.rejected.title);
+    expect(html).toContain(account.home.rejected.action);
+  });
+
+  it("says plainly when the account has no requests yet", () => {
+    const html = render(ready());
+    expect(html).toContain(account.home.noRequests);
+    expect(html).not.toContain(account.home.sections.quotes);
+  });
+
+  // Synthetic display data; real records come from the Studio's customer API.
+  it("lists quotes first, with Studio links as plain anchors and requests as site links", () => {
+    const html = render(
+      ready({
+        quotes: [
+          {
+            id: "synthetic-q",
+            title: "Quote for request #1001",
+            facts: ["$180.00 total"],
+            href: `/q/${token}`,
+            action: "Review quote",
+          },
+        ],
+        requests: [
+          {
+            id: "synthetic-r",
+            title: "Request #1001",
+            facts: ["Quote sent"],
+            href: "/account/requests/00000000-0000-4000-8000-000000000001",
+            action: "Details",
+          },
+        ],
+        nextCursor:
+          "2026-10-30 12:00:00+00|00000000-0000-4000-8000-000000000001",
+      }),
+    );
     expect(html.indexOf(account.home.sections.quotes)).toBeLessThan(
       html.indexOf(account.home.sections.requests),
     );
     expect(html).toContain(`<a class="btn btn-glass" href="/q/${token}">`);
-    expect(html).toContain(account.home.empty.requests);
-    // No payment section where the Studio doesn't report payments.
+    expect(html).toContain(
+      'href="/account/requests/00000000-0000-4000-8000-000000000001"',
+    );
+    expect(html).toContain(account.home.older);
+    // Upcoming/completed only appear when there are some; no payments list.
+    expect(html).not.toContain(account.home.sections.upcoming);
     expect(html).not.toContain(account.home.sections.payments);
+  });
+
+  it("offers the newest page from an older one", () => {
+    expect(render(ready(), true)).toContain(account.home.newest);
   });
 });

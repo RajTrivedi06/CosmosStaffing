@@ -4,6 +4,7 @@ import { redirect } from "next/navigation";
 import { account } from "@/lib/site";
 import { clientSession } from "@/lib/account/server";
 import { accountOverview } from "@/lib/account/records";
+import { safeCursor } from "@/lib/customer-api";
 import { ACCOUNT_HOME, signInHref } from "@/lib/account/destination";
 import { AccountOverviewView } from "@/components/account/AccountOverview";
 import { SignOutButton } from "@/components/account/SignOutButton";
@@ -26,8 +27,10 @@ export default async function AccountPage({ searchParams }: Props) {
       ),
     );
 
-  const updated = (await searchParams).updated === "1";
-  const overview = await accountOverview(session.client);
+  const params = await searchParams;
+  const updated = params.updated === "1";
+  const cursor = safeCursor(params.cursor);
+  const overview = await accountOverview(cursor);
   return (
     <section className="account-section account-home">
       <header className="account-head">
@@ -47,7 +50,7 @@ export default async function AccountPage({ searchParams }: Props) {
         </Link>
         <SignOutButton label={account.home.signOut} />
       </div>
-      <AccountOverviewView overview={overview} />
+      <AccountOverviewView overview={overview} paged={!!cursor} />
     </section>
   );
 }

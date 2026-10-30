@@ -8,7 +8,9 @@ import {
   studioTestConfiguration,
 } from "@/lib/studio-intake";
 import { quoteRateLimit, readQuoteBody } from "@/lib/quote-request-guard";
-import { clientSession } from "@/lib/account/server";
+import { clientSession, verifiedAccess } from "@/lib/account/server";
+import { OWNER_TAG, ownerTag } from "@/lib/account/owner";
+import { deliverCustomerQuote } from "@/lib/customer-api";
 
 const json = (
   body: object,
@@ -28,6 +30,10 @@ const json = (
   });
 const facadeSchema = attemptSchema.extend({
   website: z.string().max(200).optional(),
+  /** The intake version this attempt was made for (2: customer API). */
+  version: z.literal(2).optional(),
+  /** Which signed-in client's attempt this is (lib/account/owner.ts). */
+  owner: z.string().regex(OWNER_TAG).optional(),
 });
 const legacySchema = quoteSchema
   .safeExtend({ website: z.string().max(200).optional() })
@@ -48,8 +54,10 @@ function sameOrigin(origin: string, request: Request) {
 
 /** Browser facade. Exactly one destination, committed acknowledgments only. */
 export async function POST(request: Request): Promise<Response> {
-  const legacy = quoteIntakeMode() === "legacy";
-  if (!legacy && !studioTestConfiguration())
+  const mode = quoteIntakeMode();
+  const legacy = mode === "legacy";
+  const customer = mode === "customer";
+  if (!legacy && !customer && !studioTestConfiguration())
     return json({ ok: false, code: "studio_pending" }, 503);
 
   const retryAfter = quoteRateLimit(request);
@@ -73,9 +81,17 @@ export async function POST(request: Request): Promise<Response> {
     return json({ ok: false, code: "unsupported_media_type" }, 415);
   // With client accounts on, only a verified, signed-in client can send.
   // The quote screen keeps the answers and asks them to sign in again.
+  // Customer intake always needs one: no session, no token, no send.
   const session = await clientSession();
-  if (session.state === "signed_out" || session.state === "expired")
+  const access = customer ? await verifiedAccess() : null;
+  if (
+    session.state === "signed_out" ||
+    session.state === "expired" ||
+    (customer && !access)
+  )
     return json({ ok: false, code: "sign_in_required" }, 401);
+  const owner =
+    session.state === "signed_in" ? ownerTag(session.client.id) : null;
 
   let payload: unknown;
   try {
@@ -93,6 +109,24 @@ export async function POST(request: Request): Promise<Response> {
     return json({ ok: false, code: "invalid" }, 422);
   const data = parsed.success ? parsed.data : old!.data!;
   if (data.website) return json({ ok: false, code: "invalid" }, 422);
+  // An attempt filed under another signed-in client is never sent as this one.
+  if (parsed.success && parsed.data.owner && parsed.data.owner !== owner)
+    return json({ ok: false, code: "account_mismatch" }, 409);
+  if (customer) {
+    // Only a v2 attempt made for this client; a v1 ID is never reused for v2.
+    if (!parsed.success || parsed.data.version !== 2 || !parsed.data.owner)
+      return json({ ok: false, code: "invalid" }, 422);
+    const result = await deliverCustomerQuote(
+      {
+        submission_id: parsed.data.submission_id,
+        answers: parsed.data.answers,
+      },
+      access!.token,
+    );
+    return json(result.body, result.status);
+  }
+  if (parsed.success && parsed.data.version === 2)
+    return json({ ok: false, code: "invalid" }, 422);
   if (!legacy && parsed.success) {
     const result = await deliverStudioQuote(parsed.data);
     return json(result.body, result.status);

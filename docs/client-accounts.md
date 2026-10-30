@@ -5,13 +5,13 @@ identity, linking an account to a client record, business permissions and the
 upstream contracts; none of that is invented here. Canonical handoff:
 `wt-integration-implementation/docs/03-guides/website-studio-integration.md`.
 
-**Status:** the Studio's customer-auth contract is published: **revision 2.1,
-API v2, commit `cc738d2`** (`feat/customer-auth-foundation`,
-`docs/03-guides/customer-auth-v2.md`). This website work predates it and is
-compatible with its cookie, configuration and callback choices, but the
-**website v2 adapter is not implemented and no paired authenticated
-verification with the Studio has been done.** Everything below is
-website-side sign-in only; it is not authenticated Studio integration.
+**Status (2026-10-30):** the website implements the Studio's customer-auth
+contract, **revision 2.1, API v2, commit `cc738d2`**
+(`feat/customer-auth-foundation`, `docs/03-guides/customer-auth-v2.md`), and
+has been **verified paired against a running Studio** on one isolated Supabase
+project. Evidence, its limits and the handoff are in
+[customer-v2-verification.md](customer-v2-verification.md). **Production stays
+blocked**: nothing here is deployed, and no hosted setting has changed.
 
 ## What clients get
 
@@ -39,39 +39,50 @@ website-side sign-in only; it is not authenticated Studio integration.
   (the form's permalink carries `?next=`, and a native post to a Studio
   destination gets a server redirect, a full page load).
 - **Account home** (`/account`): email, New request, Sign out, and the
-  client's records. The v2 account endpoints (`GET /account`, `/requests`,
-  `/requests/:id`) are not wired up yet, so `accountOverview`
-  (`src/lib/account/records.ts`) still returns `not_connected` and the page
-  says so plainly. No sample or fixture data is ever shown. The display shape
-  (quotes to review first, requests, upcoming, completed, payments where
-  reported) awaits the adapter.
-- **Quote**: questions → review → (create account / sign in) → send. Signed-in
-  clients send straight away ("Sending as …"), and the quote's top link
-  becomes "My account". `/api/quote` itself requires a verified session
-  whenever accounts are on (401 `sign_in_required`); the screen keeps the
-  answers and asks them to sign in again.
+  client's real records from the Studio's customer API
+  (`src/lib/account/records.ts`): quotes to review first, then upcoming
+  cleanings, requests and completed cleanings, with older pages. Each request
+  shows separate facts (`src/lib/account/labels.ts`): its progress, whether a
+  quote was accepted, whether a cleaning is **booked** (only the Studio's
+  `confirmed` status) and payment. Accepting a quote never reads as a booking.
+  `linked: false` reads as "no requests yet". An unavailable Studio, an
+  unconfirmed email or a rejected session each say so; nothing is guessed, and
+  with the customer API off the page says records aren't connected.
+- **Request page** (`/account/requests/<id>`): that request's answers, quotes
+  and payment requests, linking to the Studio's own `/q/…` and `/pay/…` pages,
+  which stay the Studio's. Another client's request reads exactly like a
+  missing one.
+- **Quote**: questions → review → (create account / sign in) → send. Answers
+  from before sign-in are only ever **offered** ("Use these answers" / "Start
+  fresh"). Signed-in clients send as themselves ("Sending as …"), and the
+  quote's top link becomes "My account". `/api/quote` requires a verified
+  session whenever accounts are on (401 `sign_in_required`); the screen keeps
+  the answers and asks them to sign in again.
 
 ## How it works
 
-| Concern                 | Implementation                                                                                                                                                                                                                                                                                                                                                                                                         |
-| ----------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Library                 | `@supabase/ssr` 0.12.7 and `@supabase/supabase-js` 2.118.0 (pinned), server only. No browser Supabase client and no tokens in JavaScript.                                                                                                                                                                                                                                                                              |
-| Identity checks         | `getClaims()` everywhere (`src/lib/account/server.ts`), never `getSession()`.                                                                                                                                                                                                                                                                                                                                          |
-| Session refresh         | `src/proxy.ts` (Next 16 proxy), only on `/account*`, `/quote` and `/api/quote`, never on the Studio's forwarded paths. Applies Supabase's no-cache headers on refresh and marks the page `private, no-store`.                                                                                                                                                                                                          |
-| Cookies                 | `cosmos-client-auth` (+ `.N` chunks, PKCE verifier): host-only (no Domain), `HttpOnly`, `SameSite=Lax`, `Secure` except on loopback dev hosts. The name deliberately differs from Supabase's default `sb-<ref>-auth-token`, which cleaners' `/me` uses.                                                                                                                                                                |
-| Private responses       | `/account*`: `Cache-Control: private, no-store`, `X-Robots-Tag: noindex, nofollow, noarchive`, `Referrer-Policy: same-origin` (next.config `headers()`; `no-referrer` made browsers send `Origin: null` on native form posts, which Next's Server Action CSRF check refuses), `/account/confirm`'s one-time token link `no-referrer`, plus `robots` metadata. `/account/confirm` answers 303 with a relative Location. |
-| Return-to               | `src/lib/account/destination.ts`: an allowlist of whole paths, `/account`, `/quote`, `/q/<token>`, `/pay/<token>` (16–128 URL-safe chars). Anything else, including every absolute, protocol-relative, backslash, query or `/me` value, becomes `/account`.                                                                                                                                                            |
-| Studio destinations     | Opened with a full page load (`ContinueTo`, plain `<a>`), never next/link.                                                                                                                                                                                                                                                                                                                                             |
-| Answers through sign-in | `src/lib/quote-handoff.ts`: the reviewed draft goes to `localStorage` (so a confirmation opened in a new tab finds it), versioned, 24-hour expiry, cleared on send and on sign-out. Never in a URL. The sign-up page offers the quote's email from it.                                                                                                                                                                 |
-| Off switch              | Accounts are on only when `AUTH_SUPABASE_URL` and `AUTH_SUPABASE_PUBLISHABLE_KEY` are set. Unset, every account page says accounts aren't open and the quote behaves exactly as before.                                                                                                                                                                                                                                |
+| Concern                 | Implementation                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
+| ----------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Library                 | `@supabase/ssr` 0.12.7 and `@supabase/supabase-js` 2.118.0 (pinned), server only. No browser Supabase client and no tokens in JavaScript.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      |
+| Identity checks         | `getClaims()` everywhere (`src/lib/account/server.ts`), never `getSession()`.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
+| Session refresh         | `src/proxy.ts` (Next 16 proxy), only on `/account*`, `/quote` and `/api/quote`, never on the Studio's forwarded paths. Applies Supabase's no-cache headers on refresh and marks the page `private, no-store`.                                                                                                                                                                                                                                                                                                                                                                                                                                  |
+| Cookies                 | `cosmos-client-auth` (+ `.N` chunks, PKCE verifier): host-only (no Domain), `HttpOnly`, `SameSite=Lax`, `Secure` except on loopback dev hosts. The name deliberately differs from Supabase's default `sb-<ref>-auth-token`, which cleaners' `/me` uses.                                                                                                                                                                                                                                                                                                                                                                                        |
+| Private responses       | `/account*`: `Cache-Control: private, no-store`, `X-Robots-Tag: noindex, nofollow, noarchive`, `Referrer-Policy: same-origin` (next.config `headers()`; `no-referrer` made browsers send `Origin: null` on native form posts, which Next's Server Action CSRF check refuses), `/account/confirm`'s one-time token link `no-referrer`, plus `robots` metadata. `/account/confirm` answers 303 with a relative Location.                                                                                                                                                                                                                         |
+| Return-to               | `src/lib/account/destination.ts`: an allowlist of whole paths, `/account`, `/quote`, `/q/<token>`, `/pay/<token>` (16–128 URL-safe chars). Anything else, including every absolute, protocol-relative, backslash, query or `/me` value, becomes `/account`.                                                                                                                                                                                                                                                                                                                                                                                    |
+| Studio destinations     | Opened with a full page load (`ContinueTo`, plain `<a>`), never next/link.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
+| Answers through sign-in | `src/lib/quote-handoff.ts`: the reviewed draft goes to `localStorage` (so a confirmation opened in a new tab finds it), versioned, 24-hour expiry, cleared on send and on sign-out. Never in a URL. The sign-up page offers the quote's email from it.                                                                                                                                                                                                                                                                                                                                                                                         |
+| Whose work it is        | `src/lib/quote-store.ts`: signed-out work stays anonymous. A signed-in client's draft (sessionStorage) and send attempt (localStorage, 7-day expiry, so every tab sees an unconfirmed one) are filed under an opaque owner tag derived on the server (`lib/account/owner.ts`) and the intake version. Another account, or another intake version, never reads them. `/api/quote` compares the tag with the live session and answers 409 `account_mismatch`; the screen then drops the answers. Sign-out clears drafts in every open tab, and keeps only an unconfirmed attempt, shown to nobody but its owner, so it can't become a duplicate. |
+| Off switch              | Accounts are on only when `AUTH_SUPABASE_URL` and `AUTH_SUPABASE_PUBLISHABLE_KEY` are set. Unset, every account page says accounts aren't open and the quote behaves exactly as before.                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
 
-Studio intake is unchanged: the website still uses the v1 adapter with
-`identity: {status: "pending"}`, and production Studio delivery stays blocked
-(`QUOTE_DELIVERY_MODE`). The contract's authenticated path is a separate v2
-intake (`{version: 2, submission_id, answers}` with the client's bearer token);
-that adapter, and its fail-closed handling when auth configuration or a
-session is missing, are not implemented yet. Signing in on the website does
-not make a v1 submission authenticated.
+**Delivery.** `QUOTE_DELIVERY_MODE=customer` selects authenticated intake v2
+(`src/lib/customer-api.ts`): `{version: 2, submission_id, answers}`, the
+session's access token as the bearer, the server credential and a matching
+`Idempotency-Key`, built on the server from nothing the browser sent. Success
+needs Studio's committed acknowledgment (202 new, 200 replay). It **fails
+closed**: if the customer API or auth configuration is missing, or on Vercel
+Production, the mode reads `studio_pending` and nothing is sent, with no
+fallback to legacy and no second destination. `QUOTE_DELIVERY_MODE=studio`
+remains the isolated v1 test adapter; a v1 attempt is never sent as v2.
 
 ## Decided: one Supabase project (2026-10-30)
 
@@ -91,52 +102,35 @@ Sharing the project grants nothing beyond sign-in:
 - Distinct cookie name (`cosmos-client-auth`) so client and cleaner `/me`
   sessions on the company host never overwrite each other.
 
-## Remaining integration requirements (Studio-owned unless noted)
+## Integration requirements: where each stands
 
-These are **not** done by the website work and block production use.
-
-1. **Verified identity and client linking.** The Studio independently verifies
-   the customer's identity (their Supabase JWT, not anything the website
-   asserts) and securely links it to the correct client record. An email
-   match or a claimed ID is not sufficient (see the canonical guide's
-   ownership/deduplication rules).
-2. **Ownership on quote and payment pages and actions.** The Studio enforces
-   that only the linked client can view or act on `/q/<token>` and
-   `/pay/<token>` where an account is required. The website's
-   `/account/login?next=…` redirect and its wrong-account screen are
-   navigation and wording only; they establish **no** backend protection.
-3. **Fail closed in production.** Production Studio delivery must refuse to
-   send if authentication configuration is missing. An "accounts off" setting
-   (unset `AUTH_SUPABASE_*`) must never let intake through unauthenticated.
-   Today production Studio delivery is blocked outright (`studio_pending`);
-   when it is enabled, it must require both auth configuration and a verified
-   session, and the Studio must reject unauthenticated envelopes itself.
-   (The legacy-inbox mode's accounts-off behaviour must not carry over.)
+1. **Verified identity and client linking.** The Studio verifies the bearer
+   token and links the account itself; the website asserts nothing. _Verified
+   paired on a disposable project, not on hosted settings._
+2. **Ownership on quote and payment pages and actions.** Enforced by the
+   Studio. The website's sign-in redirect and wrong-account screen are
+   navigation only. _Verified paired, including a second account's real token
+   against the API directly._ The Studio never sends `reason=wrong_account`
+   (another owner's link reads as not found), so that screen stays generic.
+3. **Fail closed in production.** _Done on the website:_ see Delivery above.
+   Vercel Production is refused by both applications; lifting either guard is
+   a separate reviewed release change.
 4. **Server-side auth rate limiting needs a reviewed deployment design.**
-   Every Supabase Auth call comes from the website server, so provider per-IP
-   limits are shared by all clients. Raising provider limits is not enough on
-   its own. The design must cover per-client limits on sign-in, sign-up,
-   resend and reset (e.g. Vercel WAF rules on `/account/*` Server Action
-   POSTs), whether and how the real client IP reaches Supabase, and which
-   forwarded-IP headers are trusted. The browser tests set `VERCEL=1` only
-   so each test gets its own quote-limiter bucket; that proves nothing about
-   production forwarded-IP handling.
-
-## Studio contract (published after this work)
-
-The Studio published **customer-auth v2, revision 2.1** (`cc738d2`,
-`wt-integration-implementation/docs/03-guides/customer-auth-v2.md`). It adopts
-this website's cookie name, `AUTH_SUPABASE_*` variables and `/account/confirm`
-flow. Studio sends signed-out clients to `/account/login?next=…` but never
-sends `reason=wrong_account` (another owner's link reads as not found), so the
-website's wrong-account screen stays a generic switch-account action. Adapter
-work (intake v2, account data, fail-closed, account-bound drafts, email
-change) has **not started**; the gaps are listed in
-[commit-inventory-2026-10-30.md](commit-inventory-2026-10-30.md).
+   _Open._ Every Supabase Auth call comes from the website server, so provider
+   per-IP limits are shared by all clients. Raising provider limits is not
+   enough on its own. The design must cover per-client limits on sign-in,
+   sign-up, resend and reset (e.g. Vercel WAF rules on `/account/*` Server
+   Action POSTs), whether and how the real client IP reaches Supabase, and
+   which forwarded-IP headers are trusted. The browser tests set `VERCEL=1`
+   only so each test gets its own quote-limiter bucket; that proves nothing
+   about production forwarded-IP handling.
 
 ## Configuration needed (names only; no values here)
 
-- Website env: `AUTH_SUPABASE_URL` (HTTPS, the Studio's project),
+- Website env: `QUOTE_DELIVERY_MODE=customer`, `QUOTE_STUDIO_TEST_ENABLED=true`
+  (isolated test or protected Preview only), `STUDIO_CUSTOMER_API_URL` (the
+  fixed Studio origin plus `/api/customer/v2`), `WEBSITE_INTAKE_SECRET`,
+  `AUTH_SUPABASE_URL` (HTTPS, the Studio's project),
   `AUTH_SUPABASE_PUBLISHABLE_KEY` (publishable only).
   Server only. `NEXT_PUBLIC_SITE_URL` must be the public origin; it builds
   the email links.
@@ -159,35 +153,15 @@ change) has **not started**; the gaps are listed in
 
 ## Tests
 
-- **Unit, mocked** (`tests/unit/account.test.ts`, `quote-route.test.ts`):
-  redirect allowlist (25 rejected inputs), config and cookie flags, handoff
-  expiry/tampering, account view states (synthetic display data only), facade
-  401 for signed-out/expired sessions, origin check.
-- **Unit, real SDK with synthetic Auth HTTP answers**
-  (`tests/unit/account-actions.test.ts`): sign-out of an expired session
-  during an Auth 503 clears all client cookie chunks and verifiers, keeps
-  `sb-…` cookies, says it couldn't confirm revocation and leaves no
-  restorable session; a provider answer (success or failure) arriving after
-  the 3 s limit makes no cookie write at all; a confirmed sign-out says so; recovery reports "sent" only on acceptance
-  (500/503/429 show unavailable or rate-limited with the email kept);
-  refused sign-ins keep the email and never echo the password.
-- **Browser, real local Supabase Auth** (`tests/e2e/account.auth.spec.ts`,
-  `npm run test:e2e:auth`, desktop and Pixel 7): needs `supabase start`
-  (this repo's stack, API 54621, Mailpit 54624). Sign-up → confirm in a new
-  tab → send without re-login; password-only return; unconfirmed + resend;
-  reused link; enumeration; unsafe `next` values; return to `/q/<token>`
-  (the Studio stub); wrong account; corrupted session → expired + facade 401;
-  sign-out clears cookie and handoff; full reset; phone layout and tap
-  targets; cookie flags; no personal data in any URL. Added 2026-10-30:
-  refused sign-in keeps the email and retries at once; JavaScript-disabled
-  native sign-in (refused and accepted) sends the real Origin; a native post
-  from another origin (or `Origin: null`) is refused and sets no session;
-  scoped Referrer-Policy headers.
-- These results are **website-local Auth only** (a separate isolated local
-  project), recorded before the v2.1 contract was published.
-- **Not tested: paired with the Studio.** The v2.1 contract now exists, but
-  the website adapter is unbuilt, so there is no evidence yet of Studio
-  identity verification, client binding, ownership on `/q`/`/pay`, cookie
-  refresh through the gateway or v2 intake. Paired tests must use one
-  isolated project for both apps' Auth and database. No hosted Supabase
-  project, SMTP or Vercel edge was used.
+Three kinds of evidence, never interchangeable. Results and limits are in
+[customer-v2-verification.md](customer-v2-verification.md).
+
+- **Fixture / mocked**: `tests/unit/*` (`account`, `account-actions`,
+  `account-records`, `customer-api`, `customer-route`, `quote-route`), and
+  `tests/e2e/account.customer.spec.ts`, which uses real local Auth but a
+  **mock** of the Studio (`customer-api-stub.mjs`) that doesn't verify tokens.
+- **Real website-only Auth**: `tests/e2e/account.auth.spec.ts`
+  (`npm run test:e2e:auth`, this repo's own local Supabase). Proves nothing
+  about the Studio.
+- **Real paired**: `tests/paired/customer.paired.spec.ts`, against a running
+  Studio on one isolated Supabase project assigned by the integration lead.

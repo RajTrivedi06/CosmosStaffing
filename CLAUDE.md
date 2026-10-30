@@ -24,7 +24,11 @@ site, which has been removed.)
 - `src/app/api/quote/route.ts` — quote endpoint: validates, stores in
   Supabase, emails via Resend (`src/lib/quote-delivery.ts`).
 - `src/app/account/`, `src/lib/account/`, `src/proxy.ts` — client sign-in
-  (Supabase Auth, server only); see `docs/client-accounts.md`.
+  (Supabase Auth, server only) and the account home; see
+  `docs/client-accounts.md`.
+- `src/lib/customer-api.ts` — the Studio's customer API v2 (intake and account
+  records), server only, gated; `src/lib/quote-store.ts` — whose quote drafts
+  and send attempts are whose, per account and intake version.
 - `src/lib/site.ts` — central site config and copy. Unconfirmed policies and
   promises render as `[PLACEHOLDER: …]`; never invent them.
 - `src/lib/quote.ts` — quote questions, branching and validation.
@@ -52,7 +56,10 @@ site, which has been removed.)
 - `npm run test:e2e` — build, then Playwright browser tests (`tests/e2e`,
   desktop and phone, port 3200).
 - `npm run test:e2e:auth` — real local Supabase Auth tests (`supabase start`
-  first; port 3201, Mailpit 54624).
+  first; ports 3201 and 3202, Mailpit 54624). Customer-mode cases use a mock
+  Studio.
+- `npx playwright test -c playwright.paired.config.ts` — real paired tests
+  against a running Studio on an assigned isolated project.
 
 ## Conventions
 

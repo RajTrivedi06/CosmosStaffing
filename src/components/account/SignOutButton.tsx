@@ -1,11 +1,12 @@
 "use client";
 
 import { signOut } from "@/app/account/actions";
-import { quoteHandoff } from "@/lib/quote-handoff";
+import { forgetOnSignOut } from "@/lib/quote-store";
 
 /**
- * Signs out on this device. Also forgets a quote waiting here for sign-in,
- * since it holds the client's contact details.
+ * Signs out on this device. Also forgets quote drafts in this browser, which
+ * hold contact details (lib/quote-store.ts: an unconfirmed send attempt stays
+ * filed under its owner, for an identical retry after signing back in).
  */
 export function SignOutButton({
   next,
@@ -17,7 +18,7 @@ export function SignOutButton({
   className?: string;
 }) {
   return (
-    <form action={signOut} onSubmit={() => quoteHandoff.clear()}>
+    <form action={signOut} onSubmit={() => forgetOnSignOut()}>
       {next && <input type="hidden" name="next" value={next} />}
       <button type="submit" className={className}>
         {label}

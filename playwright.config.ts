@@ -13,6 +13,15 @@ const STUDIO_STUB_ORIGIN = `http://127.0.0.1:${STUDIO_STUB_PORT}`;
  * Real Supabase Auth, synthetic accounts; not paired with the Studio.
  */
 const AUTH_PORT = 3201;
+/**
+ * Customer-mode tests (*.customer.spec.ts), also under AUTH_E2E: the site in
+ * QUOTE_DELIVERY_MODE=customer against real local Auth and a MOCK of the
+ * Studio's customer API (tests/e2e/customer-api-stub.mjs). Not paired
+ * evidence: the mock does not verify tokens or touch a Studio database.
+ */
+const CUSTOMER_PORT = 3202;
+const CUSTOMER_STUB_PORT = 3398;
+const CUSTOMER_STUB_SECRET = "synthetic-only-customer-api-secret-01";
 const AUTH_E2E = process.env.AUTH_E2E === "1";
 function localAuthKey() {
   const env = execFileSync("supabase", ["status", "-o", "env"], {
@@ -63,7 +72,7 @@ export default defineConfig({
         ...devices["Desktop Chrome"],
         viewport: { width: 1440, height: 900 },
       },
-      testIgnore: /\.(mobile|auth)\.spec\.ts$/,
+      testIgnore: /\.(mobile|auth|customer)\.spec\.ts$/,
     },
     {
       name: "mobile",
@@ -87,6 +96,22 @@ export default defineConfig({
               baseURL: `http://127.0.0.1:${AUTH_PORT}`,
             },
             testMatch: /\.auth\.spec\.ts$/,
+          },
+          {
+            name: "customer-desktop",
+            use: {
+              ...devices["Desktop Chrome"],
+              baseURL: `http://127.0.0.1:${CUSTOMER_PORT}`,
+            },
+            testMatch: /\.customer\.spec\.ts$/,
+          },
+          {
+            name: "customer-mobile",
+            use: {
+              ...devices["Pixel 7"],
+              baseURL: `http://127.0.0.1:${CUSTOMER_PORT}`,
+            },
+            testMatch: /\.customer\.spec\.ts$/,
           },
         ]
       : []),
@@ -122,6 +147,32 @@ export default defineConfig({
               ...QUIET_DELIVERY,
               // The quote limiter trusts X-Forwarded-For only behind Vercel's
               // proxy; here it lets each sending test have its own bucket.
+              VERCEL: "1",
+              AUTH_SUPABASE_URL: "http://127.0.0.1:54621",
+              AUTH_SUPABASE_PUBLISHABLE_KEY: localAuthKey(),
+            },
+          },
+          {
+            command: "node tests/e2e/customer-api-stub.mjs",
+            url: `http://127.0.0.1:${CUSTOMER_STUB_PORT}/health`,
+            reuseExistingServer: false,
+            env: {
+              CUSTOMER_STUB_PORT: String(CUSTOMER_STUB_PORT),
+              CUSTOMER_STUB_SECRET,
+            },
+          },
+          {
+            command: `npm run start -- -p ${CUSTOMER_PORT}`,
+            url: `http://127.0.0.1:${CUSTOMER_PORT}`,
+            reuseExistingServer: false,
+            env: {
+              NEXT_DIST_DIR: ".next-test",
+              STUDIO_ORIGIN: STUDIO_STUB_ORIGIN,
+              ...QUIET_DELIVERY,
+              QUOTE_DELIVERY_MODE: "customer",
+              QUOTE_STUDIO_TEST_ENABLED: "true",
+              STUDIO_CUSTOMER_API_URL: `http://127.0.0.1:${CUSTOMER_STUB_PORT}/api/customer/v2`,
+              WEBSITE_INTAKE_SECRET: CUSTOMER_STUB_SECRET,
               VERCEL: "1",
               AUTH_SUPABASE_URL: "http://127.0.0.1:54621",
               AUTH_SUPABASE_PUBLISHABLE_KEY: localAuthKey(),

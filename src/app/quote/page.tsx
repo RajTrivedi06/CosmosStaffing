@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from "next";
 import { connection } from "next/server";
 import { quoteIntakeMode } from "@/lib/quote-intake";
 import { clientSession } from "@/lib/account/server";
+import { ownerTag } from "@/lib/account/owner";
 import { pageMetadata } from "@/lib/metadata";
 import { QuoteFlow } from "@/components/quote/QuoteFlow";
 
@@ -28,7 +29,12 @@ export default async function QuotePage() {
       intakeMode={quoteIntakeMode()}
       accountsOn={session.state !== "off"}
       account={
-        session.state === "signed_in" ? { email: session.client.email } : null
+        session.state === "signed_in"
+          ? {
+              email: session.client.email,
+              owner: ownerTag(session.client.id),
+            }
+          : null
       }
     />
   );
