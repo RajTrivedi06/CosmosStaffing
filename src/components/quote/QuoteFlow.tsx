@@ -133,8 +133,8 @@ export function QuoteFlow({
     settleQuoteStorage(accountsOn ? owner : undefined);
     // This tab's draft (this client's, when signed in), or, signed out, the
     // choices left waiting for sign-in.
-    const draft = slots.loadDraft() ?? (gated ? quoteHandoff.load() : null);
     const { attempt, unresolved: marker, unreadable } = slots.loadAttempt();
+    const draft = slots.loadDraft() ?? (gated ? quoteHandoff.load() : null);
     // Signed in: answers from before sign-in are offered, never loaded.
     const offered = owner && !attempt ? anonymousWork.load() : null;
     const linked = answersFromParams(
@@ -176,7 +176,8 @@ export function QuoteFlow({
   }, [accountsOn, gated, owner, slots]);
 
   useEffect(() => {
-    if (!ready || status === "sent" || status === "signin") return;
+    if (!ready || unresolved || status === "sent" || status === "signin")
+      return;
     const saved = slots.saveDraft({ answers, step });
     // Storage availability is external browser state, not derived React state.
     // eslint-disable-next-line react-hooks/set-state-in-effect
@@ -188,7 +189,7 @@ export function QuoteFlow({
       "",
       query ? `?${query}` : window.location.pathname,
     );
-  }, [answers, step, ready, status, slots]);
+  }, [answers, step, ready, status, unresolved, slots]);
 
   // Keep an edited field in the visible area after a mobile keyboard resizes
   // it. Never lock the page, reposition controls over inputs, or disable zoom.
@@ -338,6 +339,7 @@ export function QuoteFlow({
     if (!attemptRef.current) {
       const { attempt: pending, unresolved: marker } = slots.loadAttempt();
       if (marker) {
+        slots.saveDraft(null);
         setUnresolved(marker);
         return;
       }

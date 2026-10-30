@@ -3,6 +3,7 @@ import {
   ARCHIVED_MARKER_TTL_MS,
   OWNED_ATTEMPT_PREFIX,
   OWNED_ATTEMPT_TTL_MS,
+  OWNED_DRAFT_PREFIX,
   anonymousWork,
   forgetOnSignOut,
   quoteSlots,
@@ -162,6 +163,39 @@ describe("attempts whose outcome is unknown", () => {
     expect(local.getItem(key)).toBe(
       writeUnresolved(attempt.submission_id, ALICE, 2, now),
     );
+  });
+
+  it("a marker takes this tab's copy of the answers with it", () => {
+    const draft = `${OWNED_DRAFT_PREFIX}${ALICE}`;
+    const save = () =>
+      quoteSlots(ALICE, 2).saveDraft({ answers: homeQuote, step: "review" });
+
+    // Expiry noticed on a page that doesn't know who is signed in.
+    local.setItem(key, writeOwnedAttempt(attempt, ALICE, 2, now));
+    save();
+    settleQuoteStorage(undefined, now + OWNED_ATTEMPT_TTL_MS + 1);
+    expect(session.getItem(draft)).toBeNull();
+    clean();
+
+    // A marker that arrived from another tab.
+    save();
+    settleQuoteStorage(undefined, now);
+    expect(session.getItem(draft)).toBeNull();
+
+    // Noticed by the quote screen itself.
+    local.setItem(key, writeOwnedAttempt(attempt, ALICE, 1, Date.now()));
+    save();
+    expect(quoteSlots(ALICE, 2).loadAttempt().unresolved).toMatchObject(marker);
+    expect(session.getItem(draft)).toBeNull();
+    clean();
+
+    // A live attempt and its draft stay.
+    quoteSlots(ALICE, 2).clearAttempt();
+    quoteSlots(ALICE, 2).saveAttempt(attempt);
+    save();
+    settleQuoteStorage(undefined);
+    expect(quoteSlots(ALICE, 2).loadAttempt().attempt).toEqual(attempt);
+    expect(session.getItem(draft)).not.toBeNull();
   });
 
   it("an expired record found by the quote screen is retired too", () => {

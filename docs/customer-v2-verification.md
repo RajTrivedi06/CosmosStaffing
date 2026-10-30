@@ -186,7 +186,9 @@ Studio commit `ee9146e`.
   reload and after a sweep from any page. A damaged record leaves a marker with
   no ID rather than vanishing, and another intake version's record counts too,
   so a new attempt can't overwrite it. Set-aside markers lapse after 30 days;
-  nothing depends on them. Answers still leave at 7 days at the latest.
+  nothing depends on them. Answers still leave at 7 days at the latest,
+  including the tab's draft copy: the paired run caught that copy surviving
+  expiry, so a marker now removes it wherever it's noticed.
 
 **Password recovery, observed.** No revocation code was added. On the website's
 local Auth (`supabase/config.toml`, not the paired project), with two older

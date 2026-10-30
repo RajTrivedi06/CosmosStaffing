@@ -274,6 +274,7 @@ export function quoteSlots(
       // Expired, damaged, or made for another intake version: never sent
       // here, and the fact of it mustn't be overwritten by a new attempt.
       const unresolved = readUnresolved(raw, owner);
+      set("session", draftKey, null);
       if (unresolved) return { ...noAttempt, unresolved };
       const marker = retired(parseRecord(raw), owner, Date.now());
       set("local", attemptKey, marker);
@@ -349,13 +350,18 @@ export function settleQuoteStorage(current?: string | null, now = Date.now()) {
         set("local", key, retired(value, owner, now));
       continue;
     }
-    if (value?.version === 2) continue;
+    // A marker's answers are gone, so this tab's copy of them goes too.
+    if (value?.version === 2) {
+      set("session", `${OWNED_DRAFT_PREFIX}${owner}`, null);
+      continue;
+    }
     const fresh =
       typeof value?.savedAt === "number" &&
       value.savedAt <= now &&
       now - value.savedAt <= OWNED_ATTEMPT_TTL_MS;
     if (fresh && (current === undefined || current === owner)) continue;
     set("local", key, retired(value, owner, now));
+    set("session", `${OWNED_DRAFT_PREFIX}${owner}`, null);
   }
   for (const key of keys("session")) {
     if (!key.startsWith(`${ATTEMPT_KEY}${ARCHIVE_INFIX}`)) continue;
