@@ -41,7 +41,7 @@ export const SIGN_IN_REASONS = [
   "wrong_account",
   "link_expired",
   "signed_out",
-  /** Signed out here, but the Auth provider couldn't confirm the session ended. */
+  /** Cleared in this browser; Supabase didn't confirm revoking the session. */
   "signed_out_local",
   "password_updated",
 ] as const;

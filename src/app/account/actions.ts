@@ -1,5 +1,6 @@
 "use server";
 
+import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { z } from "zod";
 import type { AuthError } from "@supabase/supabase-js";
@@ -48,9 +49,15 @@ function failure(error: AuthError | null): FormState {
   return { error: errors.unavailable };
 }
 
-/** Where to go next: this site's pages directly, Studio pages via the browser. */
-function arrive(next: string): FormState {
-  if (isStudioDestination(next)) return { goTo: next };
+/**
+ * Where to go next. This site's pages: a redirect. Studio pages need a full
+ * page load: a hydrated form (fetched, with a Next-Action header) opens them
+ * in the browser; a native form post already is a full page load, so it
+ * gets the redirect too.
+ */
+async function arrive(next: string): Promise<FormState> {
+  const fetched = (await headers()).has("next-action");
+  if (isStudioDestination(next) && fetched) return { goTo: next };
   redirect(next);
 }
 
@@ -78,7 +85,7 @@ export async function signIn(_: FormState, form: FormData): Promise<FormState> {
   if (error?.code === "invalid_credentials" || error?.status === 400)
     return { error: errors.credentials, email: typed };
   if (error) return { ...failure(error), email: typed };
-  return arrive(destinationOr(form.get("next")));
+  return await arrive(destinationOr(form.get("next")));
 }
 
 export async function signUp(_: FormState, form: FormData): Promise<FormState> {
@@ -101,7 +108,7 @@ export async function signUp(_: FormState, form: FormData): Promise<FormState> {
   if (error?.code === "user_already_exists") return { sentTo: address.data };
   if (error) return { ...failure(error), email: typed };
   // Confirmation switched off for this project: the session already exists.
-  if (data.session) return arrive(next);
+  if (data.session) return await arrive(next);
   return { sentTo: address.data };
 }
 
@@ -158,7 +165,7 @@ export async function updatePassword(
     return { error: "Choose a password you haven't used for this account." };
   if (error) return failure(error);
   const next = destinationOr(form.get("next"));
-  if (next !== ACCOUNT_HOME) return arrive(next);
+  if (next !== ACCOUNT_HOME) return await arrive(next);
   redirect(`${ACCOUNT_HOME}?updated=1`);
 }
 
@@ -167,14 +174,16 @@ export async function updatePassword(
  * (`scope: "local"`, so other devices and roles are untouched); whatever it
  * answers, every client-session cookie here is expired, so a refresh or
  * provider failure can't leave the client signed in. The page then says
- * which happened: ended with Supabase too, or only on this device.
+ * which happened: revoked with Supabase too, or only cleared in this browser.
  * After a "wrong account" link it returns to sign-in with the same
  * destination, so the right account can sign in.
  */
 export async function signOut(form: FormData) {
   let ended = false;
   try {
-    const supabase = await authClient();
+    // Never writes cookies: only clearClientCookies below does, so a provider
+    // answer arriving after the time limit changes nothing.
+    const supabase = await authClient({ writeCookies: false });
     if (supabase) {
       // An expired session refreshes first, and the SDK retries an outage
       // with backoff; don't keep someone waiting to sign out.

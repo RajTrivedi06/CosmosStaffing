@@ -560,7 +560,7 @@ export const account = {
       "That link has expired or was already used. Sign in, or ask for a new link.",
     signed_out: "You've signed out.",
     signed_out_local:
-      "You've signed out on this device. We couldn't reach our sign-in service to end the session there too; it will expire on its own.",
+      "You've signed out in this browser. We couldn't confirm server-side session revocation.",
     password_updated: "Your password has been changed.",
   },
   home: {

@@ -10,6 +10,7 @@ import {
 } from "react";
 import { account } from "@/lib/site";
 import { quoteHandoff } from "@/lib/quote-handoff";
+import { withNext } from "@/lib/account/destination";
 import {
   requestReset,
   resendConfirmation,
@@ -131,7 +132,13 @@ function Submit({ pending, label }: { pending: boolean; label: string }) {
 }
 
 export function SignInForm({ next }: { next: string }) {
-  const [state, action, pending] = useActionState(signIn, {}, "/account/login");
+  const [state, action, pending] = useActionState(
+    signIn,
+    {},
+    // Without JavaScript the form posts to this address and the page renders
+    // there, so it carries the destination through every retry.
+    withNext("/account/login", next),
+  );
   const [email, setEmail] = useState("");
   const passwordRef = useRef<HTMLInputElement>(null);
   useGoTo(state);
@@ -168,7 +175,7 @@ export function SignUpForm({ next }: { next: string }) {
   const [state, action, pending] = useActionState(
     signUp,
     {},
-    "/account/signup",
+    withNext("/account/signup", next),
   );
   // Offer the email from a quote waiting on this device, if there is one.
   const [suggested, setSuggested] = useState<string>();
@@ -229,7 +236,7 @@ export function ForgotForm({ next }: { next: string }) {
   const [state, action, pending] = useActionState(
     requestReset,
     {},
-    "/account/forgot",
+    withNext("/account/forgot", next),
   );
   if (state.notice)
     return (
@@ -251,7 +258,7 @@ export function ResetForm({ next }: { next: string }) {
   const [state, action, pending] = useActionState(
     updatePassword,
     {},
-    "/account/reset",
+    withNext("/account/reset", next),
   );
   useGoTo(state);
   return (

@@ -9,11 +9,14 @@ import { account } from "@/lib/site";
 
 type Jar = Map<string, { value: string; maxAge?: number }>;
 let jar: Jar;
+/** Every cookie write, in order, so a late one can't hide. */
+const writes: { name: string; value: string; maxAge?: number }[] = [];
 const store = {
   getAll: () => [...jar].map(([name, { value }]) => ({ name, value })),
   get: (name: string) =>
     jar.has(name) ? { name, value: jar.get(name)!.value } : undefined,
   set: (name: string, value: string, options: { maxAge?: number } = {}) => {
+    writes.push({ name, value, maxAge: options.maxAge });
     // A browser drops a cookie set to expire now.
     if (options.maxAge === 0) jar.delete(name);
     else jar.set(name, { value, maxAge: options.maxAge });
@@ -56,11 +59,18 @@ function sessionCookie(expiresIn: number) {
 
 /** Answer every Auth request with `status` (and record the paths asked). */
 const calls: string[] = [];
-function authAnswers(answer: (path: string) => [number, object]) {
+const answered: string[] = [];
+function authAnswers(
+  answer: (path: string) => [number, object],
+  delayMs: (path: string) => number = () => 0,
+) {
   vi.stubGlobal("fetch", async (input: RequestInfo | URL) => {
     const path = new URL(String(input instanceof Request ? input.url : input))
       .pathname;
     calls.push(path);
+    const wait = delayMs(path);
+    if (wait) await new Promise((done) => setTimeout(done, wait));
+    answered.push(path);
     const [status, body] = answer(path);
     return new Response(status === 204 ? null : JSON.stringify(body), {
       status,
@@ -72,7 +82,9 @@ function authAnswers(answer: (path: string) => [number, object]) {
 let actions: typeof import("@/app/account/actions");
 beforeEach(async () => {
   jar = new Map();
+  writes.length = 0;
   calls.length = 0;
+  answered.length = 0;
   vi.stubEnv("AUTH_SUPABASE_URL", "http://127.0.0.1:54999");
   vi.stubEnv("AUTH_SUPABASE_PUBLISHABLE_KEY", "sb_publishable_synthetic");
   vi.resetModules();
@@ -150,6 +162,71 @@ describe("sign-out", { timeout: 10_000 }, () => {
     expect(jar.get("sb-studio-auth-token")?.value).toBe("cleaner-session");
   });
 });
+
+describe(
+  "sign-out with a provider answer after the time limit",
+  { timeout: 15_000 },
+  () => {
+    // The expired session refreshes at once (the SDK would store the new
+    // session), then the revocation answers at 3.5 s: after sign-out stopped
+    // waiting (3 s), cleared the cookies and answered. Nothing from the SDK
+    // may write a cookie, before or after that cleanup.
+    const now = () => Math.floor(Date.now() / 1000);
+    const late = 3_500;
+    const SYNTHETIC_USER = {
+      id: "00000000-0000-4000-8000-000000000099",
+      email: "a@example.test",
+      aud: "authenticated",
+      role: "authenticated",
+    };
+    const refreshed = () => ({
+      // A well-formed session, which the SDK accepts and stores.
+      access_token: `${encode({ alg: "HS256", typ: "JWT" })}.${encode({ sub: SYNTHETIC_USER.id, email: SYNTHETIC_USER.email, aud: "authenticated", role: "authenticated", session_id: "s", iat: now(), exp: now() + 3600 })}.synthetic`,
+      refresh_token: "synthetic-refresh-2",
+      expires_in: 3600,
+      expires_at: now() + 3600,
+      token_type: "bearer",
+      user: SYNTHETIC_USER,
+    });
+
+    async function signOutThenWait(logout: [number, object]) {
+      jar.set("cosmos-client-auth", { value: sessionCookie(-60) });
+      jar.set("sb-studio-auth-token", { value: "cleaner-session" });
+      authAnswers(
+        (path) => (path.endsWith("/token") ? [200, refreshed()] : logout),
+        (path) => (path.endsWith("/logout") ? late : 0),
+      );
+      const to = await redirectOf(actions.signOut(form({ next: "/quote" })));
+      const cleanup = [...writes];
+      // Let the late revocation answer land.
+      await new Promise((done) => setTimeout(done, late + 1_000));
+      return { to, cleanup };
+    }
+
+    it.each([
+      ["success", [204, {}]],
+      ["failure", [503, { message: "Synthetic outage" }]],
+    ] as const)(
+      "writes nothing for a late revocation %s",
+      async (_, logout) => {
+        const { to, cleanup } = await signOutThenWait([...logout]);
+        // It stopped waiting, so it can't claim revocation.
+        expect(to).toBe("/account/login?next=%2Fquote&reason=signed_out_local");
+        // The SDK refreshed, then its revocation answered after the cleanup.
+        // (Earlier tests' SDK retries can still be running, so only check that
+        // these happened, not how many requests there were.)
+        expect(answered.some((path) => path.endsWith("/token"))).toBe(true);
+        expect(answered.some((path) => path.endsWith("/logout"))).toBe(true);
+        // ...and the only cookie writes, ever, are sign-out's own expirations.
+        expect(cleanup).toEqual([
+          { name: "cosmos-client-auth", value: "", maxAge: 0 },
+        ]);
+        expect(writes).toEqual(cleanup);
+        expect([...jar.keys()]).toEqual(["sb-studio-auth-token"]);
+      },
+    );
+  },
+);
 
 describe("password recovery", () => {
   const ask = () =>

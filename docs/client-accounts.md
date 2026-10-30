@@ -26,14 +26,18 @@ website-side sign-in only; it is not authenticated Studio integration.
   "Sent" is shown only when Supabase accepted the request (it accepts the
   same way for unknown emails); a refused or failed request says so, keeps
   the email and offers a retry, and never claims an email went out.
-- **Sign out**: asks Supabase to end this session (`scope: "local"`, waiting
-  at most 3 s), then expires every `cosmos-client-auth` cookie (whole, chunked
-  and code verifiers) whatever it answered; `sb-…` staff/cleaner cookies are
-  untouched. The page says "signed out" only when Supabase confirmed it, and
-  "signed out on this device" when it couldn't be reached (the session then
-  just expires). Also forgets a quote waiting for sign-in.
-- **Refused sign-in** keeps the typed email, clears the password and puts
-  the cursor there; with or without JavaScript.
+- **Sign out**: asks Supabase to revoke this session (`scope: "local"`,
+  waiting at most 3 s) through a client that can't write cookies, so a late
+  answer changes nothing; then expires every `cosmos-client-auth` cookie
+  (whole, chunked and code verifiers) whatever it answered. `sb-…`
+  staff/cleaner cookies are untouched. The page says "You've signed out" only
+  when Supabase confirmed the revocation; otherwise "You've signed out in this browser. We couldn't confirm server-side session revocation."
+  Clearing this browser is not revocation, and no claim is made about when an
+  unrevoked session stops working. Also forgets a quote waiting for sign-in.
+- **Refused sign-in** keeps the typed email and the validated destination,
+  clears the password and puts the cursor there; with or without JavaScript
+  (the form's permalink carries `?next=`, and a native post to a Studio
+  destination gets a server redirect, a full page load).
 - **Account home** (`/account`): email, New request, Sign out, and the
   client's records. The v2 account endpoints (`GET /account`, `/requests`,
   `/requests/:id`) are not wired up yet, so `accountOverview`
@@ -162,8 +166,9 @@ change) has **not started**; the gaps are listed in
 - **Unit, real SDK with synthetic Auth HTTP answers**
   (`tests/unit/account-actions.test.ts`): sign-out of an expired session
   during an Auth 503 clears all client cookie chunks and verifiers, keeps
-  `sb-…` cookies, says "this device only" and leaves no restorable session;
-  a confirmed sign-out says so; recovery reports "sent" only on acceptance
+  `sb-…` cookies, says it couldn't confirm revocation and leaves no
+  restorable session; a provider answer (success or failure) arriving after
+  the 3 s limit makes no cookie write at all; a confirmed sign-out says so; recovery reports "sent" only on acceptance
   (500/503/429 show unavailable or rate-limited with the email kept);
   refused sign-ins keep the email and never echo the password.
 - **Browser, real local Supabase Auth** (`tests/e2e/account.auth.spec.ts`,

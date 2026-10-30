@@ -32,8 +32,12 @@ export async function siteOrigin() {
 /**
  * A Supabase client bound to this request's cookies, for Server Components,
  * Server Actions and Route Handlers. Null when accounts are off.
+ *
+ * `writeCookies: false` gives a client that reads the session but never
+ * writes it: sign-out uses it so a slow provider answer (a refresh or the
+ * revocation's own cleanup) can't set cookies after sign-out has cleared them.
  */
-export async function authClient() {
+export async function authClient({ writeCookies = true } = {}) {
   const config = authConfig();
   if (!config) return null;
   const store = await cookies();
@@ -43,6 +47,7 @@ export async function authClient() {
     cookies: {
       getAll: () => store.getAll(),
       setAll(list) {
+        if (!writeCookies) return;
         try {
           for (const { name, value, options } of list)
             store.set(name, value, options);

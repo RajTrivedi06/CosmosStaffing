@@ -472,6 +472,37 @@ test.describe("without JavaScript", () => {
     await expect(page.getByText(email)).toBeVisible();
   });
 
+  test("a refused native sign-in keeps its destination through the retry", async ({
+    page,
+    context,
+    browser,
+  }) => {
+    const setup = await browser.newPage();
+    const email = await confirmedAccount(setup, "nojs-next");
+    await setup.close();
+
+    for (const [next, lands] of [
+      ["/quote", /127\.0\.0\.1:3201\/quote$/],
+      [`/q/${TOKEN}`, new RegExp(`127\\.0\\.0\\.1:3201/q/${TOKEN}$`)],
+      // Not allowed: falls back to the account home, refused or not.
+      ["https://evil.example/", /127\.0\.0\.1:3201\/account$/],
+    ] as const) {
+      await context.clearCookies();
+      const kept = next.startsWith("/") ? next : "/account";
+      await page.goto(`/account/login?next=${encodeURIComponent(next)}`);
+      await signIn(page, email, "not-the-password");
+      await expect(page.locator("main").getByRole("alert")).toHaveText(
+        account.errors.credentials,
+      );
+      // The retry form still carries the validated destination.
+      await expect(page.locator('input[name="next"]')).toHaveValue(kept);
+      await signIn(page, email);
+      await expect(page, next).toHaveURL(lands);
+      if (kept.startsWith("/q/"))
+        await expect(page.locator("#path")).toHaveText(kept);
+    }
+  });
+
   test("a sign-in posted from another site is refused and signs no one in", async ({
     page,
     browser,
