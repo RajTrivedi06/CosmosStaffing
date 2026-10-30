@@ -252,11 +252,13 @@ signed-out context, and the dev server's reload raced a navigation.
 
 **Lifecycle (website):**
 
-- Secure email change isn't implemented: no screen, and `/account/confirm` only
-  accepts `email` and `recovery`. The contract's complete lifecycle isn't met.
-- Password change outside recovery: with secure password change on, an older
-  session's `updateUser` can need reauthentication; today that shows the generic
-  unavailable message. Recovery itself passed paired.
+- Self-service email change is unavailable at launch, by decision: no screen,
+  and `/account/confirm` only accepts `email` and `recovery`. The contract's
+  both-address email change therefore stays out of launch scope.
+- Passwords change only through the emailed link. A session needs an emailed
+  link from the last hour; anything else is offered one. Recovery itself is
+  paired-tested on `d234192`; the new rule is tested on real local Auth, and
+  it depends on hosted Auth's `amr` values matching. Check that at cutover.
 
 **For review:**
 
@@ -276,7 +278,10 @@ signed-out context, and the dev server's reload raced a navigation.
   `VERCEL=1` proves nothing about production.
 - Protected Preview checks of edge caching, cookies and Server Actions.
 - Coordinated migration and application rollout, and rehearsal.
-- Stripe checkout retry and session reconciliation (a Studio dependency).
+- Online payment is off for launch, by decision: the account shows payments as
+  facts with no `/pay` link, and Cosmos arranges payment. `/pay` forwarding is
+  unchanged, so Studio must not issue payment links until Stripe checkout and
+  reconciliation are verified.
 
 ## How to rerun
 

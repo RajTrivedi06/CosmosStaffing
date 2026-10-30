@@ -49,9 +49,19 @@ blocked**: nothing here is deployed, and no hosted setting has changed.
   unconfirmed email or a rejected session each say so; nothing is guessed, and
   with the customer API off the page says records aren't connected.
 - **Request page** (`/account/requests/<id>`): that request's answers, quotes
-  and payment requests, linking to the Studio's own `/q/…` and `/pay/…` pages,
-  which stay the Studio's. Another client's request reads exactly like a
-  missing one.
+  and payment requests, linking to the Studio's own `/q/…` pages, which stay
+  the Studio's. Another client's request reads exactly like a missing one.
+- **Payments**: shown as facts only, with no link to `/pay/…`. Online payment
+  isn't verified for launch, so an open payment reads "We'll arrange payment
+  with you directly." Forwarding of `/pay/…` is unchanged and stays the
+  Studio's; turning online payment on is a reviewed change.
+- **Passwords**: changed only through the emailed link. `/account/reset` needs a
+  session that began with an emailed link in the last hour (`recentEmailProof`,
+  from the signed `amr` claim); otherwise it offers to send one, and the server
+  action refuses on the same check. The link ends the client's other sessions.
+- **Email changes**: not offered at launch, by decision. There's no screen, and
+  `/account/confirm` refuses any type but `email` and `recovery`. Support:
+  [support-uncertain-requests.md](support-uncertain-requests.md).
 - **Quote**: choice questions → create account / sign in → where, when, notes
   and contact details → review → send. Choices from before sign-in are only
   ever **offered** ("Use these answers" / "Start fresh"). Signed-in clients

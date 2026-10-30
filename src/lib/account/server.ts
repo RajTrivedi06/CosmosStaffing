@@ -8,6 +8,7 @@ import {
   hasSessionCookie,
   isClientAuthCookie,
   isLoopbackHost,
+  recentEmailProof,
 } from "./config";
 
 /** The signed-in client, as verified from their session token. */
@@ -90,6 +91,14 @@ export async function clientSession(): Promise<ClientSession> {
     (await headers()).get(SESSION_HEADER) === "expired" ||
     hasSessionCookie((await cookies()).getAll());
   return { state: expired ? "expired" : "signed_out" };
+}
+
+/** Whether this session can change the password now: see recentEmailProof. */
+export async function mayChangePassword() {
+  const supabase = await authClient();
+  if (!supabase) return false;
+  const { data } = await supabase.auth.getClaims();
+  return recentEmailProof(data?.claims);
 }
 
 /**

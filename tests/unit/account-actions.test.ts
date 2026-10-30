@@ -35,7 +35,7 @@ vi.mock("next/navigation", () => ({
 
 const encode = (value: object) =>
   Buffer.from(JSON.stringify(value)).toString("base64url");
-function sessionCookie(expiresIn: number) {
+function sessionCookie(expiresIn: number, extra: object = {}) {
   const now = Math.floor(Date.now() / 1000);
   const user = {
     id: "00000000-0000-4000-8000-000000000099",
@@ -46,9 +46,10 @@ function sessionCookie(expiresIn: number) {
     email: user.email,
     exp: now + expiresIn,
     iat: now - 60,
+    ...extra,
   };
   return `base64-${encode({
-    access_token: `${encode({ alg: "HS256", typ: "JWT" })}.${encode(claims)}.synthetic`,
+    access_token: `${encode({ alg: "HS256", typ: "JWT" })}.${encode(claims)}.c3ludGhldGlj`,
     refresh_token: "synthetic-refresh",
     expires_at: now + expiresIn,
     expires_in: 3600,
@@ -60,23 +61,28 @@ function sessionCookie(expiresIn: number) {
 /** Answer every Auth request with `status` (and record the paths asked). */
 const calls: string[] = [];
 const answered: string[] = [];
+const changes: string[] = [];
 function authAnswers(
   answer: (path: string) => [number, object],
   delayMs: (path: string) => number = () => 0,
 ) {
-  vi.stubGlobal("fetch", async (input: RequestInfo | URL) => {
-    const path = new URL(String(input instanceof Request ? input.url : input))
-      .pathname;
-    calls.push(path);
-    const wait = delayMs(path);
-    if (wait) await new Promise((done) => setTimeout(done, wait));
-    answered.push(path);
-    const [status, body] = answer(path);
-    return new Response(status === 204 ? null : JSON.stringify(body), {
-      status,
-      headers: { "content-type": "application/json" },
-    });
-  });
+  vi.stubGlobal(
+    "fetch",
+    async (input: RequestInfo | URL, init?: RequestInit) => {
+      const path = new URL(String(input instanceof Request ? input.url : input))
+        .pathname;
+      calls.push(path);
+      if (init?.method === "PUT") changes.push(path);
+      const wait = delayMs(path);
+      if (wait) await new Promise((done) => setTimeout(done, wait));
+      answered.push(path);
+      const [status, body] = answer(path);
+      return new Response(status === 204 ? null : JSON.stringify(body), {
+        status,
+        headers: { "content-type": "application/json" },
+      });
+    },
+  );
 }
 
 let actions: typeof import("@/app/account/actions");
@@ -85,6 +91,7 @@ beforeEach(async () => {
   writes.length = 0;
   calls.length = 0;
   answered.length = 0;
+  changes.length = 0;
   vi.stubEnv("AUTH_SUPABASE_URL", "http://127.0.0.1:54999");
   vi.stubEnv("AUTH_SUPABASE_PUBLISHABLE_KEY", "sb_publishable_synthetic");
   vi.resetModules();
@@ -227,6 +234,41 @@ describe(
     );
   },
 );
+
+describe("changing a password", () => {
+  const user = { id: "00000000-0000-4000-8000-000000000099" };
+  const signedIn = (extra: object) => {
+    jar.set("cosmos-client-auth", { value: sessionCookie(3600, extra) });
+    authAnswers(() => [200, { ...user, email: "a@example.test" }]);
+  };
+  const now = () => Math.floor(Date.now() / 1000);
+  const change = () =>
+    actions.updatePassword({}, form({ password: "a-new-password-42" }));
+
+  it("refuses a password sign-in, without asking Auth to change anything", async () => {
+    signedIn({ amr: [{ method: "password", timestamp: now() }] });
+    expect(await change()).toEqual({ error: account.reset.linkRequired });
+    expect(changes).toEqual([]);
+  });
+
+  it("refuses a session with no record of how it began", async () => {
+    signedIn({});
+    expect(await change()).toEqual({ error: account.reset.linkRequired });
+    expect(changes).toEqual([]);
+  });
+
+  it("refuses an emailed link that's over an hour old", async () => {
+    signedIn({ amr: [{ method: "otp", timestamp: now() - 3601 }] });
+    expect(await change()).toEqual({ error: account.reset.linkRequired });
+    expect(changes).toEqual([]);
+  });
+
+  it("accepts a recent emailed link", async () => {
+    signedIn({ amr: [{ method: "otp", timestamp: now() - 60 }] });
+    expect(await redirectOf(change())).toBe("/account?updated=1");
+    expect(changes).toEqual(["/auth/v1/user"]);
+  });
+});
 
 describe("password recovery", () => {
   const ask = () =>

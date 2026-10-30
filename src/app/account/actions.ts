@@ -5,6 +5,7 @@ import { redirect } from "next/navigation";
 import { z } from "zod";
 import type { AuthError } from "@supabase/supabase-js";
 import { account } from "@/lib/site";
+import { recentEmailProof } from "@/lib/account/config";
 import {
   authClient,
   clearClientCookies,
@@ -160,6 +161,8 @@ export async function updatePassword(
   if (!secret.success) return { error: errors.weakPassword };
   const { data } = await supabase.auth.getClaims();
   if (!data?.claims) return { error: account.reset.expired };
+  if (!recentEmailProof(data.claims))
+    return { error: account.reset.linkRequired };
   const { error } = await supabase.auth.updateUser({ password: secret.data });
   if (error?.code === "same_password")
     return { error: "Choose a password you haven't used for this account." };

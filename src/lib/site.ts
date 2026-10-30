@@ -550,6 +550,8 @@ export const account = {
     submit: "Save new password",
     expired:
       "This reset link has expired or was already used. Ask for a new one.",
+    linkRequired:
+      "To change your password, we'll email you a secure link first. Open it within an hour, on this device.",
   },
   reasons: {
     signin_required: "Sign in to continue.",
@@ -613,6 +615,7 @@ export const account = {
     noQuotes: "No quotes sent yet.",
     payments: "Payments",
     noPayments: "No payment requests.",
+    paymentArranged: "We'll arrange payment with you directly.",
     moreQuotes: "Only the latest 50 quotes are shown.",
     morePayments: "Only the latest 50 payment requests are shown.",
     notFound: {

@@ -580,8 +580,16 @@ test("a payment link is the owner's alone, and returns through sign-in", async (
 
   const page = await aliceContext.newPage();
   await page.goto(requestPath);
-  const pay = page.getByRole("link", { name: "Pay", exact: true });
-  payPath = (await pay.getAttribute("href"))!;
+  // The account offers no online payment; it says Cosmos will arrange it.
+  await expect(
+    page.getByRole("link", { name: "Pay", exact: true }),
+  ).toHaveCount(0);
+  await expect(page.getByText(account.request.paymentArranged)).toBeVisible();
+  const { body } = await studioAs(aliceContext, page)(
+    "GET",
+    requestPath.replace("/account", ""),
+  );
+  payPath = `/pay/${body.request.payment_requests[0].token}`;
   expect(payPath).toMatch(/^\/pay\/[0-9a-f-]{36}$/);
   await page.goto(payPath);
   await expect(page.locator("body")).toContainText("$");

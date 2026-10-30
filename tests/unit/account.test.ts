@@ -15,6 +15,8 @@ import {
   authConfig,
   cookieOptions,
   hasSessionCookie,
+  PASSWORD_CHANGE_WINDOW_S,
+  recentEmailProof,
 } from "@/lib/account/config";
 import {
   HANDOFF_TTL_MS,
@@ -214,6 +216,33 @@ describe("quote handoff through sign-in", () => {
     const restored = readQuoteHandoff(raw, now);
     expect(restored?.answers.property).toBeUndefined();
     expect(restored?.answers.name).toBe("");
+  });
+});
+
+describe("proof of the inbox", () => {
+  const now = 1_800_000_000;
+  const session = (method: string, age: number) => ({
+    amr: [{ method, timestamp: now - age }],
+  });
+
+  it("needs a recent emailed link", () => {
+    expect(recentEmailProof(session("otp", 0), now)).toBe(true);
+    expect(recentEmailProof(session("recovery", 60), now)).toBe(true);
+    expect(
+      recentEmailProof(session("otp", PASSWORD_CHANGE_WINDOW_S), now),
+    ).toBe(true);
+  });
+
+  it.each([
+    ["a password sign-in", session("password", 0)],
+    ["an old link", session("otp", PASSWORD_CHANGE_WINDOW_S + 1)],
+    ["a future timestamp", session("otp", -60)],
+    ["no method list", {}],
+    ["a malformed list", { amr: "otp" }],
+    ["malformed entries", { amr: [null, "otp", { method: "otp" }] }],
+    ["no claims", null],
+  ])("refuses %s", (_, claims) => {
+    expect(recentEmailProof(claims, now)).toBe(false);
   });
 });
 

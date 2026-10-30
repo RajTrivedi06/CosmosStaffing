@@ -5,6 +5,7 @@ import {
   readRequests,
 } from "@/lib/customer-api";
 import type { RequestDetail } from "@/lib/customer-api-contract";
+import { account as site } from "@/lib/site";
 import { verifiedAccess } from "./server";
 import {
   PAYMENT_REQUEST,
@@ -199,8 +200,8 @@ export async function requestPage(id: string): Promise<RequestPage> {
 }
 
 /**
- * A request's sent quotes and payment requests as list items. Links go to
- * the Studio's own pages, which check ownership and expiry again.
+ * A request's sent quotes and payment requests as list items. Quote links go
+ * to the Studio's own pages, which check ownership and expiry again.
  */
 export function requestItems(request: RequestDetail, now = Date.now()) {
   const quotes: AccountItem[] = request.quotes.map((quote) => {
@@ -228,25 +229,19 @@ export function requestItems(request: RequestDetail, now = Date.now()) {
       action: open ? "Review quote" : "View quote",
     };
   });
-  const payments: AccountItem[] = request.payment_requests.map((payment) => {
-    const due =
-      payment.status === "open" && Date.parse(payment.expires_at) > now;
-    return {
-      id: payment.payment_request_id,
-      title: `${formatCents(payment.amount_cents)} · ${payment.description}`,
-      facts: [
-        PAYMENT_REQUEST[payment.status] ?? "Status not shown",
-        payment.paid_at
-          ? `Paid ${formatWhen(payment.paid_at)}`
-          : due
-            ? `Pay by ${formatWhen(payment.expires_at)}`
-            : payment.status === "open"
-              ? "Link expired"
-              : "",
-      ].filter(Boolean),
-      href: due ? `/pay/${payment.token}` : undefined,
-      action: "Pay",
-    };
-  });
+  // Online payment isn't verified for launch: no real checkout has been
+  // tested, so nothing here opens /pay. Cosmos arranges payment directly.
+  const payments: AccountItem[] = request.payment_requests.map((payment) => ({
+    id: payment.payment_request_id,
+    title: `${formatCents(payment.amount_cents)} · ${payment.description}`,
+    facts: [
+      PAYMENT_REQUEST[payment.status] ?? "Status not shown",
+      payment.paid_at
+        ? `Paid ${formatWhen(payment.paid_at)}`
+        : payment.status === "open"
+          ? site.request.paymentArranged
+          : "",
+    ].filter(Boolean),
+  }));
   return { request, quotes, payments };
 }

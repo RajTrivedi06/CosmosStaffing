@@ -65,6 +65,32 @@ export function authConfig(): AuthConfig | null {
 
 export const accountsEnabled = () => authConfig() !== null;
 
+/** How long after arriving by an emailed link a password can be changed. */
+export const PASSWORD_CHANGE_WINDOW_S = 60 * 60;
+
+/**
+ * Whether verified claims show this session began with an emailed link just
+ * now. That proves access to the inbox, which a password sign-in or a browser
+ * left open doesn't. `amr` is signed by Auth and survives a refresh; the link
+ * types read as `otp` there, and confirmation counts as well as recovery
+ * because each proves the same thing.
+ */
+export function recentEmailProof(
+  claims: { amr?: unknown } | null | undefined,
+  now = Date.now() / 1000,
+) {
+  if (!Array.isArray(claims?.amr)) return false;
+  return claims.amr.some((entry: { method?: unknown; timestamp?: unknown }) => {
+    const { method, timestamp } = entry ?? {};
+    return (
+      (method === "otp" || method === "recovery") &&
+      typeof timestamp === "number" &&
+      timestamp <= now &&
+      now - timestamp <= PASSWORD_CHANGE_WINDOW_S
+    );
+  });
+}
+
 /**
  * Host-only (no Domain), Lax, HttpOnly, and Secure everywhere but a loopback
  * development host, where browsers may refuse Secure cookies over plain HTTP.

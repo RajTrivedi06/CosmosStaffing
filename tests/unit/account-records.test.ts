@@ -22,6 +22,7 @@ import type {
   RequestDetail,
   RequestSummary,
 } from "@/lib/customer-api-contract";
+import { account as accountCopy } from "@/lib/site";
 import { homeQuote } from "./fixtures";
 
 /** Nothing a client entered: these must never outlive their session. */
@@ -520,7 +521,7 @@ describe("quotes and payments on a request", () => {
     ).toBeNull();
   });
 
-  it("links to the Studio's own pages, payment only while due", () => {
+  it("links quotes to the Studio's pages, and offers no online payment", () => {
     const open = quote();
     const { quotes, payments } = requestItems(
       detail({
@@ -553,8 +554,11 @@ describe("quotes and payments on a request", () => {
     expect(quotes[0].href).toBe(`/q/${open.token}`);
     expect(quotes[1].href).toBeUndefined();
     expect(quotes[1].facts).toContain("Replaced by a newer quote");
-    expect(payments[0].href).toBe("/pay/00000000-0000-4000-8000-0000000000c1");
+    expect(payments[0].href).toBeUndefined();
+    expect(payments[0].action).toBeUndefined();
+    expect(payments[0].facts).toContain(accountCopy.request.paymentArranged);
     expect(payments[1].href).toBeUndefined();
     expect(payments[1].facts[0]).toBe("Paid");
+    expect(JSON.stringify(payments)).not.toContain("/pay/");
   });
 });

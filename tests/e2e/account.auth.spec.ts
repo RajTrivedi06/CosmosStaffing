@@ -394,6 +394,32 @@ test("a forgotten password is reset by email link", async ({ page }) => {
   await expect(page).toHaveURL(/\/account$/);
 });
 
+test("a signed-in client needs an emailed link to change their password", async ({
+  page,
+}) => {
+  const email = await confirmedAccount(page, "change");
+  await signOut(page);
+  await signIn(page, email);
+  await expect(page).toHaveURL(/\/account$/);
+
+  // Signed in with a password: no form, and a clear way to get a link.
+  await page.goto("/account/reset");
+  await expect(page.getByText(account.reset.linkRequired)).toBeVisible();
+  await expect(page.getByLabel("New password")).toHaveCount(0);
+  await page.getByRole("link", { name: account.forgot.submit }).click();
+  await expect(page).toHaveURL(/\/account\/forgot$/);
+
+  const before = await mailCount(page, email);
+  await page.getByLabel("Email").fill(email);
+  await page.getByRole("button", { name: account.forgot.submit }).click();
+  await expect(page.getByText(account.forgot.sent)).toBeVisible();
+  await page.goto(await emailLink(page, email, before));
+  await expect(page).toHaveURL(/\/account\/reset$/);
+  await page.getByLabel("New password").fill(`${PASSWORD}-new`);
+  await page.getByRole("button", { name: account.reset.submit }).click();
+  await expect(page.getByText(account.reasons.password_updated)).toBeVisible();
+});
+
 test("a password reset ends the client's other sessions at Auth", async ({
   page,
   browser,
