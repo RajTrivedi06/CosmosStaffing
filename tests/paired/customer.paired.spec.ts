@@ -1016,6 +1016,97 @@ test("a wrong server credential is an operational failure at the Studio", async 
   await page.close();
 });
 
+test("through the website, a wrong server credential reads as temporary and loses nothing", async ({
+  browser,
+  baseURL,
+  contextOptions,
+}) => {
+  test.setTimeout(300_000);
+  restartWebsite();
+  const name = `Alice Credential ${stamp}`;
+  const { context, page } = await signedIn(browser, baseURL!, contextOptions);
+  const details = page.getByRole("link", { name: "Details" });
+  await expect(details.first()).toBeVisible();
+  const before = await details.count();
+  const sessionId = async () => {
+    const { access_token } = (await readSession(context)) as unknown as {
+      access_token: string;
+    };
+    return JSON.parse(
+      Buffer.from(access_token.split(".")[1], "base64url").toString(),
+    ).session_id as string;
+  };
+  const session = await sessionId();
+  await page.goto(choicesLink);
+  await finishQuestions(page, { name, email: alice.email });
+
+  // This site's process now presents a credential the Studio refuses. The
+  // launcher generates it, in that process only.
+  restartWebsite("invalid");
+  await expect(
+    page.getByRole("button", { name: "Send my request" }),
+  ).toBeVisible({ timeout: 30_000 });
+
+  const sent = page.waitForRequest("**/api/quote");
+  const refused = page.waitForResponse("**/api/quote");
+  await page.getByRole("button", { name: "Send my request" }).click();
+  const reply = await refused;
+  expect(reply.status()).toBe(503);
+  // Nothing about the credential reaches the browser.
+  expect(await reply.json()).toEqual({ ok: false, code: "unavailable" });
+  const id: string = (await sent).postDataJSON().submission_id;
+  await expect(
+    page.getByText(account.quote.temporarilyUnavailable),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("heading", { name: account.quote.sessionEndedTitle }),
+  ).toHaveCount(0);
+  expect(new URL(page.url()).pathname).toBe("/quote");
+
+  // The session and the attempt, with its answers, are untouched.
+  expect(await sessionId()).toBe(session);
+  const stored = await storedText(page);
+  expect(stored).toContain(id);
+  expect(stored).toContain(name);
+
+  // Account pages say unavailable, never "sign in again".
+  await page.goto("/account");
+  await expect(page).toHaveURL(/\/account$/);
+  await expect(page.getByText(account.home.unavailable.title)).toBeVisible();
+  await expect(page.getByText(account.home.rejected.title)).toHaveCount(0);
+  await page.goto("/account/login?next=%2Fquote");
+  await expect(page).toHaveURL(/\/quote/);
+  await expect(page.getByLabel("Password", { exact: true })).toHaveCount(0);
+
+  // Trying again while it's down changes nothing.
+  const again = page.waitForResponse("**/api/quote");
+  await page.getByRole("button", { name: "Try again" }).click();
+  expect((await again).status()).toBe(503);
+  await expect(
+    page.getByText(account.quote.temporarilyUnavailable),
+  ).toBeVisible();
+
+  // Correct configuration back: the same session reads its records, and the
+  // same attempt goes through once.
+  restartWebsite("correct");
+  await page.goto("/account");
+  await expect(details).toHaveCount(before);
+  expect(await sessionId()).toBe(session);
+  await page.goto("/quote");
+  const resend = page.waitForRequest("**/api/quote");
+  const accepted = page.waitForResponse("**/api/quote");
+  await page.getByRole("button", { name: "Try again" }).click();
+  expect((await accepted).status()).toBe(202);
+  expect((await resend).postDataJSON().submission_id).toBe(id);
+  await expect(
+    page.getByRole("heading", { name: "Thank you. Your request is in." }),
+  ).toBeVisible();
+  expect(await storedText(page)).not.toContain(id);
+  await page.goto("/account");
+  await expect(details).toHaveCount(before + 1);
+  await context.close();
+});
+
 test("password recovery works through this site's callback, and ends other sessions", async ({
   browser,
   baseURL,
