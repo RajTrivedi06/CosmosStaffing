@@ -15,7 +15,7 @@ for (const path of PAGES)
 test("the contact page and footer give real ways to reach us", async ({
   page,
 }) => {
-  const { phones, email, hours } = siteConfig.contact;
+  const { phones, email } = siteConfig.contact;
   await page.goto("/contact");
   const main = page.locator("main");
   const footer = page.locator("footer");
@@ -29,7 +29,7 @@ test("the contact page and footer give real ways to reach us", async ({
       `mailto:${email}`,
     );
   }
-  await expect(main.getByText(hours)).toBeVisible();
+  await expect(main.getByText("Hours", { exact: true })).toHaveCount(0);
   await expect(main.getByText("[PLACEHOLDER")).toHaveCount(0);
   await expect(footer.getByText("[PLACEHOLDER")).toHaveCount(0);
 });

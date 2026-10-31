@@ -3,9 +3,10 @@
 import { account } from "@/lib/site";
 
 /**
- * When a form's request never reaches this site's code, as when the edge's
- * rate limit answers 429, a Server Action has no result to show and lands here.
- * Nothing is resent by itself: the client chooses when to try again.
+ * When a form gets no usable answer, as when the edge's rate limit replies or
+ * the connection drops, a Server Action has no result to show and lands here.
+ * That doesn't say whether the request took effect, so neither does this page,
+ * and nothing is resent by itself: the client chooses what to do next.
  */
 export default function AccountError({ retry }: { retry: () => void }) {
   const { title, body, action } = account.errors.interrupted;

@@ -394,41 +394,49 @@ test("a forgotten password is reset by email link", async ({ page }) => {
   await expect(page).toHaveURL(/\/account$/);
 });
 
-test("a form the edge blocks explains itself and resends nothing", async ({
-  page,
-}) => {
-  const email = await confirmedAccount(page, "limited");
-  await signOut(page);
-  await page.goto("/account/login");
-  const posts: string[] = [];
-  await page.route("**/account/login*", (route) => {
-    if (route.request().method() !== "POST") return route.continue();
-    posts.push(route.request().url());
-    return route.fulfill({
-      status: 429,
-      contentType: "text/plain",
-      body: "Too Many Requests",
+for (const [reason, status, body] of [
+  ["the edge's rate limit", 429, "Too Many Requests"],
+  ["a server failure", 500, "Internal Server Error"],
+] as const)
+  test(`after ${reason}, a form claims no outcome and resends nothing`, async ({
+    page,
+  }) => {
+    const email = await confirmedAccount(page, "limited");
+    await signOut(page);
+    await page.goto("/account/login?next=%2Fquote");
+    const posts: string[] = [];
+    await page.route("**/account/login*", (route) => {
+      if (route.request().method() !== "POST") return route.continue();
+      posts.push(route.request().url());
+      return route.fulfill({ status, contentType: "text/plain", body });
     });
-  });
-  await page.getByLabel("Email").fill(email);
-  await page.getByLabel("Password", { exact: true }).fill(PASSWORD);
-  await page
-    .getByRole("button", { name: account.signIn.submit, exact: true })
-    .click();
-  await expect(
-    page.getByRole("heading", { name: account.errors.interrupted.title }),
-  ).toBeVisible();
-  await page.waitForTimeout(1_000);
-  expect(posts).toHaveLength(1);
+    await page.getByLabel("Email").fill(email);
+    await page.getByLabel("Password", { exact: true }).fill(PASSWORD);
+    await page
+      .getByRole("button", { name: account.signIn.submit, exact: true })
+      .click();
+    await expect(
+      page.getByRole("heading", { name: account.errors.interrupted.title }),
+    ).toBeVisible();
+    // The request may have taken effect, so nothing says it failed or why.
+    await expect(page.locator("main")).not.toContainText(
+      /didn't go through|too many|failed/i,
+    );
+    await page.waitForTimeout(1_000);
+    expect(posts).toHaveLength(1);
 
-  // Trying again is the client's choice, and works once the limit has passed.
-  await page.unroute("**/account/login*");
-  await page
-    .getByRole("button", { name: account.errors.interrupted.action })
-    .click();
-  await signIn(page, email);
-  await expect(page).toHaveURL(/\/account$/);
-});
+    // Going back is the client's choice, and sends nothing by itself.
+    await page.unroute("**/account/login*");
+    await page
+      .getByRole("button", { name: account.errors.interrupted.action })
+      .click();
+    await expect(page.getByLabel("Email")).toBeVisible();
+    await page.waitForTimeout(500);
+    expect(posts).toHaveLength(1);
+    await expect(page).toHaveURL(/next=%2Fquote/);
+    await signIn(page, email);
+    await expect(page).toHaveURL(/\/quote(\?|$)/);
+  });
 
 test("a signed-in client needs an emailed link to change their password", async ({
   page,

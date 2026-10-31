@@ -50,7 +50,6 @@ export const siteConfig = {
       { label: "608-590-9550", href: "tel:+16085909550" },
     ],
     email: "info@cosmosservicesllc.com",
-    hours: "Monday to Saturday, 9am to 6pm Central",
   },
 
   footer: {
@@ -644,7 +643,7 @@ export const account = {
     unverified:
       "Confirm your email address before sending. Check your inbox for the confirmation link; your answers are saved.",
     followInAccount:
-      "You can follow it in your account. Our team arranges scheduling and payment with you directly, and calls before and after each job.",
+      "You can follow it in your account. Our team arranges scheduling and payment with you directly.",
   },
   errors: {
     credentials: "That email and password don't match an account.",
@@ -658,9 +657,9 @@ export const account = {
       "Sign-in isn't available right now. Please try again in a moment.",
     off: "Client accounts aren't open yet. You can still contact us directly.",
     interrupted: {
-      title: "Please wait a moment",
-      body: "That didn't go through. There may have been too many attempts from your connection. Wait a minute, then try again.",
-      action: "Try again",
+      title: "We couldn't confirm the result",
+      body: "Please wait a moment, then return to the form. If you asked for an email, check your inbox first.",
+      action: "Return to the form",
     },
   },
 } as const;

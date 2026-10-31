@@ -12,7 +12,7 @@ export const metadata: Metadata = pageMetadata({
 
 export default function ContactPage() {
   const { actions } = contactPage;
-  const { phones, email, hours } = siteConfig.contact;
+  const { phones, email } = siteConfig.contact;
   return (
     <main id="main" className="page">
       <header className="page-hero pad">
@@ -36,10 +36,6 @@ export default function ContactPage() {
             <dd>
               <a href={`mailto:${email}`}>{email}</a>
             </dd>
-          </div>
-          <div>
-            <dt>Hours</dt>
-            <dd>{hours}</dd>
           </div>
         </dl>
         <p className="lede">{coverage.summary}</p>
