@@ -24,7 +24,7 @@ export const SERVICE_OPTIONS = [
   {
     value: "office",
     label: "Office or workplace",
-    hint: "Before or after hours",
+    hint: "Offices, studios and retail spaces",
   },
   { value: "other", label: "Something else", hint: "Tell us what you need" },
 ] as const satisfies readonly Option[];

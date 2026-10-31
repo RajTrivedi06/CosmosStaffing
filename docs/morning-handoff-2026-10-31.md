@@ -53,19 +53,17 @@ tests do catch the bugs.
 
 ## What I need from you
 
-1. **Phone number.** You confirmed 737-399-3919 last night, then asked me to treat
-   it as unresolved, so none is published. Tell me which numbers to publish, and
-   whether 608-590-9550 is one of them.
-2. **Terms of Service: this blocks quote acceptance.** Customers must tick "agree
+Updated October 31. Contact is decided: email only, with no phone numbers or hours.
+
+1. **Terms of Service: this blocks quote acceptance.** Customers must tick "agree
    to the Terms of Service" to accept a quote, and that page says "final text
    coming soon". You'd need to supply terms, or approve a different step.
+2. **The two remaining claims to confirm** are in `docs/launch-cutover.md`: service
+   scope, and the cleaner-page statements.
 3. **Policies, if you want them on the site.** Each is off the site until
    confirmed: insurance, re-cleans, cancellation, assigned cleaners, supplies,
    cleaner pay and payout, and notes after visits.
-4. **A quick accuracy check** of what's left in `docs/launch-cutover.md`: what
-   each service typically includes, walkthroughs for larger jobs, coverage outside
-   Texas, and the cleaner payment methods.
-5. **Hosted decisions:** Vercel access, an isolated Preview and its cost, the SMTP
+4. **Hosted decisions:** Vercel access, an isolated Preview and its cost, the SMTP
    sender and test recipients, the rate-limit budget, a maintenance window, a DNS
    operator, and who handles support verification and lookups.
 

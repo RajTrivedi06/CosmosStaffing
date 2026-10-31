@@ -4,7 +4,7 @@ import { siteConfig } from "../../src/lib/site";
 /** What the launch version must say, and must no longer say. */
 const PAGES = ["/", "/services", "/contact", "/clean-with-cosmos"];
 const REMOVED =
-  /background.check|\brating\b|testimonial|real review|review count|business day|how long a review|no account|account to create|\[PLACEHOLDER|insur|come back free|same small team|same team|same people|your team every|runs itself|one invoice|one contact|one point of contact|do you bring supplies|re-clean|put it right|pause or cancel|fairly paid|pay rates|payout|still to confirm|full terms|written standard|every visit|notes kept|restocked|never left to memory/i;
+  /background.check|\brating\b|testimonial|real review|review count|business day|how long a review|no account|account to create|\[PLACEHOLDER|insur|come back free|same small team|same team|same people|your team every|runs itself|one invoice|one contact|one point of contact|do you bring supplies|re-clean|put it right|pause or cancel|fairly paid|pay rates|payout|still to confirm|full terms|written standard|every visit|notes kept|restocked|never left to memory|spotless|walkthrough|before or after hours|working hours|first meeting|often, yes|zelle|cash app|venmo/i;
 
 for (const path of PAGES)
   test(`${path} makes no unverified claims`, async ({ page }) => {

@@ -52,17 +52,20 @@ To publish any of it, confirm the policy, then add the wording.
 | Other promises     | "One contact, one invoice", one point of contact, a note after each visit, "trained, fairly paid", "1 of 8 rooms", the written standard and per-room checklists, "Notes kept for every home", "We ask before moving anything precious", and restocked restrooms |
 | Trust claims       | "Trusted", and "Many clients share a key or door code"                                                                                                                                                                                                          |
 
-**Still on the site. Please check these are accurate:**
+**The only public claims that still need Raj's confirmation:**
 
-- What each service typically includes, and the example kitchen list. The
-  Services page heads these "Typically includes", and quotes set the real scope.
-- Larger or unusual jobs may get a walkthrough first.
-- Coordinating cleaning providers elsewhere in Texas and across the US.
-- Cleaner payment methods: the questionnaire offers Zelle, Cash App, Venmo or
-  check, from the Studio's onboarding document.
+1. What each service typically includes, the example kitchen list, and the weekly,
+   two-weekly and monthly options. These describe the actual service, so they
+   can't simply be omitted.
+2. On Clean with Cosmos: "independent cleaner, not an employee", and the onboarding
+   steps, including the Cleaner Agreement and the texted code. Hosted SMS was
+   disabled at the last read, so the cleaner sign-in text depends on that decision.
 
-**Unresolved contact detail:** the public phone number. None is published until
-it's confirmed; the Contact page and footer list the monitored email only.
+Austin, Houston, San Antonio, Dallas and coordination elsewhere in the US come from
+the project brief, and are treated as confirmed.
+
+**Contact, decided by Raj:** email only, `info@cosmosservicesllc.com`, with no phone
+numbers or hours. Cosmos handles support, scheduling and payment follow-up manually.
 
 **Blocks the release steps, from the canonical plan:**
 

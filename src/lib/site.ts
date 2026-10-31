@@ -117,7 +117,7 @@ export const faq = [
   },
   {
     q: "Do you work outside Austin, Houston, San Antonio and Dallas?",
-    a: "Often, yes. Those are our main markets, and we coordinate providers elsewhere in Texas and across the US. Send a quote request with your ZIP code and we will confirm availability.",
+    a: "Those are our main markets. Send a request with your ZIP code, and our team will confirm availability.",
   },
   {
     q: "What if something isn't right?",
@@ -138,7 +138,7 @@ export const services = [
     title: "Home cleaning",
     short: "Regular care, weekly, every two weeks or monthly.",
     image: "kitchen",
-    alt: "A mother and daughter laughing in a bright, spotless kitchen.",
+    alt: "A mother and daughter laughing in a bright kitchen.",
     detail:
       "Regular care for the rooms you live in. Tell us what matters most, and your quote sets out the scope.",
     includes: [
@@ -169,7 +169,7 @@ export const services = [
   {
     id: "move",
     title: "Move-in and move-out",
-    short: "Cleans that hand the keys over spotless.",
+    short: "For empty or nearly empty homes when you move.",
     image: "move",
     alt: "A couple carrying a large plant into a bright, empty apartment.",
     detail:
@@ -185,11 +185,11 @@ export const services = [
   {
     id: "office",
     title: "Workplaces",
-    short: "Before or after hours, so the workday never stops for us.",
+    short: "Offices, studios and retail spaces.",
     image: "office",
     alt: "A bright, tidy studio office with people at work.",
     detail:
-      "Offices, studios and retail spaces cleaned outside working hours. Our team coordinates scheduling with you.",
+      "For offices, studios and retail spaces. Our team coordinates scheduling with you.",
     includes: [
       "Desks, shared surfaces and touch points",
       "Kitchens and break rooms",
@@ -242,7 +242,7 @@ export const home = {
 
   workplaces: {
     title: "The office keeps moving. The floor stays calm.",
-    body: "We clean before the first meeting or after the last one.",
+    body: "Our team coordinates scheduling with you.",
     cta: "Get a workplace quote",
     href: "/quote?service=office",
     alt: "People with coffee walking through a bright office atrium, softly blurred, over a still, gleaming terrazzo floor.",
@@ -303,15 +303,15 @@ export const servicesPage = {
     steps: [
       {
         title: "We assess what you need",
-        body: "Your quote answers tell us the size, condition, timing and anything special about the space. If something is unclear we ask, and for larger or unusual jobs we may suggest a walkthrough first.",
+        body: "Your quote answers tell us the size, condition, timing and anything special about the space. If something is unclear we ask.",
       },
       {
         title: "We coordinate the right team",
-        body: "We match your job with a cleaning team suited to the space, the schedule and your location, and confirm availability before anything is booked.",
+        body: "We arrange the cleaning and confirm availability before anything is booked.",
       },
       {
         title: "We manage the work",
-        body: "Our team coordinates scheduling with you. Your quote sets out the scope, and your access notes stay with the job.",
+        body: "Our team coordinates scheduling with you, and your quote sets out the scope.",
       },
       {
         title: "After the visit",
@@ -374,7 +374,7 @@ export const cleaners = {
     },
     {
       title: "Payment method",
-      body: "The questionnaire asks which you'd prefer: Zelle, Cash App, Venmo or check. It never asks for account numbers. A business name and EIN are optional.",
+      body: "The questionnaire asks how you'd prefer to be paid. It never asks for account numbers. A business name and EIN are optional.",
     },
     {
       title: "After your questionnaire",
