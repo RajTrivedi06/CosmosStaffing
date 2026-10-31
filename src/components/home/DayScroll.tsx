@@ -5,12 +5,15 @@ import { gsap } from "gsap";
 import { ScrollTrigger } from "gsap/ScrollTrigger";
 import { useReducedMotionSafe } from "@/components/motion/useReducedMotionSafe";
 import { prefersReducedMotion } from "@/lib/motion";
-import {
-  isGliding,
-  registerScrollTarget,
-  scrollToHash,
-  scrollToY,
-} from "@/lib/scroll";
+import { registerScrollTarget, scrollToHash, scrollToY } from "@/lib/scroll";
+
+/** The stacked hero layout (phones, portrait), as in globals.css. */
+const STACKED =
+  "(max-width: 900px) and (max-aspect-ratio: 1/1), (max-aspect-ratio: 3/4)";
+/** How far down the tall hero photo the people sit (0 to 1). */
+const HERO_SUBJECT = 0.74;
+/** Where the evening photos centre on portrait screens (0 to 1 across). */
+const EVE_PAN = { door: 0.76, sofa: 0.27 };
 
 const toMinutes = (t: string) => {
   const [h, m] = t.split(":").map(Number);
@@ -33,7 +36,13 @@ const formatClock = (minutes: number) => {
  * - the checklist ticks draw in
  * - the evening room crossfades from late sun to lamplight
  * - the phone booking bar shows between the hero and pricing, and again
- *   from the evening to the close
+ *   from the evening to the close, but never over the services, which have
+ *   their own quote button
+ *
+ * Scroll-linked scenes follow the scroll position exactly (`scrub: true`,
+ * linear eases): Lenis already smooths the wheel, and a second layer of
+ * catch-up made small scrolls feel late. Every scene keeps moving until it
+ * leaves the screen, so there are no pinned pauses where nothing happens.
  *
  * Under reduced motion none of the scenes are built. With the CSS keyed to
  * `html[data-motion]` (see lib/motion.ts), every scene shows its finished,
@@ -74,7 +83,8 @@ export function DayScroll({ children }: { children: React.ReactNode }) {
     };
     const measure = () => {
       const stage = media?.parentElement;
-      if (!stage || !slot) return;
+      // Still scenes take their frame from CSS.
+      if (reduced || !stage || !slot) return;
       const s = stage.getBoundingClientRect();
       const r = slot.getBoundingClientRect();
       box = {
@@ -84,6 +94,27 @@ export function DayScroll({ children }: { children: React.ReactNode }) {
         l: r.left - s.left,
       };
       setClip();
+      alignSay();
+    };
+    /** The two scroll lines take the headline's exact place and type, so
+        all three hero texts sit in one spot on every screen. Offsets, not
+        bounding boxes, so the copy's own scroll movement never shifts it. */
+    const alignSay = () => {
+      const copy = root.querySelector<HTMLElement>("#hero-copy");
+      const h1 = copy?.querySelector("h1");
+      if (!copy || !h1) return;
+      const type = getComputedStyle(h1);
+      for (const say of root.querySelectorAll<HTMLElement>(".say")) {
+        Object.assign(say.style, {
+          left: `${copy.offsetLeft + h1.offsetLeft}px`,
+          top: `${copy.offsetTop + h1.offsetTop}px`,
+          width: `${Math.max(h1.offsetWidth, copy.offsetWidth)}px`,
+          fontSize: type.fontSize,
+          lineHeight: type.lineHeight,
+          letterSpacing: type.letterSpacing,
+          fontWeight: type.fontWeight,
+        });
+      }
     };
     measure();
     ScrollTrigger.addEventListener("refreshInit", measure);
@@ -111,7 +142,6 @@ export function DayScroll({ children }: { children: React.ReactNode }) {
     };
     measureBand();
     ScrollTrigger.addEventListener("refreshInit", measureBand);
-    let bandRest: ReturnType<typeof setTimeout> | undefined;
 
     /** Faded copy stops taking clicks, so hidden buttons can't be hit. */
     const syncHits = (...els: (HTMLElement | null)[]) => {
@@ -165,25 +195,42 @@ export function DayScroll({ children }: { children: React.ReactNode }) {
         });
       });
 
-      /* Phone booking bar: after the hero, hidden over pricing and the close. */
-      const showBar = (on: boolean) => bar?.classList.toggle("show", on);
-      ScrollTrigger.create({
+      /* Phone booking bar: after the hero, hidden over pricing and the close,
+         and over the services, whose own quote button carries the choice. */
+      const barState = { day: false, evening: false, services: false };
+      const syncBar = () =>
+        bar?.classList.toggle(
+          "show",
+          (barState.day || barState.evening) && !barState.services,
+        );
+      const barZone = (key: keyof typeof barState, vars: ScrollTrigger.Vars) =>
+        ScrollTrigger.create({
+          ...vars,
+          onToggle: (self) => {
+            barState[key] = self.isActive;
+            syncBar();
+          },
+        });
+      barZone("day", {
         trigger: "#how",
         start: "top 80%",
         endTrigger: "#pricing",
         end: "top 90%",
-        onToggle: (self) => showBar(self.isActive),
       });
-      ScrollTrigger.create({
+      barZone("evening", {
         trigger: ".evening",
         start: "top 80%",
         endTrigger: ".close-cta",
         end: "top 90%",
-        onToggle: (self) => showBar(self.isActive),
+      });
+      barZone("services", {
+        trigger: "#services",
+        start: "top 75%",
+        end: "bottom 25%",
       });
 
       if (reduced) return;
-      const scrub = 1;
+      const scrub = true;
 
       /* 07:00 hero: the frame opens to the whole screen, then pushes in. */
       gsap.from("#hero-copy > *", {
@@ -201,35 +248,61 @@ export function DayScroll({ children }: { children: React.ReactNode }) {
         delay: 0.35,
       });
       const heroCopy = root.querySelector<HTMLElement>("#hero-copy");
+      /** On phones the frame sits low under the copy, so the photo starts
+          low too, with the people inside the frame, and rises into place as
+          the frame opens. Never further than the frame's top edge, so no gap
+          above the photo ever shows. */
+      const heroStartY = () => {
+        const img = media?.querySelector("img");
+        const stage = media?.parentElement;
+        if (!img || !stage || !slot || !window.matchMedia(STACKED).matches) {
+          return 0;
+        }
+        const top =
+          slot.getBoundingClientRect().top - stage.getBoundingClientRect().top;
+        const centre = top + slot.offsetHeight / 2;
+        return gsap.utils.clamp(
+          0,
+          top,
+          centre - HERO_SUBJECT * img.offsetHeight,
+        );
+      };
+      // Timeline units: the frame opens over the first unit while the photo
+      // starts to push in, and the push carries on until the scene leaves,
+      // so the camera never stops between the two moves. The push clears the
+      // edge of the room from behind the lines as they arrive.
       gsap
         .timeline({
-          defaults: { ease: "power2.inOut" },
+          defaults: { ease: "none" },
           scrollTrigger: {
             trigger: ".hero",
             start: "top top",
             end: "bottom bottom",
             scrub,
+            invalidateOnRefresh: true,
           },
           onUpdate: () => syncHits(heroCopy),
         })
-        .to("#hero-copy", { opacity: 0, y: -40, duration: 0.6 }, 0)
-        .to(open, { p: 1, duration: 1.2, onUpdate: setClip }, 0.1)
-        .to("#hero-scrim", { opacity: 1, duration: 0.6 }, 0.8)
+        .to("#hero-copy", { opacity: 0, y: -40, duration: 0.35 }, 0)
+        .to(open, { p: 1, duration: 1, onUpdate: setClip }, 0)
+        .fromTo("#hero-media img", { y: heroStartY }, { y: 0, duration: 1 }, 0)
+        .to("#hero-scrim", { opacity: 1, duration: 0.3 }, 0.7)
+        // The lines share a spot on the wall, so each is fully gone before
+        // the next starts: one line on screen at a time, never stacked.
         .fromTo(
           "#say-1",
           { opacity: 0, y: 30 },
-          { opacity: 1, y: 0, duration: 0.5 },
-          1.0,
+          { opacity: 1, y: 0, duration: 0.2 },
+          0.85,
         )
-        .to("#hero-media img", { scale: 1.3, duration: 1.8 }, 1.3)
-        .to("#say-1", { opacity: 0, y: -30, duration: 0.45 }, 1.8)
+        .to("#hero-media img", { scale: 1.15, duration: 1.4 }, 0.6)
+        .to("#say-1", { opacity: 0, y: -30, duration: 0.15 }, 1.35)
         .fromTo(
           "#say-2",
           { opacity: 0, y: 30 },
-          { opacity: 1, y: 0, duration: 0.5 },
-          2.15,
-        )
-        .to({}, { duration: 0.5 });
+          { opacity: 1, y: 0, duration: 0.2 },
+          1.6,
+        );
       revealOnFocus(heroCopy, () => 0);
 
       /* Framed photos open as they arrive. */
@@ -244,7 +317,7 @@ export function DayScroll({ children }: { children: React.ReactNode }) {
               trigger: frame,
               start: "top 95%",
               end: "top 40%",
-              scrub: 0.8,
+              scrub,
             },
           },
         );
@@ -258,64 +331,40 @@ export function DayScroll({ children }: { children: React.ReactNode }) {
               trigger: frame,
               start: "top 95%",
               end: "bottom 20%",
-              scrub: 0.8,
+              scrub,
             },
           },
         );
       });
 
-      /* 13:00 workplaces: the frame opens to full screen. If scrolling comes
-         to rest while the frame is still opening on the way down, the page
-         glides on to the finished scene so it never sits half-open. Passing
-         straight through (a link, the End key, find in page) never triggers
-         it, and any wheel or touch input takes over mid-glide. */
-      const settleBand = (direction: number) => {
-        clearTimeout(bandRest);
-        if (direction !== 1) return;
-        bandRest = setTimeout(() => {
-          const st = bandTl.scrollTrigger;
-          if (!st || isGliding()) return;
-          const done = 1.3 / bandTl.duration();
-          if (st.progress > 0.01 && st.progress < done - 0.02) {
-            scrollToY(bandFinished());
-          }
-        }, 160);
-      };
+      /* 13:00 workplaces: the frame opens to full screen as you scroll, and
+         the photo keeps settling until the scene leaves, so it never stalls
+         half-open or sits still while pinned. */
       const bandCopy = root.querySelector<HTMLElement>("#band-copy");
       const bandTl = gsap
         .timeline({
+          defaults: { ease: "none" },
           scrollTrigger: {
             trigger: ".band",
             start: "top top",
             end: "bottom bottom",
             scrub,
-            onUpdate: (self) => settleBand(self.direction),
           },
           onUpdate: () => syncHits(bandCopy),
         })
-        .to(
-          bandOpen,
-          {
-            p: 1,
-            duration: 1,
-            ease: "power2.inOut",
-            onUpdate: setBandClip,
-          },
-          0,
-        )
-        .to("#band-media img", { scale: 1, duration: 1.2, ease: "none" }, 0)
+        .to(bandOpen, { p: 1, duration: 1, onUpdate: setBandClip }, 0)
+        .to("#band-media img", { scale: 1, duration: 1.25 }, 0)
         .fromTo(
           "#band-copy",
           { opacity: 0, y: 40 },
-          { opacity: 1, y: 0, duration: 0.5, ease: "power2.out" },
-          0.75,
-        )
-        .to({}, { duration: 0.4 });
+          { opacity: 1, y: 0, duration: 0.35 },
+          0.6,
+        );
       // Scroll position where the frame is open and the copy fully in.
       const bandFinished = () => {
         const st = bandTl.scrollTrigger;
         if (!st) return 0;
-        return st.start + (st.end - st.start) * (1.3 / bandTl.duration());
+        return st.start + (st.end - st.start) * (1 / bandTl.duration());
       };
       cleanups.push(registerScrollTarget("workplaces", bandFinished));
       revealOnFocus(bandCopy, bandFinished);
@@ -335,40 +384,50 @@ export function DayScroll({ children }: { children: React.ReactNode }) {
       );
 
       /* 18:30 the room turns to evening. The words arrive as the light
-         turns, so the scene is never a photo without them for long. */
+         turns, so the scene is never a photo without them for long. On
+         portrait screens the full-width photo also pans, from the family
+         arriving at the door to the sofa; both photos share one camera, so
+         the room stays put while the light and the people change. */
       const eveCopy = root.querySelector<HTMLElement>("#eve-copy");
+      const evePhoto = root.querySelector<HTMLElement>(".evening .stage img");
+      /** x that centres a point of the photo (0 to 1 across), kept covering. */
+      const panX = (at: number) => () => {
+        const stage = evePhoto?.closest<HTMLElement>(".stage");
+        if (!evePhoto || !stage) return 0;
+        const width = evePhoto.offsetWidth;
+        const view = stage.clientWidth;
+        if (width <= view + 1) return 0;
+        return gsap.utils.clamp(view - width, 0, view / 2 - at * width);
+      };
       const eveTl = gsap
         .timeline({
+          defaults: { ease: "none" },
           scrollTrigger: {
             trigger: ".evening",
             start: "top top",
             end: "bottom bottom",
             scrub,
+            invalidateOnRefresh: true,
           },
           onUpdate: () => syncHits(eveCopy),
         })
         .fromTo(
           ".evening .stage img",
-          { scale: 1.08 },
-          { scale: 1, duration: 1.4, ease: "none" },
+          { scale: 1.08, x: panX(EVE_PAN.door) },
+          { scale: 1, x: panX(EVE_PAN.sofa), duration: 1.2 },
           0,
         )
-        .to(
-          "#eve-late",
-          { opacity: 1, duration: 0.9, ease: "power1.inOut" },
-          0.2,
-        )
+        .to("#eve-late", { opacity: 1, duration: 0.8 }, 0)
         .fromTo(
           "#eve-copy",
           { opacity: 0, y: 40 },
-          { opacity: 1, y: 0, duration: 0.5, ease: "power2.out" },
-          0.45,
-        )
-        .to({}, { duration: 0.3 });
+          { opacity: 1, y: 0, duration: 0.35 },
+          0.4,
+        );
       const eveFinished = () => {
         const st = eveTl.scrollTrigger;
         if (!st) return 0;
-        return st.start + (st.end - st.start) * (0.95 / eveTl.duration());
+        return st.start + (st.end - st.start) * (0.8 / eveTl.duration());
       };
       revealOnFocus(eveCopy, eveFinished);
       syncHits(heroCopy, eveCopy);
@@ -396,7 +455,6 @@ export function DayScroll({ children }: { children: React.ReactNode }) {
 
     return () => {
       cancelAnimationFrame(landing);
-      clearTimeout(bandRest);
       clearTimeout(refreshTimer);
       resizes.disconnect();
       cleanups.forEach((fn) => fn());
@@ -406,6 +464,9 @@ export function DayScroll({ children }: { children: React.ReactNode }) {
       ctx.revert();
       bar?.classList.remove("show");
       if (media) media.style.clipPath = "";
+      root
+        .querySelectorAll<HTMLElement>(".say")
+        .forEach((say) => say.removeAttribute("style"));
     };
   }, [reducedPref]);
 

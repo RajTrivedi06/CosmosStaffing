@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { home, images, services } from "@/lib/site";
 import { Frame } from "./Frame";
+import { ServicePicker } from "./ServicePicker";
 
 /** 11:00. Each card is a different space and starts its own quote. */
 export function Services() {
@@ -34,6 +35,7 @@ export function Services() {
           </Link>
         ))}
       </div>
+      <ServicePicker />
       <Link className="btn btn-quiet more-link" href="/services">
         {home.services.more}
       </Link>

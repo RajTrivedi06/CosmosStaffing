@@ -6,7 +6,7 @@ export const shareImage = {
   url: "/og.jpg",
   width: 1200,
   height: 630,
-  alt: "A couple laughing over coffee at a long oak table in a sunlit room, their dog asleep at their feet.",
+  alt: "Colleagues working together at a walnut table in a bright, warm office.",
 };
 
 /**

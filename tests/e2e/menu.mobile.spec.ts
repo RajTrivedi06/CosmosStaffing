@@ -78,3 +78,17 @@ test("the booking bar never covers a scene's button", async ({ page }) => {
   const box = (await button.boundingBox())!;
   expect(box.y + box.height).toBeLessThanOrEqual(barTop);
 });
+
+test("the booking bar steps aside for the services' own quote button", async ({
+  page,
+}) => {
+  await page.goto("/#services");
+  await settledScroll(page);
+  const bar = page.locator("#book-bar");
+  await expect(page.locator(".service-picker")).toBeInViewport();
+  await expect(bar).not.toHaveClass(/show/);
+  // Back after the services, on the way to the workplaces.
+  await page.goto("/#workplaces");
+  await settledScroll(page);
+  await expect(bar).toHaveClass(/show/);
+});

@@ -77,8 +77,17 @@ export const coverage = {
 
 /** Photography in /public/images (4K masters). Wide is desktop, tall is phone. */
 export const images = {
-  heroWide: { src: "/images/hero-wide.jpg", width: 5504, height: 3072 },
-  heroTall: { src: "/images/hero-tall.jpg", width: 3072, height: 5504 },
+  /** A warm, modern office that still feels like home: desktop and phone. */
+  heroWide: {
+    src: "/images/hero-office-day-wide.jpg",
+    width: 3840,
+    height: 2160,
+  },
+  heroTall: {
+    src: "/images/hero-office-day-tall.jpg",
+    width: 2160,
+    height: 3840,
+  },
   hands: { src: "/images/hands.jpg", width: 3311, height: 4096 },
   kitchen: { src: "/images/kitchen.jpg", width: 3223, height: 4008 },
   office: { src: "/images/office.jpg", width: 4096, height: 2294 },
@@ -88,9 +97,7 @@ export const images = {
   bandTall: { src: "/images/band-tall.jpg", width: 3072, height: 5504 },
   kintsugi: { src: "/images/kintsugi.jpg", width: 3311, height: 4096 },
   homeDayWide: { src: "/images/home-day-wide.jpg", width: 5280, height: 2970 },
-  homeDayTall: { src: "/images/home-day-tall.jpg", width: 3072, height: 5504 },
   homeEveWide: { src: "/images/home-eve-wide.jpg", width: 5280, height: 2970 },
-  homeEveTall: { src: "/images/home-eve-tall.jpg", width: 3072, height: 5504 },
 } as const;
 
 export type SiteImage = (typeof images)[keyof typeof images];
@@ -226,8 +233,12 @@ export const home = {
     secondaryCta: { label: "See how it works", href: "#how" },
     /** Unconfirmed promises: shown marked for review until approved. */
     trust: ["Insured and background-checked", "Not right? We come back free"],
-    say: ["You get on with your day.", "We take care of the rest."],
-    alt: "A couple laughing over coffee at a long oak table in a sunlit room, their dog asleep at their feet.",
+    /** Set in two lines each, like the headline they replace. */
+    say: [
+      ["You get on", "with your day."],
+      ["We take care", "of the rest."],
+    ],
+    alt: "Colleagues talking and laughing over laptops at a walnut table in a bright, plant-filled office, with a rust velvet sofa in the lounge corner and a colleague working at a desk behind.",
   },
 
   how: {
@@ -254,6 +265,7 @@ export const home = {
     title: "For homes, workplaces and move days.",
     more: "All services",
     go: "Get a quote",
+    choose: "Choose a service",
   },
 
   workplaces: {
@@ -335,13 +347,13 @@ export const home = {
   pricing: {
     title: "A price made for your space.",
     lede: "Every home and workplace is different, so we don't publish one-size prices. Answer a few questions and we'll prepare a quote for yours.",
-    micro: "A few questions. No account, no card.",
+    micro: "Start with a few questions about your space. No card needed.",
   },
 
   evening: {
     title: "Welcome home.",
     body: "Thursday, seven o’clock. Shoes off, feet up, and nothing left to clean.",
-    alt: "A mother and her young son laughing under a blanket on the sofa at dusk, lamps glowing, their dog asleep at their feet.",
+    alt: "A mother and her young son laughing under a blanket on the sofa at night, lamps glowing, their dog asleep at their feet.",
   },
 
   faq: {
@@ -351,7 +363,7 @@ export const home = {
   },
 
   close: {
-    micro: "A few questions. No account, no card.",
+    micro: "Start with a few questions about your space. No card needed.",
   },
 } as const;
 

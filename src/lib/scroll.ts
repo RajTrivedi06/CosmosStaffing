@@ -1,4 +1,5 @@
 import type Lenis from "lenis";
+import { prefersReducedMotion } from "@/lib/motion";
 
 /**
  * Shared scroll control. <LenisProvider> registers the smooth-scroll instance
@@ -28,28 +29,11 @@ export function registerScrollTarget(id: string, getY: () => number) {
   };
 }
 
-/** True while a scroll started by `scrollToY` is still gliding. */
-let gliding = false;
-let glideTimer: ReturnType<typeof setTimeout> | undefined;
-
-export function isGliding() {
-  return gliding;
-}
-
-export function scrollToY(y: number, { immediate = false } = {}) {
+/** Scroll the page; always a jump, never a glide, under reduced motion. */
+export function scrollToY(y: number, options: { immediate?: boolean } = {}) {
+  const immediate = options.immediate || prefersReducedMotion();
   if (lenis) {
-    gliding = !immediate;
-    // onComplete does not fire if the user takes over mid-glide.
-    clearTimeout(glideTimer);
-    glideTimer = setTimeout(() => (gliding = false), 1500);
-    lenis.scrollTo(y, {
-      immediate,
-      duration: 1.2,
-      force: true,
-      onComplete: () => {
-        gliding = false;
-      },
-    });
+    lenis.scrollTo(y, { immediate, duration: 1.2, force: true });
   } else {
     window.scrollTo({ top: y, behavior: immediate ? "auto" : "smooth" });
   }
