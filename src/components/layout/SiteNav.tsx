@@ -15,7 +15,9 @@ const TOP_ZONE = 64;
  * Fixed header. One glass pill holds the links and the "Get my price" button.
  * Scrolling down collapses the pill toward the button, which grows to fill
  * it; scrolling up opens it again. The right edge and the button stay put, so
- * it reads as one element changing shape. The wordmark and clock stay put. Collapsed links are `inert`, so
+ * it reads as one element changing shape. The wordmark and clock stay put,
+ * on a matching glass backing once the page has scrolled, so they stay readable
+ * over photos. Collapsed links are `inert`, so
  * they leave the tab order, and the bar stays open while the menu is open or
  * keyboard focus is inside it.
  *
@@ -27,6 +29,7 @@ export function SiteNav() {
   const pathname = usePathname();
   const [open, setOpen] = useState(false);
   const [compact, setCompact] = useState(false);
+  const [scrolled, setScrolled] = useState(false);
   const headerRef = useRef<HTMLElement>(null);
   const sheetRef = useRef<HTMLDivElement>(null);
   const menuBtnRef = useRef<HTMLButtonElement>(null);
@@ -41,6 +44,7 @@ export function SiteNav() {
     const update = () => {
       frame = 0;
       const y = window.scrollY;
+      setScrolled(y >= TOP_ZONE);
       const focusInside = headerRef.current?.querySelector(":focus-visible");
       if (y < TOP_ZONE || open || focusInside) {
         setCompact(false);
@@ -146,6 +150,7 @@ export function SiteNav() {
         ref={headerRef}
         className="nav pad"
         data-compact={compact || undefined}
+        data-scrolled={scrolled || undefined}
         onFocus={(e) => {
           if (e.target.matches(":focus-visible")) setCompact(false);
         }}

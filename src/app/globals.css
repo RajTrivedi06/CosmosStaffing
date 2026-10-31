@@ -236,11 +236,32 @@
     pointer-events: auto;
   }
   .brand {
+    position: relative;
+    isolation: isolate;
     display: flex;
     gap: 14px;
     min-height: 44px;
     align-items: center;
     text-decoration: none;
+  }
+  /* The backing sits outside the brand's box, so nothing shifts as it fades. */
+  .brand::before {
+    content: "";
+    position: absolute;
+    z-index: -1;
+    inset: 0 -14px;
+    border-radius: 99px;
+    background: var(--glass);
+    border: 1px solid rgba(255, 255, 255, 0.6);
+    box-shadow: 0 6px 24px rgba(33, 30, 26, 0.06);
+    -webkit-backdrop-filter: blur(16px) saturate(1.4);
+    backdrop-filter: blur(16px) saturate(1.4);
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity var(--nav-time) var(--nav-ease);
+  }
+  .nav[data-scrolled] .brand::before {
+    opacity: 1;
   }
   .wordmark {
     font-size: 1.35rem;
@@ -340,7 +361,8 @@
     display: none;
   }
   @media (prefers-reduced-transparency: reduce) {
-    .nav-pill {
+    .nav-pill,
+    .brand::before {
       background: var(--paper);
     }
   }
