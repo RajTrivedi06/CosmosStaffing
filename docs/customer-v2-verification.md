@@ -248,6 +248,32 @@ signed-out context, and the dev server's reload raced a navigation.
   checked directly with another wrong credential.
 - A database-hash mismatch through the website wasn't exercised.
 
+### Final launch candidate
+
+**Tested commit `4d598218e37b991aff2d94ea7610f2ea212907f4`:** the launch commits
+through `1773aad` plus the presentation work. Studio `961d519`, contract 2.2,
+one isolated project, website port 3380, Studio 3381.
+
+- **Real paired, production build (`next build`, `next start`): 44 of 44 passed,
+  22 on desktop and 22 on emulated phone.** Build ID `ZXwoaHir4tDKGONBKpNKu`. This
+  replaces the `next dev` evidence for everything the suite covers. It includes
+  emailed-link recovery under the password rule, a wrong server credential
+  through the running website, and no `Pay` link with the Studio's checkout off.
+- **From clean state:** ESLint, TypeScript and Prettier clean, 290 unit tests, main
+  suite 96 passed with 2 intentional skips, real Auth with mock Studio 78.
+- **Rendered check:** five pages at 1440 x 900 and emulated Pixel 7: no sideways
+  overflow, broken images, failed requests or console errors. The header's
+  wordmark briefly overlaps a dark photo mid-scroll on desktop.
+
+**Limits.** The lease's launcher is pinned to a `057c356` snapshot, so the
+candidate ran from its own checkout, with the same private settings, clean
+environment and runtime-only wrong credential; the lease's process record still
+names `057c356`. Local production builds aren't hosted: real edge, WAF, cookies
+over HTTPS, SMTP, physical phones, staff and cleaner regression, and migrations
+on hosted data remain open. The website's actual upstream reply to the wrong
+credential still wasn't captured separately. A real Stripe checkout is untested
+by decision: checkout stays off.
+
 ## Open before production
 
 **Lifecycle (website):**
