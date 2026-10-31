@@ -213,10 +213,11 @@
   }
 
   /* ---- Navigation ----
-     One glass pill. On the way down it collapses toward "Get my price":
-     the links fade and slide out as their column shrinks to zero, the rim
-     and padding fold away, and the button grows to fill the pill. The right
-     edge never moves. Reversing mid-way just plays the transition back. */
+     One glass pill. On the way down everything fades away around "Get my
+     price": the links slide out as their column shrinks to zero, the glass
+     goes, and the wordmark and clock hide. The button itself keeps its place
+     and size throughout, so nothing jumps, and reversing mid-way just plays
+     the transition back. */
   .nav {
     --nav-ease: cubic-bezier(0.32, 0.72, 0, 1);
     --nav-time: 0.45s;
@@ -243,6 +244,13 @@
     min-height: 44px;
     align-items: center;
     text-decoration: none;
+    transition:
+      opacity var(--nav-time) var(--nav-ease),
+      visibility var(--nav-time) var(--nav-ease);
+  }
+  .nav[data-compact] .brand {
+    opacity: 0;
+    visibility: hidden;
   }
   /* The backing sits outside the brand's box, so nothing shifts as it fades. */
   .brand::before {
@@ -285,16 +293,16 @@
     -webkit-backdrop-filter: blur(16px) saturate(1.4);
     backdrop-filter: blur(16px) saturate(1.4);
     transition:
-      padding var(--nav-time) var(--nav-ease),
       border-color var(--nav-time) var(--nav-ease),
       background-color var(--nav-time) var(--nav-ease),
       box-shadow var(--nav-time) var(--nav-ease);
   }
   .nav[data-compact] .nav-pill {
-    padding: 0;
     border-color: transparent;
     background-color: transparent;
-    box-shadow: 0 8px 28px rgba(33, 30, 26, 0.16);
+    box-shadow: none;
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
   }
   .nav-collapse {
     display: grid;
@@ -339,8 +347,7 @@
     font-size: 0.92rem;
     white-space: nowrap;
     transition:
-      padding var(--nav-time) var(--nav-ease),
-      font-size var(--nav-time) var(--nav-ease),
+      box-shadow var(--nav-time) var(--nav-ease),
       background-color 0.25s ease;
   }
   /* Invisible hit area so the small state still gives a 44px target. */
@@ -354,8 +361,7 @@
     background: #000;
   }
   .nav[data-compact] .nav-cta {
-    padding: 16px 24px;
-    font-size: 0.98rem;
+    box-shadow: 0 8px 28px rgba(33, 30, 26, 0.16);
   }
   .menu-btn {
     display: none;
@@ -380,9 +386,6 @@
     }
     .nav-cta {
       padding: 10px 15px;
-    }
-    .nav[data-compact] .nav-cta {
-      padding: 15px 22px;
     }
     .menu-btn {
       display: inline-flex;

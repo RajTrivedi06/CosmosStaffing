@@ -12,14 +12,12 @@ const SCROLL_THRESHOLD = 10;
 const TOP_ZONE = 64;
 
 /**
- * Fixed header. One glass pill holds the links and the "Get my price" button.
- * Scrolling down collapses the pill toward the button, which grows to fill
- * it; scrolling up opens it again. The right edge and the button stay put, so
- * it reads as one element changing shape. The wordmark and clock stay put,
- * on a matching glass backing once the page has scrolled, so they stay readable
- * over photos. Collapsed links are `inert`, so
- * they leave the tab order, and the bar stays open while the menu is open or
- * keyboard focus is inside it.
+ * Fixed header. One glass pill holds the links and the "Get my price" button,
+ * beside the wordmark and clock. Scrolling down leaves only the button, which
+ * doesn't move or change size; scrolling up brings the rest back, with a
+ * matching glass backing behind the wordmark so it stays readable over photos.
+ * Collapsed links are `inert`, so they leave the tab order, and the bar stays
+ * open while the menu is open or keyboard focus is inside it.
  *
  * On phones the links live in a full-screen menu sheet, which pauses page
  * scrolling, makes the rest of the page inert, closes on Escape and returns
