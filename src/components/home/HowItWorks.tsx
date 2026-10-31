@@ -1,6 +1,5 @@
 import Link from "next/link";
 import { home, images, siteConfig } from "@/lib/site";
-import { Placeholder } from "@/components/ui/Placeholder";
 import { Frame } from "./Frame";
 
 /** 09:00. Three steps make the job feel small. */
@@ -25,13 +24,7 @@ export function HowItWorks() {
             {home.how.steps.map((step) => (
               <li key={step.title}>
                 <h3>{step.title}</h3>
-                <p>
-                  {"confirm" in step && step.confirm ? (
-                    <Placeholder>to confirm: {step.body}</Placeholder>
-                  ) : (
-                    step.body
-                  )}
-                </p>
+                <p>{step.body}</p>
               </li>
             ))}
           </ol>

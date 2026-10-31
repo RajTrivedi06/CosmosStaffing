@@ -1,7 +1,6 @@
 import type { Metadata } from "next";
 import { pageMetadata } from "@/lib/metadata";
 import { cleaners, siteConfig } from "@/lib/site";
-import { Placeholder } from "@/components/ui/Placeholder";
 import { ApplyAction, CleanerSignIn } from "@/components/cleaners/ApplyAction";
 
 export const metadata: Metadata = pageMetadata({
@@ -48,21 +47,7 @@ export default function CleanWithCosmosPage() {
                 ))}
               </ul>
             </div>
-            <p>
-              {cleaners.insurance}{" "}
-              <Placeholder>{cleaners.insurancePending}</Placeholder>
-            </p>
             <p>{cleaners.independent}</p>
-            <div>
-              <h3>{cleaners.pendingTitle}</h3>
-              <ul className="pending-list">
-                {cleaners.pending.map((item) => (
-                  <li key={item}>
-                    <Placeholder>{item}</Placeholder>
-                  </li>
-                ))}
-              </ul>
-            </div>
           </div>
         </section>
       </div>

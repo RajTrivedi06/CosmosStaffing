@@ -106,20 +106,6 @@ export default function ServicesPage() {
         <h2 id="sfaq-h">{servicesPage.faqTitle}</h2>
         <FaqList items={faq} />
       </section>
-
-      <section
-        id="terms"
-        className="page-section pad"
-        aria-labelledby="terms-h"
-      >
-        <h2 id="terms-h">{servicesPage.termsTitle}</h2>
-        <p className="lede">{servicesPage.termsBody}</p>
-        {/* The terms page belongs to the Studio (lib/studio-routes.ts), so
-            this is a plain link: next/link cannot cross zones. */}
-        <a className="btn btn-glass" href={servicesPage.termsHref}>
-          Read the terms
-        </a>
-      </section>
     </main>
   );
 }

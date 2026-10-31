@@ -32,7 +32,8 @@ site, which has been removed.)
   stay in the browser (answers leave at sign-out, expiry and archival; a
   signed-out visitor keeps only allowlisted choices).
 - `src/lib/site.ts` — central site config and copy. Unconfirmed policies and
-  promises render as `[PLACEHOLDER: …]`; never invent them.
+  promises stay off the site, and open items are tracked in
+  `docs/launch-cutover.md`; never invent them.
 - `src/lib/quote.ts` — quote questions, branching and validation.
 - `src/lib/scroll.ts` — shared smooth scroll and anchor targets.
 - `src/lib/studio-routes.ts` + `vercel.json` — paths forwarded to the

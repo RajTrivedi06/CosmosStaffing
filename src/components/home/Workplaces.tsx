@@ -1,7 +1,6 @@
 import Link from "next/link";
 import { home, images } from "@/lib/site";
 import { ArtImage } from "@/components/ui/ArtImage";
-import { Placeholder } from "@/components/ui/Placeholder";
 
 /** 13:00. The second audience gets its own full-screen moment. */
 export function Workplaces() {
@@ -24,10 +23,7 @@ export function Workplaces() {
         </div>
         <div className="stage-copy" id="band-copy">
           <h2 id="work-h">{home.workplaces.title}</h2>
-          <p>
-            {home.workplaces.body}{" "}
-            <Placeholder>to confirm: {home.workplaces.bodyConfirm}</Placeholder>
-          </p>
+          <p>{home.workplaces.body}</p>
           <Link className="btn btn-light" href={home.workplaces.href}>
             {home.workplaces.cta}
           </Link>

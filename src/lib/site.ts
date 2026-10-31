@@ -1,18 +1,11 @@
 /**
  * Central site configuration: brand, navigation and page copy.
  *
- * Keep brand/content here rather than hard-coding it in pages. Unknown facts
- * (policies) are rendered as visible `[PLACEHOLDER: …]` tokens via the
- * <Placeholder> component. Do not replace them with invented values.
- *
- * Ratings, reviews, background checks and response times are left out of the
- * site until they're real; don't add them back from memory.
- *
- * Promises still to confirm before launch (some copy states them as fact):
- * insurance, the same team every visit, a free re-clean, cancellation notice,
- * a note after each visit, fair pay, and the number of room checklists.
- * See docs/launch-cutover.md. Policy answers that are not yet approved are
- * marked `confirm: true` below and render as placeholders.
+ * Keep brand/content here rather than hard-coding it in pages. Anything the
+ * business hasn't confirmed stays off the site, and never ships as a marked
+ * draft: no ratings or reviews, background checks, response times, insurance,
+ * re-cleans, cancellation rights, assigned cleaners, supplies, payout terms or
+ * automated scheduling. Open items are tracked in docs/launch-cutover.md.
  */
 export const siteConfig = {
   name: "Cosmos Cleaning",
@@ -21,7 +14,7 @@ export const siteConfig = {
   /** The slogan as set in the hero and closing headlines. */
   sloganLines: ["Come home", "to calm."],
   description:
-    "Trusted home and office cleaning, on a schedule that runs itself.",
+    "Home and office cleaning. Our team coordinates scheduling with you.",
   /**
    * Canonical address for metadata, the sitemap and robots.txt. Set
    * NEXT_PUBLIC_SITE_URL only for an isolated local/preview origin.
@@ -63,8 +56,6 @@ export const siteConfig = {
       { label: "How it works", href: "/#how" },
       { label: "How we work", href: "/services#process" },
       { label: "Questions", href: "/services#faq" },
-      // Forwarded to the Operations Studio (lib/studio-routes.ts).
-      { label: "Terms", href: "/terms" },
       { label: "Client sign-in", href: "/account" },
       { label: "Clean with Cosmos", href: "/clean-with-cosmos" },
       { label: "Cleaner sign-in", href: "/me/login" },
@@ -81,7 +72,7 @@ export const coverage = {
   cities: ["Austin", "Houston", "San Antonio", "Dallas"],
   summary:
     "We're based in Texas and work most in Austin, Houston, San Antonio and " +
-    "Dallas. We also coordinate trusted cleaning providers elsewhere in Texas " +
+    "Dallas. We also coordinate cleaning providers elsewhere in Texas " +
     "and across the United States, after confirming availability and what " +
     "your space needs.",
 } as const;
@@ -118,8 +109,6 @@ export const PHOTO_QUALITY = 90;
 
 /**
  * Questions answered on the Services page. The home page shows the first few.
- * `confirm: true` marks a draft answer that states a policy the business has
- * not approved yet; it renders as a placeholder for review.
  */
 export const faq = [
   {
@@ -128,36 +117,15 @@ export const faq = [
   },
   {
     q: "Do I need to be home?",
-    a: "No. Many clients share a key or door code. Tell us how access works in your quote and we will plan around it.",
-  },
-  {
-    q: "Will it be the same people each time?",
-    a: "We aim for the same small team on every regular visit, so they learn your space. Ask for a change any time.",
-    confirm: true,
-  },
-  {
-    q: "Do you bring supplies?",
-    a: "Yes, including products chosen for your surfaces. Tell us if you prefer your own.",
-    confirm: true,
+    a: "Tell us how access works in your request, and our team will coordinate it with you.",
   },
   {
     q: "Do you work outside Austin, Houston, San Antonio and Dallas?",
     a: "Often, yes. Those are our main markets, and we coordinate providers elsewhere in Texas and across the US. Send a quote request with your ZIP code and we will confirm availability.",
   },
   {
-    q: "Are the cleaners insured?",
-    a: "Insurance policy",
-    confirm: true,
-  },
-  {
     q: "What if something isn't right?",
-    a: "Re-clean and satisfaction policy",
-    confirm: true,
-  },
-  {
-    q: "Can I pause or cancel?",
-    a: "Cancellation and rescheduling notice period",
-    confirm: true,
+    a: "Contact Cosmos about a service concern.",
   },
   {
     q: "What about pets?",
@@ -225,7 +193,7 @@ export const services = [
     image: "office",
     alt: "A bright, tidy studio office with people at work.",
     detail:
-      "Offices, studios and retail spaces cleaned outside working hours on a schedule that suits you, with one contact for everything.",
+      "Offices, studios and retail spaces cleaned outside working hours. Our team coordinates scheduling with you.",
     includes: [
       "Desks, shared surfaces and touch points",
       "Kitchens and break rooms",
@@ -242,8 +210,6 @@ export const home = {
   hero: {
     lede: siteConfig.description,
     secondaryCta: { label: "See how it works", href: "#how" },
-    /** Unconfirmed promises: shown marked for review until approved. */
-    trust: ["Insured", "Not right? We come back free"],
     /** Set in two lines each, like the headline they replace. */
     say: [
       ["You get on", "with your day."],
@@ -253,7 +219,7 @@ export const home = {
   },
 
   how: {
-    title: "Set it up once. Then it runs itself.",
+    title: "How it works.",
     alt: "A cleaner's hands folding a white towel beside a caddy of glass bottles and wooden brushes.",
     steps: [
       {
@@ -261,13 +227,12 @@ export const home = {
         body: "A few quick questions about rooms, pets and timing. We reply with a personal quote.",
       },
       {
-        title: "Meet your team",
-        body: "The same small team every visit. They learn your home, so you never explain twice.",
-        confirm: true,
+        title: "Agree the details",
+        body: "Our team coordinates scheduling with you.",
       },
       {
         title: "Come home to calm",
-        body: "We work from your checklist and send a short note when we are done.",
+        body: "We work from the checklist we agree with you.",
       },
     ],
   },
@@ -281,9 +246,7 @@ export const home = {
 
   workplaces: {
     title: "The office keeps moving. The floor stays calm.",
-    body: "We clean before the first meeting or after the last one. One contact, one invoice.",
-    /** Unconfirmed: shown marked for review until approved. */
-    bodyConfirm: "A team your staff will recognise.",
+    body: "We clean before the first meeting or after the last one.",
     cta: "Get a workplace quote",
     href: "/quote?service=office",
     alt: "People with coffee walking through a bright office atrium, softly blurred, over a still, gleaming terrazzo floor.",
@@ -291,10 +254,7 @@ export const home = {
 
   standard: {
     title: "Ordinary work, done with pride.",
-    lede: "Every visit follows a written standard, room by room.",
-    /** Unconfirmed: shown marked for review until approved. */
-    ledeConfirm:
-      "Our people are trained, fairly paid and given the time to do it properly, so nothing gets rushed.",
+    lede: "Every visit follows a written standard, room by room, and your notes are added to it.",
     checklistTitle: "Kitchen, every visit",
     checklist: [
       "Hob and oven front degreased",
@@ -304,28 +264,12 @@ export const home = {
       "Sink and tap polished",
       "Floor vacuumed and mopped",
     ],
-    points: [
-      {
-        title: "Same team, every visit",
-        body: "No strangers, no re-explaining. Ask for a change any time.",
-        confirm: true,
-      },
-      {
-        title: "A written standard",
-        body: "Every room has its own checklist, and your notes are added to it.",
-      },
-      {
-        title: "A note when we leave",
-        body: "A short message with anything we noticed, like a dripping tap.",
-      },
-    ],
   },
 
   care: {
     title: "We look after what you love.",
     lede: "Oiled oak, natural stone, old brass, a bowl someone mended by hand. We learn what each surface needs and care for it that way, so your things keep their character.",
     points: [
-      "Products chosen for each material",
       "Notes kept for every home",
       "We ask before moving anything precious",
     ],
@@ -357,7 +301,7 @@ export const home = {
 
 export const servicesPage = {
   title: "Cleaning, arranged properly.",
-  lede: "Homes, workplaces and move days. Tell us what the space needs and we take care of the rest, from the first question to the follow-up.",
+  lede: "Homes, workplaces and move days. Tell us what the space needs, and our team coordinates scheduling with you.",
   process: {
     title: "How we work",
     steps: [
@@ -371,21 +315,16 @@ export const servicesPage = {
       },
       {
         title: "We manage the work",
-        body: "You have one point of contact. We agree the checklist, share it with the team, and handle scheduling, access notes and any changes you ask for.",
+        body: "Our team coordinates scheduling with you. We agree the checklist, share it with the cleaners and keep your access notes with the job.",
       },
       {
-        title: "We follow up",
-        body: "After the visit we check in. If anything was missed, tell us and we will put it right.",
+        title: "After the visit",
+        body: "Contact Cosmos about a service concern.",
       },
     ],
   },
   coverageTitle: "Where we work",
   faqTitle: "Questions",
-  termsTitle: "Terms and conditions",
-  termsBody:
-    "Our full terms cover quotes, scheduling, access, cancellations and payment.",
-  /** The Operations Studio serves the terms (lib/studio-routes.ts). */
-  termsHref: "/terms",
 } as const;
 
 /**
@@ -395,7 +334,7 @@ export const servicesPage = {
  * (no form, no table, no uploads, no "leave your number").
  *
  * Copy follows the Studio's `docs/product/cleaner-onboarding.md`. Anything
- * not documented and approved renders as a placeholder.
+ * not documented and approved stays off the page.
  */
 export const cleaners = {
   path: "/clean-with-cosmos",
@@ -438,8 +377,8 @@ export const cleaners = {
       body: "The cleanings you do, where in Texas you work and up to 12 ZIP codes, when you're usually free, how you get to jobs, whether you bring supplies, the languages you speak, your experience, and an emergency contact.",
     },
     {
-      title: "How you'd be paid",
-      body: "Choose Zelle, Cash App, Venmo or check. The questionnaire never asks for account numbers. A business name and EIN are optional.",
+      title: "Payment method",
+      body: "The questionnaire asks which you'd prefer: Zelle, Cash App, Venmo or check. It never asks for account numbers. A business name and EIN are optional.",
     },
     {
       title: "After your questionnaire",
@@ -456,19 +395,6 @@ export const cleaners = {
     "Elsewhere in Texas",
   ],
   areasTitle: "Where",
-
-  /** Documented decision (Raj, 2026-10-20); the scope is not yet written. */
-  insurance: "You don't need your own insurance to apply.",
-  insurancePending:
-    "what Cosmos's company insurance covers for independent cleaners",
-
-  /** Not decided or not live yet: shown as placeholders, never guessed. */
-  pending: [
-    "pay rates and earnings",
-    "how much work to expect",
-    "payout timing and process",
-  ],
-  pendingTitle: "Still to confirm",
 
   /** Plain statement of the relationship; the agreement holds the terms. */
   independent:

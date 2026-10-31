@@ -34,11 +34,13 @@ test("the recruitment page collects nothing", async ({ page }) => {
   }
 });
 
-test("unconfirmed details are marked as placeholders", async ({ page }) => {
+test("insurance and payout terms stay off the page until confirmed", async ({
+  page,
+}) => {
   await page.goto(cleaners.path);
-  for (const item of [...cleaners.pending, cleaners.insurancePending]) {
-    await expect(page.getByText(`[PLACEHOLDER: ${item}]`)).toBeVisible();
-  }
+  await expect(page.locator("main")).not.toContainText(
+    /insur|pay rate|payout|still to confirm|\[PLACEHOLDER/i,
+  );
   await expect(page.getByText(/get hired/i)).toHaveCount(0);
 });
 

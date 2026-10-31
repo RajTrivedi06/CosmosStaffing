@@ -1,5 +1,4 @@
 import { home } from "@/lib/site";
-import { Placeholder } from "@/components/ui/Placeholder";
 
 /** 14:00. A visible checklist convinces more than "high quality" ever can. */
 export function Standard() {
@@ -15,17 +14,11 @@ export function Standard() {
       <div className="two">
         <div className="stack">
           <h2 id="std-h">{standard.title}</h2>
-          <p className="lede">
-            {standard.lede}{" "}
-            <Placeholder>to confirm: {standard.ledeConfirm}</Placeholder>
-          </p>
+          <p className="lede">{standard.lede}</p>
         </div>
         <div className="checklist" id="checklist">
           <div className="head">
             <h3>{standard.checklistTitle}</h3>
-            <span>
-              <Placeholder>1 of 8 rooms</Placeholder>
-            </span>
           </div>
           <ul>
             {standard.checklist.map((item) => (
@@ -39,20 +32,6 @@ export function Standard() {
             ))}
           </ul>
         </div>
-      </div>
-      <div className="points">
-        {standard.points.map((point) => (
-          <div key={point.title}>
-            <h3>{point.title}</h3>
-            <p>
-              {"confirm" in point && point.confirm ? (
-                <Placeholder>to confirm: {point.body}</Placeholder>
-              ) : (
-                point.body
-              )}
-            </p>
-          </div>
-        ))}
       </div>
     </section>
   );

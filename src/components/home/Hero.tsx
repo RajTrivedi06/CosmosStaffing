@@ -1,7 +1,6 @@
 import Link from "next/link";
 import { home, images, siteConfig } from "@/lib/site";
 import { ArtImage } from "@/components/ui/ArtImage";
-import { Placeholder } from "@/components/ui/Placeholder";
 
 /**
  * 07:00. The slogan on plain ground beside a framed photo. On scroll the
@@ -45,13 +44,6 @@ export function Hero() {
             <a className="btn btn-quiet" href={home.hero.secondaryCta.href}>
               {home.hero.secondaryCta.label}
             </a>
-          </div>
-          <div className="trust">
-            {home.hero.trust.map((item) => (
-              <span key={item}>
-                <Placeholder>to confirm: {item}</Placeholder>
-              </span>
-            ))}
           </div>
         </div>
 

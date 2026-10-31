@@ -31,30 +31,37 @@ From the Studio's read-only checks, which can drift, so recheck at cutover:
 
 ## Needed from Raj
 
-**Decisions on public statements.** These still show as visible `[PLACEHOLDER]`
-text, or state a promise as fact, and each needs a yes, new wording or removal.
+**Blocks launch: real Terms of Service.** The Studio's `/terms` page says "final
+text coming soon", but customers must tick "agree to the Terms of Service" to
+accept a quote on `/q`. Either publish real terms or change that step. The
+website no longer links to `/terms` or describes what the terms cover. `/terms`
+stays forwarded, because the Studio's quote pages link to it.
 
-| Topic        | Where                    | Current wording                                                               | Shown as    |
-| ------------ | ------------------------ | ----------------------------------------------------------------------------- | ----------- |
-| Insurance    | Home hero                | "Insured"                                                                     | Placeholder |
-| Insurance    | FAQ                      | "Are the cleaners insured?": the answer isn't written                         | Placeholder |
-| Insurance    | Clean with Cosmos        | What Cosmos's company insurance covers for independent cleaners               | Placeholder |
-| Insurance    | Clean with Cosmos        | "You don't need your own insurance to apply."                                 | Fact        |
-| Re-clean     | Home hero                | "Not right? We come back free"                                                | Placeholder |
-| Re-clean     | FAQ                      | "What if something isn't right?": the answer isn't written                    | Placeholder |
-| Re-clean     | Services, "We follow up" | "If anything was missed, tell us and we will put it right."                   | Fact        |
-| Cancellation | FAQ                      | "Can I pause or cancel?": the answer isn't written                            | Placeholder |
-| Cancellation | Services                 | "Our full terms cover quotes, scheduling, access, cancellations and payment." | Fact        |
+**Held off the site until there's a confirmed policy.** None of this is public.
+To publish any of it, confirm the policy, then add the wording.
 
-**Other statements needing the same decision:**
+| Topic              | What was removed                                                                                                      |
+| ------------------ | --------------------------------------------------------------------------------------------------------------------- |
+| Insurance          | "Insured", the FAQ, "You don't need your own insurance to apply", and what company insurance covers for cleaners      |
+| Re-clean           | "We come back free", and "If anything was missed... we will put it right"                                             |
+| Cancellation       | "Can I pause or cancel?", and the description of what the terms cover                                                 |
+| Cleaner assignment | "Same team, every visit", the FAQ, "A team your staff will recognise", and "Meet your team"                           |
+| Supplies           | "Do you bring supplies?", and "Products chosen for each material"                                                     |
+| Cleaner pay        | Pay rates, how much work to expect, and payout timing and process                                                     |
+| Scheduling         | "A schedule that runs itself", and "Set it up once. Then it runs itself."                                             |
+| Other promises     | "One contact, one invoice", one point of contact, a note after each visit, "trained, fairly paid", and "1 of 8 rooms" |
+| Trust claims       | "Trusted", and "Many clients share a key or door code"                                                                |
 
-- Placeholders: the same team every visit (home, FAQ), bringing supplies (FAQ),
-  "A team your staff will recognise", "trained, fairly paid", "1 of 8 rooms", and
-  on Clean with Cosmos: pay rates, how much work to expect, and payout timing.
-- Stated as fact: "One contact, one invoice", a short note after each visit, and
-  the checklists and notes kept for every home.
-- Automatic-sounding scheduling, which is manual at launch: "on a schedule that
-  runs itself", and "Set it up once. Then it runs itself."
+**Still on the site, stated as fact. Please confirm or tell us to remove:**
+
+- Every visit follows a written standard, with a checklist for each room, and
+  client notes are added to it (Home, Services).
+- Kitchen checklist items, and what each service includes (Home, Services).
+- "Notes kept for every home", and "We ask before moving anything precious".
+- Larger or unusual jobs may get a walkthrough first.
+- Coordinating cleaning providers elsewhere in Texas and across the US.
+- Cleaner payment methods: the questionnaire offers Zelle, Cash App, Venmo or
+  check, from the Studio's onboarding document.
 
 **Blocks the release steps, from the canonical plan:**
 
