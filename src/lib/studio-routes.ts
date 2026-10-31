@@ -66,6 +66,9 @@ export function studioOrigin(value: string | undefined): string {
 const PRODUCTION_HOST =
   /(^|\.)cosmosservicesllc\.com$|^internal-tools-cosmos\.vercel\.app$/;
 
+/** A single named host; URL parsing alone would accept a wildcard. */
+const NAMED_HOST = /^([a-z0-9-]+\.)*[a-z0-9-]+$|^\[::1\]$/;
+
 /**
  * The value only if it's already exactly a non-production origin, so that a
  * trailing slash, capitals or a default port can't match after tidying.
@@ -73,7 +76,9 @@ const PRODUCTION_HOST =
 export function pairedOrigin(value: string | undefined): string | null {
   try {
     const origin = value ? studioOrigin(value) : null;
-    return origin === value && !PRODUCTION_HOST.test(new URL(origin).hostname)
+    if (origin === null || origin !== value) return null;
+    const { hostname } = new URL(origin);
+    return NAMED_HOST.test(hostname) && !PRODUCTION_HOST.test(hostname)
       ? origin
       : null;
   } catch {

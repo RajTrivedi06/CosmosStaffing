@@ -1,4 +1,9 @@
-import { createServer, type IncomingMessage, type Server } from "node:http";
+import {
+  createServer,
+  get as httpGet,
+  type IncomingMessage,
+  type Server,
+} from "node:http";
 import { expect, test } from "@playwright/test";
 import { STUDIO_PATHS } from "../../src/lib/studio-routes";
 
@@ -19,6 +24,18 @@ const FORGED = {
   "x-vercel-trusted-oidc-idp-token": "forged-by-a-visitor",
   "x-vercel-oidc-token": "forged-by-a-visitor",
 };
+
+/** A raw request, because Host has to arrive exactly as written. */
+function rawGet(url: string, headers: Record<string, string>) {
+  return new Promise<string>((resolve, reject) => {
+    const req = httpGet(url, { headers }, (res) => {
+      let body = "";
+      res.on("data", (chunk) => (body += chunk));
+      res.on("end", () => resolve(body));
+    });
+    req.on("error", reject);
+  });
+}
 
 /** A different host, standing in for wherever a redirect might point. */
 let elsewhere: Server;
@@ -68,21 +85,30 @@ test("outside a Preview the credential is never sent", async ({ request }) => {
   }
 });
 
-test("a visitor's infrastructure headers never reach the Studio", async ({
-  request,
-}) => {
+test("a visitor's infrastructure credentials never reach the Studio", async () => {
   for (const [origin, expected] of [
     [PLAIN, ""],
     [PREVIEW, VALUE],
   ]) {
-    for (const path of paths) {
-      const response = await request.get(`${origin}${path}`, {
-        headers: FORGED,
-      });
-      const body = await response.text();
-      expect(body, path).toContain(access(expected));
-      expect(body, path).toContain('<p id="infrastructure"></p>');
-      expect(body, path).not.toContain("forged-by-a-visitor");
+    for (const host of [
+      "www.cosmosservicesllc.com",
+      "cosmos-preview.vercel.app",
+    ]) {
+      for (const path of paths) {
+        const where = `${origin}${path} as ${host}`;
+        const body = await rawGet(`${origin}${path}`, {
+          ...FORGED,
+          host,
+          cookie:
+            "_vercel_jwt=forged; cosmos-client-auth=kept; __vercel_x=forged",
+        });
+        expect(body, where).toContain(access(expected));
+        expect(body, where).toContain('<p id="infrastructure"></p>');
+        expect(body, where).toContain(
+          '<p id="cookie">cosmos-client-auth=kept</p>',
+        );
+        expect(body, where).not.toContain("forged");
+      }
     }
   }
 });

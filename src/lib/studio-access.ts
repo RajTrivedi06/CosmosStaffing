@@ -1,4 +1,5 @@
 import "server-only";
+import type { NextRequest } from "next/server";
 import { isApprovedStudio } from "@/lib/studio-routes";
 
 /**
@@ -19,6 +20,9 @@ const INFRASTRUCTURE_HEADERS = [
   "x-vercel-trusted-oidc-idp-token",
   "x-vercel-oidc-token",
 ];
+
+/** Vercel's own cookies: a tester's access to this site, not to the Studio. */
+const INFRASTRUCTURE_COOKIE = /^_+vercel/i;
 
 /** A way out of the forwarded path: encoded separators or dot segments. */
 const PATH_ESCAPE = /%2e|%2f|%5c|\\|\/\.{1,2}(\/|$)/i;
@@ -51,11 +55,12 @@ export function studioAccessHeaders(
  * on every host, and a Preview that doesn't match its approval forwards nothing.
  * Returns a status when the request must stop here.
  */
-export function prepareStudioRequest(request: {
-  headers: Headers;
-  nextUrl: { pathname: string };
-}): number | null {
+export function prepareStudioRequest(
+  request: Pick<NextRequest, "cookies" | "headers" | "nextUrl">,
+): number | null {
   for (const name of INFRASTRUCTURE_HEADERS) request.headers.delete(name);
+  for (const { name } of request.cookies.getAll())
+    if (INFRASTRUCTURE_COOKIE.test(name)) request.cookies.delete(name);
   if (PATH_ESCAPE.test(request.nextUrl.pathname)) return 404;
   if (process.env.VERCEL_ENV !== "preview") return null;
   const origin = process.env.STUDIO_REWRITE_ORIGIN ?? "";

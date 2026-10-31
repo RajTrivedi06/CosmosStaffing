@@ -1,9 +1,12 @@
 # Protected Preview access
 
-How the website reaches a protected Studio Preview. For Internal Tools to
-review and set up; the website side is built and stays inert until the variable
-below exists. Both Previews stay protected throughout, and no credential goes
-into browser code, URLs, logs, chat or a repository.
+How the website reaches a protected Studio Preview. For Internal Tools to review
+and set up. Both Previews stay protected throughout, and no credential goes into
+browser code, URLs, logs, chat or a repository.
+
+**No access credential has been provisioned.** Don't create one for this until the
+access method below is agreed: Trusted Sources first, a bypass secret only as the
+reviewed fallback.
 
 ## The problem
 
@@ -54,8 +57,20 @@ only as a request header.
 **On every host, including production:** the proxy now runs on the Studio's
 forwarded paths and only does two things. It removes any inbound
 `x-vercel-protection-bypass`, `x-vercel-set-bypass-cookie`,
-`x-vercel-trusted-oidc-idp-token` and `x-vercel-oidc-token`, and returns 404 for
-paths with encoded separators or dot segments. It does no session work there.
+`x-vercel-trusted-oidc-idp-token` and `x-vercel-oidc-token` headers and Vercel's own
+cookies, and returns 404 for paths with encoded separators or dot segments. It does
+no session work there. Customer and cleaner cookies and Server Action headers pass
+through unchanged.
+
+**Off-site redirects are not blocked.** Internal Tools' contract asks for gateway
+redirects to be limited to approved same-site destinations. Rewrites can't read an
+upstream response, so this site can't enforce that without replacing them with a
+custom gateway, which production wouldn't share. That's not built, and here's why:
+the credential can't follow a redirect either way, and Studio's forwarded routes
+only redirect to same-site paths. The one off-site case is card checkout on `/pay`,
+which is off, and which a blanket block would have to allow if it were ever enabled.
+Check 6 below covers this on the hosted Preview. If Internal Tools or Website Codex
+still needs it enforced, it should be raised as a gateway change.
 
 Rejected: putting the secret in a rewrite destination (it would be a URL, which
 `connect-company-domain.md` forbids), turning protection off, and a preview-only
