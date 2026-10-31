@@ -1,5 +1,5 @@
 import { expect, test } from "@playwright/test";
-import { siteConfig } from "../../src/lib/site";
+import { cleaners, services, siteConfig } from "../../src/lib/site";
 
 /** What the launch version must say, and must no longer say. */
 const PAGES = ["/", "/services", "/contact", "/clean-with-cosmos"];
@@ -25,6 +25,36 @@ test("service concerns and scheduling use the confirmed wording", async ({
   const main = page.locator("main");
   await expect(main).toContainText("Contact Cosmos about a service concern.");
   await expect(main).toContainText("Our team coordinates scheduling with you.");
+});
+
+test("the quote confirms scope, location and schedule", async ({ page }) => {
+  const confirms = "Cosmos confirms the scope, location and schedule";
+  for (const path of ["/", "/services"]) {
+    await page.goto(path);
+    await expect(page.locator("main"), path).toContainText(confirms);
+  }
+});
+
+test("regular cleaning frequencies read as requests", async ({ page }) => {
+  await page.goto("/services");
+  await expect(page.locator("main")).toContainText(
+    "Request weekly, every-two-weeks or monthly cleaning",
+  );
+  expect(services[0].short).toContain("you can request weekly");
+  await page.goto("/quote");
+  await expect(page.locator("main")).toContainText(
+    "Request weekly, every two weeks or monthly",
+  );
+});
+
+test("recruitment describes the opportunity and agreement", async ({
+  page,
+}) => {
+  await page.goto(cleaners.path);
+  const main = page.locator("main");
+  await expect(main).toContainText("opportunity for independent cleaners");
+  await expect(main).toContainText("The Cleaner Agreement sets out");
+  await expect(main).not.toContainText(/not an employee/i);
 });
 
 test("the contact page and footer publish the monitored email only", async ({

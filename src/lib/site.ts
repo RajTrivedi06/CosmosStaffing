@@ -54,7 +54,6 @@ export const siteConfig = {
       { label: "Questions", href: "/services#faq" },
       { label: "Client sign-in", href: "/account" },
       { label: "Clean with Cosmos", href: "/clean-with-cosmos" },
-      { label: "Cleaner sign-in", href: "/me/login" },
     ],
   },
 } as const;
@@ -109,7 +108,7 @@ export const PHOTO_QUALITY = 90;
 export const faq = [
   {
     q: "How do I get a price?",
-    a: "Answer a few questions about your space and schedule. You'll create an account to send your request, then we review it and reply with a personal quote. There's no card to enter.",
+    a: "Answer a few questions about your space and schedule. You'll create an account to send your request, then we review it and reply with a personal quote confirming the scope, location and schedule. There's no card to enter.",
   },
   {
     q: "Do I need to be home?",
@@ -136,11 +135,11 @@ export const services = [
   {
     id: "regular",
     title: "Home cleaning",
-    short: "Regular care, weekly, every two weeks or monthly.",
+    short: "Regular care you can request weekly, every two weeks or monthly.",
     image: "kitchen",
     alt: "A mother and daughter laughing in a bright kitchen.",
     detail:
-      "Regular care for the rooms you live in. Tell us what matters most, and your quote sets out the scope.",
+      "Regular care for the rooms you live in. Request weekly, every-two-weeks or monthly cleaning and tell us what matters most. Cosmos confirms the scope, location and schedule in your quote.",
     includes: [
       "Kitchen surfaces, hob, sink and appliance fronts",
       "Bathrooms: toilet, shower, bath, basin and mirrors",
@@ -189,7 +188,7 @@ export const services = [
     image: "office",
     alt: "A bright, tidy studio office with people at work.",
     detail:
-      "For offices, studios and retail spaces. Our team coordinates scheduling with you.",
+      "For offices, studios and retail spaces. Cosmos confirms the scope, location and schedule in your quote.",
     includes: [
       "Desks, shared surfaces and touch points",
       "Kitchens and break rooms",
@@ -224,7 +223,7 @@ export const home = {
       },
       {
         title: "Agree the details",
-        body: "Our team coordinates scheduling with you.",
+        body: "Cosmos confirms the scope, location and schedule in your quote.",
       },
       {
         title: "Come home to calm",
@@ -250,7 +249,7 @@ export const home = {
 
   standard: {
     title: "Ordinary work, done with pride.",
-    lede: "Your quote sets out the scope of the work, and our team coordinates the details with you.",
+    lede: "Cosmos confirms the scope, location and schedule in your quote, and our team coordinates the details with you.",
     checklistTitle: "Example: a kitchen",
     checklist: [
       "Hob and oven front degreased",
@@ -311,7 +310,7 @@ export const servicesPage = {
       },
       {
         title: "We manage the work",
-        body: "Our team coordinates scheduling with you, and your quote sets out the scope.",
+        body: "Cosmos confirms the scope, location and schedule in your quote. Our team coordinates scheduling with you.",
       },
       {
         title: "After the visit",
@@ -351,11 +350,20 @@ export const cleaners = {
       "Public applications are not available. If our team has invited you, use your private invitation link. Otherwise, contact us to discuss the opportunity.",
   },
 
-  /** Phone number and texted code. Cleaners only; staff sign in elsewhere. */
+  /**
+   * Phone number and texted code. Cleaners only; staff sign in elsewhere.
+   * Nothing here shows until the hosted SMS flow is verified; set `available`
+   * then, and the link, the note and the step all publish together.
+   */
   signIn: {
+    available: false,
     label: "Cleaner sign-in",
     href: "/me/login",
     note: "Already onboarded? Open your cleaner portal with your phone number and a texted code.",
+    step: {
+      title: "Your cleaner portal",
+      body: "For the cleaner portal and signing documents, verify your phone number with a texted code.",
+    },
   },
 
   /** Staff-led onboarding; the private questionnaire requires no password. */
@@ -366,7 +374,7 @@ export const cleaners = {
     },
     {
       title: "No password to complete your questionnaire",
-      body: "Open your invitation link to answer the onboarding questions. For the cleaner portal and signing documents, verify your phone number with a texted code.",
+      body: "Open your invitation link to answer the onboarding questions.",
     },
     {
       title: "What we ask",
@@ -378,7 +386,7 @@ export const cleaners = {
     },
     {
       title: "After your questionnaire",
-      body: "Verify your phone number to access the portal, agree to receive documents electronically, and sign the Cleaner Agreement. Job offers start only once our team has completed your review and your profile is active.",
+      body: "Our team guides you through the electronic documents and the Cleaner Agreement, which sets out how we work together. Job offers start only once our team has completed your review and your profile is active.",
     },
   ],
 
@@ -392,9 +400,9 @@ export const cleaners = {
   ],
   areasTitle: "Where",
 
-  /** Plain statement of the relationship; the agreement holds the terms. */
+  /** The opportunity in plain words; the agreement holds the terms. */
   independent:
-    "You'd work with Cosmos as an independent cleaner, not an employee; the Cleaner Agreement sets out how we work together. Applying doesn't guarantee approval or work.",
+    "This is an opportunity for independent cleaners. The Cleaner Agreement sets out how we work together. Onboarding doesn't guarantee approval or work.",
 
   /** The home page's short version of this section. */
   teaser: {

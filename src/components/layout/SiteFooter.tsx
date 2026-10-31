@@ -1,4 +1,4 @@
-import { siteConfig } from "@/lib/site";
+import { cleaners, siteConfig } from "@/lib/site";
 
 export function SiteFooter() {
   return (
@@ -27,6 +27,11 @@ export function SiteFooter() {
               <a href={item.href}>{item.label}</a>
             </li>
           ))}
+          {cleaners.signIn.available && (
+            <li>
+              <a href={cleaners.signIn.href}>{cleaners.signIn.label}</a>
+            </li>
+          )}
         </ul>
       </div>
       <div>

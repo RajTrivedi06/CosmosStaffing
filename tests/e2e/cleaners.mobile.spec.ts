@@ -11,9 +11,6 @@ test("contact offers two separate ways in", async ({ page }) => {
   ).toHaveAttribute("href", "/quote");
   const apply = actions.getByRole("link", { name: cleaners.apply.label });
   await expect(apply).toHaveAttribute("href", `${cleaners.path}#apply`);
-  await expect(
-    actions.getByRole("link", { name: cleaners.signIn.label }),
-  ).toHaveAttribute("href", "/me/login");
 
   // While the application is closed, Apply explains that instead of failing.
   await apply.click();
@@ -44,7 +41,27 @@ test("insurance and payout terms stay off the page until confirmed", async ({
   await expect(page.getByText(/get hired/i)).toHaveCount(0);
 });
 
+test("SMS sign-in stays off the site until the hosted flow is verified", async ({
+  page,
+}) => {
+  test.skip(cleaners.signIn.available, "published");
+  for (const path of ["/", cleaners.path, "/contact"]) {
+    await page.goto(path);
+    await expect(page.locator('a[href="/me/login"]'), path).toHaveCount(0);
+    expect(await page.locator("body").textContent(), path).not.toMatch(
+      /texted code|text message|\bSMS\b|verify your phone/i,
+    );
+  }
+  await page.getByRole("button", { name: "Menu" }).click();
+  await expect(
+    page
+      .getByRole("dialog", { name: "Menu" })
+      .getByRole("link", { name: cleaners.signIn.label }),
+  ).toHaveCount(0);
+});
+
 test("cleaner sign-in works from the phone menu", async ({ page }) => {
+  test.skip(!cleaners.signIn.available, "waits for hosted SMS verification");
   await page.goto("/");
   await page.getByRole("button", { name: "Menu" }).click();
   const menu = page.getByRole("dialog", { name: "Menu" });

@@ -226,7 +226,9 @@ export function SiteNav() {
             {cleaners.label}
           </Link>
           {/* The cleaner portal belongs to the Studio: a plain link. */}
-          <a href={cleaners.signIn.href}>{cleaners.signIn.label}</a>
+          {cleaners.signIn.available && (
+            <a href={cleaners.signIn.href}>{cleaners.signIn.label}</a>
+          )}
         </div>
       </div>
     </>

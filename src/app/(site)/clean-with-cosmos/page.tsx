@@ -30,7 +30,10 @@ export default function CleanWithCosmosPage() {
         <section className="cleaners-expect" aria-labelledby="expect-h">
           <h2 id="expect-h">What to expect</h2>
           <ol className="expect-list">
-            {cleaners.expect.map((item) => (
+            {[
+              ...cleaners.expect,
+              ...(cleaners.signIn.available ? [cleaners.signIn.step] : []),
+            ].map((item) => (
               <li key={item.title}>
                 <h3>{item.title}</h3>
                 <p>{item.body}</p>

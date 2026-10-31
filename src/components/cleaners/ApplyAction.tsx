@@ -27,6 +27,7 @@ export function ApplyAction() {
 /** Cleaners sign in on the Studio's portal; never the staff login. */
 export function CleanerSignIn({ withNote = false }: { withNote?: boolean }) {
   const { signIn } = cleaners;
+  if (!signIn.available) return null;
   return (
     <p className="cleaner-sign-in">
       {withNote && <span>{signIn.note} </span>}

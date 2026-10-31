@@ -54,12 +54,15 @@ To publish any of it, confirm the policy, then add the wording.
 
 **The only public claims that still need Raj's confirmation:**
 
-1. What each service typically includes, the example kitchen list, and the weekly,
-   two-weekly and monthly options. These describe the actual service, so they
-   can't simply be omitted.
-2. On Clean with Cosmos: "independent cleaner, not an employee", and the onboarding
-   steps, including the Cleaner Agreement and the texted code. Hosted SMS was
-   disabled at the last read, so the cleaner sign-in text depends on that decision.
+1. The exact service checklist: what each service typically includes, and the
+   example kitchen list. Sent to Raj for approval on October 31.
+
+Decided by Raj on October 31: weekly, every-two-weeks and monthly cleaning are
+frequencies customers can request; Cosmos confirms the scope, location and schedule
+in the quote; recruitment describes the independent-cleaner opportunity and
+agreement. Cleaner SMS sign-in stays off the site until the hosted flow is verified:
+then set `cleaners.signIn.available` in `src/lib/site.ts`, which publishes the link,
+the note and the step together.
 
 Austin, Houston, San Antonio, Dallas and coordination elsewhere in the US come from
 the project brief, and are treated as confirmed.

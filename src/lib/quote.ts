@@ -13,7 +13,7 @@ export const SERVICE_OPTIONS = [
   {
     value: "regular",
     label: "Regular home cleaning",
-    hint: "Weekly, every two weeks or monthly",
+    hint: "Request weekly, every two weeks or monthly",
   },
   { value: "deep", label: "Deep clean", hint: "A top-to-bottom reset" },
   {
