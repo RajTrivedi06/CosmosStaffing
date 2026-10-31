@@ -25,7 +25,7 @@ export function Hero() {
             tall={images.heroTall}
             alt={home.hero.alt}
             eager
-            zoom={1.3}
+            zoom={1.15}
           />
           <div className="hero-scrim" id="hero-scrim" />
         </div>
@@ -55,12 +55,13 @@ export function Hero() {
           </div>
         </div>
 
-        <p className="say" id="say-1">
-          {sayOne}
-        </p>
-        <p className="say" id="say-2">
-          {sayTwo}
-        </p>
+        {[sayOne, sayTwo].map(([first, second], i) => (
+          <p className="say" id={`say-${i + 1}`} key={first}>
+            {first}
+            <br />
+            {second}
+          </p>
+        ))}
       </div>
     </section>
   );

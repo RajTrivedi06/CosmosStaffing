@@ -4,8 +4,11 @@ import { PHOTO_QUALITY, type SiteImage } from "@/lib/site";
 type ArtImageProps = {
   /** Landscape crop, served to desktop and landscape screens. */
   wide: SiteImage;
-  /** Portrait crop, served to phones and other tall screens. */
-  tall: SiteImage;
+  /**
+   * Portrait crop, served to phones and other tall screens. Without one the
+   * wide photo is used everywhere (for a scene that pans across it).
+   */
+  tall?: SiteImage;
   alt: string;
   id?: string;
   className?: string;
@@ -29,7 +32,8 @@ function coverSizes({ width, height }: SiteImage, zoom: number) {
 /**
  * Full-screen photograph with art direction: a separately composed tall crop
  * replaces the wide one on portrait screens (the same breakpoint the scroll
- * scenes use), rather than cropping the wide image down.
+ * scenes use), rather than cropping the wide image down. Scenes that pan
+ * across the wide photo on portrait screens leave the tall crop out.
  */
 export function ArtImage({
   wide,
@@ -41,9 +45,9 @@ export function ArtImage({
   zoom = 1,
 }: ArtImageProps) {
   const common = { alt, quality: PHOTO_QUALITY };
-  const {
-    props: { srcSet: tallSrcSet, sizes: tallSizes },
-  } = getImageProps({ ...common, ...tall, sizes: coverSizes(tall, zoom) });
+  const tallProps =
+    tall &&
+    getImageProps({ ...common, ...tall, sizes: coverSizes(tall, zoom) }).props;
   const { props } = getImageProps({
     ...common,
     ...wide,
@@ -54,11 +58,13 @@ export function ArtImage({
 
   return (
     <picture>
-      <source
-        media="(max-aspect-ratio: 3/4)"
-        srcSet={tallSrcSet}
-        sizes={tallSizes}
-      />
+      {tallProps && (
+        <source
+          media="(max-aspect-ratio: 3/4)"
+          srcSet={tallProps.srcSet}
+          sizes={tallProps.sizes}
+        />
+      )}
       {/* eslint-disable-next-line jsx-a11y/alt-text -- props come from getImageProps, alt included */}
       <img {...props} id={id} className={className} />
     </picture>
