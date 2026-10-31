@@ -6,16 +6,28 @@ import {
   cookieOptions,
   hasSessionCookie,
 } from "@/lib/account/config";
+import { studioAccessHeaders } from "@/lib/studio-access";
+
+/** This site's own pages; the matcher's other paths are the Studio's. */
+const OWN_PATH = /^\/(account|quote|api\/quote)(\/|$)/;
 
 /**
  * Keeps a client's session fresh on the pages that read it (Supabase's
  * documented Next.js setup). Server Components can't write cookies, so the
  * token is refreshed here and handed to both the page and the browser.
  *
- * Deliberately narrow: it never runs on the Studio's forwarded paths
- * (lib/studio-routes.ts) or on marketing pages, which stay static.
+ * Deliberately narrow: it never runs on marketing pages, which stay static,
+ * and reaches the Studio's forwarded paths (lib/studio-routes.ts) only on a
+ * *.vercel.app host, where a paired Preview adds its server-side access header
+ * and the usual rewrite carries the request on.
  */
 export async function proxy(request: NextRequest) {
+  if (!OWN_PATH.test(request.nextUrl.pathname)) {
+    for (const [name, value] of Object.entries(studioAccessHeaders()))
+      request.headers.set(name, value);
+    return NextResponse.next({ request });
+  }
+
   // Only this proxy may set the mark; drop any copy that arrives from outside.
   request.headers.delete(SESSION_HEADER);
   const config = authConfig();
@@ -54,5 +66,24 @@ export async function proxy(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ["/account", "/account/:path*", "/quote", "/api/quote"],
+  matcher: [
+    "/account",
+    "/account/:path*",
+    "/quote",
+    "/api/quote",
+    // Written out because matchers must be literal; STUDIO_PATHS is the list.
+    {
+      source: "/:flow(pay|join|q|o|me)/:path+",
+      has: [{ type: "host", value: ".+\\.vercel\\.app" }],
+    },
+    { source: "/me", has: [{ type: "host", value: ".+\\.vercel\\.app" }] },
+    {
+      source: "/terms",
+      has: [{ type: "host", value: ".+\\.vercel\\.app" }],
+    },
+    {
+      source: "/studio-assets/_next/static/:path+",
+      has: [{ type: "host", value: ".+\\.vercel\\.app" }],
+    },
+  ],
 };

@@ -23,6 +23,8 @@ const CUSTOMER_PORT = 3202;
 const CUSTOMER_STUB_PORT = 3398;
 const CUSTOMER_STUB_SECRET = "synthetic-only-customer-api-secret-01";
 const AUTH_E2E = process.env.AUTH_E2E === "1";
+/** The same build as a paired Vercel Preview (tests/e2e/studio-access.spec.ts). */
+const PREVIEW_PORT = 3203;
 function localAuthKey() {
   const env = execFileSync("supabase", ["status", "-o", "env"], {
     encoding: "utf8",
@@ -131,6 +133,19 @@ export default defineConfig({
       env: {
         NEXT_DIST_DIR: ".next-test",
         STUDIO_ORIGIN: STUDIO_STUB_ORIGIN,
+        ...QUIET_DELIVERY,
+        ...NO_ACCOUNTS,
+      },
+    },
+    {
+      command: `npm run start -- -p ${PREVIEW_PORT}`,
+      url: `http://localhost:${PREVIEW_PORT}`,
+      reuseExistingServer: !process.env.CI,
+      env: {
+        NEXT_DIST_DIR: ".next-test",
+        VERCEL_ENV: "preview",
+        STUDIO_ORIGIN: STUDIO_STUB_ORIGIN,
+        STUDIO_PROTECTION_BYPASS: "synthetic-only-protection-value",
         ...QUIET_DELIVERY,
         ...NO_ACCOUNTS,
       },

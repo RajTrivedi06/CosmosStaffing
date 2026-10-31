@@ -118,6 +118,46 @@ describe("configuration", () => {
   });
 });
 
+describe("protected Preview access", () => {
+  const PREVIEW_API = "https://studio-preview.example/api/customer/v2";
+  const ACCESS = "x-vercel-protection-bypass";
+  const sent = async () => {
+    studio(200, { ok: true, linked: false });
+    await readAccount(TOKEN);
+    return seen.at(-1)!.init.headers as Record<string, string>;
+  };
+  beforeEach(() => {
+    vi.stubEnv("VERCEL_ENV", "preview");
+    vi.stubEnv("STUDIO_CUSTOMER_API_URL", PREVIEW_API);
+    vi.stubEnv("STUDIO_ORIGIN", "https://studio-preview.example");
+    vi.stubEnv("STUDIO_PROTECTION_BYPASS", "synthetic-only-protection-value");
+  });
+
+  it("adds the access header from a paired Preview's server", async () => {
+    expect((await sent())[ACCESS]).toBe("synthetic-only-protection-value");
+  });
+
+  it("sends nothing without the variable", async () => {
+    vi.stubEnv("STUDIO_PROTECTION_BYPASS", "");
+    expect(await sent()).not.toHaveProperty(ACCESS);
+  });
+
+  it("sends nothing when forwarding to the production Studio", async () => {
+    vi.stubEnv("STUDIO_ORIGIN", "https://studio.cosmosservicesllc.com");
+    expect(await sent()).not.toHaveProperty(ACCESS);
+    vi.stubEnv("STUDIO_ORIGIN", "");
+    expect(await sent()).not.toHaveProperty(ACCESS);
+  });
+
+  it("ignores the variable in Vercel Production", async () => {
+    const api = "https://studio.cosmosservicesllc.com/api/customer/v2";
+    vi.stubEnv("VERCEL_ENV", "production");
+    vi.stubEnv("CUSTOMER_API_PRODUCTION_ENABLED", "true");
+    vi.stubEnv("STUDIO_CUSTOMER_API_URL", api);
+    expect(await sent()).not.toHaveProperty(ACCESS);
+  });
+});
+
 describe("production", () => {
   const PRODUCTION = "https://studio.cosmosservicesllc.com/api/customer/v2";
   beforeEach(() => {

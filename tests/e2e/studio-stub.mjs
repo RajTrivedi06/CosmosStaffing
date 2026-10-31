@@ -43,7 +43,8 @@ createServer((req, res) => {
         `<p id="cookie">${escape(req.headers.cookie ?? "")}</p>` +
         `<p id="action">${escape(req.headers["next-action"] ?? "")}</p>` +
         `<p id="rsc">${escape(req.headers.rsc ?? "")}</p>` +
-        `<p id="origin">${escape(req.headers.origin ?? "")}</p>`,
+        `<p id="origin">${escape(req.headers.origin ?? "")}</p>` +
+        `<p id="access">${escape(req.headers["x-vercel-protection-bypass"] ?? "")}</p>`,
     );
   });
 }).listen(port, "127.0.0.1");

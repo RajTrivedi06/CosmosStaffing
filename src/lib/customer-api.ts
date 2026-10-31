@@ -1,5 +1,6 @@
 import "server-only";
 import { z } from "zod";
+import { studioAccessHeaders } from "@/lib/studio-access";
 import { DEFAULT_STUDIO_ORIGIN } from "@/lib/studio-routes";
 import { studioAcknowledgment, toStudioIntake } from "@/lib/quote-attempt";
 import type { QuoteAttempt } from "@/lib/quote-attempt";
@@ -84,6 +85,7 @@ async function call(
     Accept: "application/json",
     Authorization: `Bearer ${token}`,
     "X-Webhook-Secret": config.secret,
+    ...studioAccessHeaders(),
   };
   if (init.body) headers["Content-Type"] = "application/json";
   if (init.idempotencyKey) headers["Idempotency-Key"] = init.idempotencyKey;
