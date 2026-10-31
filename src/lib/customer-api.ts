@@ -1,6 +1,6 @@
 import "server-only";
 import { z } from "zod";
-import { studioAccessHeaders } from "@/lib/studio-access";
+import { pairedStudio, studioAccessHeaders } from "@/lib/studio-access";
 import { DEFAULT_STUDIO_ORIGIN } from "@/lib/studio-routes";
 import { studioAcknowledgment, toStudioIntake } from "@/lib/quote-attempt";
 import type { QuoteAttempt } from "@/lib/quote-attempt";
@@ -23,7 +23,8 @@ import {
  * has its own switch, CUSTOMER_API_PRODUCTION_ENABLED, set only at an approved
  * cutover (docs/launch-cutover.md), and accepts only the real Studio.
  * Other configuration: STUDIO_CUSTOMER_API_URL (the fixed Studio origin plus
- * /api/customer/v2), WEBSITE_INTAKE_SECRET.
+ * /api/customer/v2), WEBSITE_INTAKE_SECRET. On a Preview that origin must be
+ * exactly the approved one (lib/studio-access.ts), or nothing is sent.
  */
 export function customerApiConfig(): { base: string; secret: string } | null {
   const production = process.env.VERCEL_ENV === "production";
@@ -42,7 +43,7 @@ export function customerApiConfig(): { base: string; secret: string } | null {
     const loopback = ["localhost", "127.0.0.1", "[::1]"].includes(url.hostname);
     const isolated =
       process.env.VERCEL_ENV === "preview"
-        ? url.protocol === "https:"
+        ? url.protocol === "https:" && pairedStudio(url.origin)
         : !process.env.VERCEL_ENV && loopback;
     if (
       !isolated ||
@@ -85,7 +86,7 @@ async function call(
     Accept: "application/json",
     Authorization: `Bearer ${token}`,
     "X-Webhook-Secret": config.secret,
-    ...studioAccessHeaders(),
+    ...studioAccessHeaders(new URL(config.base).origin),
   };
   if (init.body) headers["Content-Type"] = "application/json";
   if (init.idempotencyKey) headers["Idempotency-Key"] = init.idempotencyKey;

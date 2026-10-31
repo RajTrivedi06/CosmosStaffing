@@ -1,4 +1,6 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { createServer, type IncomingHttpHeaders } from "node:http";
+import type { AddressInfo } from "node:net";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
@@ -22,6 +24,7 @@ import { websiteIntakeFixture } from "./studio-intake-fixture";
  * Studio answers, not a paired test. Paired evidence needs one isolated
  * Supabase project shared with a running Studio.
  */
+const realFetch = globalThis.fetch;
 const SECRET = "synthetic-only-intake-secret-0001";
 const BASE = "http://127.0.0.1:3398/api/customer/v2";
 const TOKEN = "synthetic.access.token";
@@ -106,8 +109,10 @@ describe("configuration", () => {
     expect(customerApiConfig()).toBeNull();
   });
 
-  it("accepts an HTTPS Preview endpoint", () => {
+  it("accepts the approved HTTPS Preview endpoint", () => {
     vi.stubEnv("VERCEL_ENV", "preview");
+    vi.stubEnv("STUDIO_APPROVED_ORIGIN", "https://studio-preview.example");
+    vi.stubEnv("STUDIO_REWRITE_ORIGIN", "https://studio-preview.example");
     vi.stubEnv(
       "STUDIO_CUSTOMER_API_URL",
       "https://studio-preview.example/api/customer/v2",
@@ -119,34 +124,101 @@ describe("configuration", () => {
 });
 
 describe("protected Preview access", () => {
-  const PREVIEW_API = "https://studio-preview.example/api/customer/v2";
+  const ORIGIN = "https://studio-preview.example";
+  const PREVIEW_API = `${ORIGIN}/api/customer/v2`;
   const ACCESS = "x-vercel-protection-bypass";
+  const VALUE = "synthetic-only-protection-value";
   const sent = async () => {
     studio(200, { ok: true, linked: false });
     await readAccount(TOKEN);
-    return seen.at(-1)!.init.headers as Record<string, string>;
+    return seen.at(-1)?.init.headers as Record<string, string>;
   };
   beforeEach(() => {
+    seen.length = 0;
     vi.stubEnv("VERCEL_ENV", "preview");
     vi.stubEnv("STUDIO_CUSTOMER_API_URL", PREVIEW_API);
-    vi.stubEnv("STUDIO_ORIGIN", "https://studio-preview.example");
-    vi.stubEnv("STUDIO_PROTECTION_BYPASS", "synthetic-only-protection-value");
+    vi.stubEnv("STUDIO_APPROVED_ORIGIN", ORIGIN);
+    vi.stubEnv("STUDIO_REWRITE_ORIGIN", ORIGIN);
+    vi.stubEnv("STUDIO_PROTECTION_BYPASS", VALUE);
   });
 
-  it("adds the access header from a paired Preview's server", async () => {
-    expect((await sent())[ACCESS]).toBe("synthetic-only-protection-value");
+  it("sends the credential to the approved origin", async () => {
+    const headers = await sent();
+    expect(headers[ACCESS]).toBe(VALUE);
+    expect(seen.at(-1)?.url.startsWith(`${ORIGIN}/`)).toBe(true);
+    expect(seen.at(-1)?.init.redirect).toBe("error");
   });
 
-  it("sends nothing without the variable", async () => {
+  it("sends no bypass without the variable, and still reaches the Studio", async () => {
     vi.stubEnv("STUDIO_PROTECTION_BYPASS", "");
     expect(await sent()).not.toHaveProperty(ACCESS);
+    expect(seen).toHaveLength(1);
   });
 
-  it("sends nothing when forwarding to the production Studio", async () => {
-    vi.stubEnv("STUDIO_ORIGIN", "https://studio.cosmosservicesllc.com");
-    expect(await sent()).not.toHaveProperty(ACCESS);
-    vi.stubEnv("STUDIO_ORIGIN", "");
-    expect(await sent()).not.toHaveProperty(ACCESS);
+  // None of these may get the bypass, the service secret or a customer's token.
+  it.each([
+    ["no approval", { STUDIO_APPROVED_ORIGIN: "" }],
+    [
+      "a different API host",
+      { STUDIO_CUSTOMER_API_URL: "https://other.example/api/customer/v2" },
+    ],
+    [
+      "an API host differing only by subdomain",
+      {
+        STUDIO_CUSTOMER_API_URL:
+          "https://x.studio-preview.example/api/customer/v2",
+      },
+    ],
+    [
+      "an API host on another port",
+      { STUDIO_CUSTOMER_API_URL: `${ORIGIN}:8443/api/customer/v2` },
+    ],
+    [
+      "a build forwarding elsewhere",
+      { STUDIO_REWRITE_ORIGIN: "https://other.example" },
+    ],
+    ["no record of the build's origin", { STUDIO_REWRITE_ORIGIN: "" }],
+    [
+      "an approval with a trailing slash",
+      { STUDIO_APPROVED_ORIGIN: `${ORIGIN}/` },
+    ],
+    [
+      "an approval with capitals",
+      { STUDIO_APPROVED_ORIGIN: "https://Studio-Preview.example" },
+    ],
+    [
+      "an approval with a default port",
+      { STUDIO_APPROVED_ORIGIN: `${ORIGIN}:443` },
+    ],
+    ["an approval with a path", { STUDIO_APPROVED_ORIGIN: `${ORIGIN}/api` }],
+    [
+      "an approval over HTTP",
+      { STUDIO_APPROVED_ORIGIN: "http://studio-preview.example" },
+    ],
+    ["a wildcard approval", { STUDIO_APPROVED_ORIGIN: "https://*.vercel.app" }],
+    [
+      "the production Studio",
+      {
+        STUDIO_APPROVED_ORIGIN: "https://studio.cosmosservicesllc.com",
+        STUDIO_REWRITE_ORIGIN: "https://studio.cosmosservicesllc.com",
+        STUDIO_CUSTOMER_API_URL:
+          "https://studio.cosmosservicesllc.com/api/customer/v2",
+      },
+    ],
+    [
+      "the Studio project's production alias",
+      {
+        STUDIO_APPROVED_ORIGIN: "https://internal-tools-cosmos.vercel.app",
+        STUDIO_REWRITE_ORIGIN: "https://internal-tools-cosmos.vercel.app",
+        STUDIO_CUSTOMER_API_URL:
+          "https://internal-tools-cosmos.vercel.app/api/customer/v2",
+      },
+    ],
+  ])("sends nothing with %s", async (_, env) => {
+    for (const [key, value] of Object.entries(env)) vi.stubEnv(key, value);
+    expect(customerApiConfig()).toBeNull();
+    await sent();
+    expect(seen).toHaveLength(0);
   });
 
   it("ignores the variable in Vercel Production", async () => {
@@ -154,7 +226,38 @@ describe("protected Preview access", () => {
     vi.stubEnv("VERCEL_ENV", "production");
     vi.stubEnv("CUSTOMER_API_PRODUCTION_ENABLED", "true");
     vi.stubEnv("STUDIO_CUSTOMER_API_URL", api);
+    vi.stubEnv(
+      "STUDIO_APPROVED_ORIGIN",
+      "https://studio.cosmosservicesllc.com",
+    );
     expect(await sent()).not.toHaveProperty(ACCESS);
+    expect(seen).toHaveLength(1);
+  });
+
+  it("follows no redirect, so nothing reaches another host", async () => {
+    const landed: IncomingHttpHeaders[] = [];
+    const servers = [
+      createServer((req, res) => {
+        landed.push(req.headers);
+        res.end("{}");
+      }),
+      createServer((req, res) => {
+        const { port } = servers[0].address() as AddressInfo;
+        res.writeHead(307, { location: `http://127.0.0.1:${port}/landed` });
+        res.end();
+      }),
+    ];
+    for (const server of servers)
+      await new Promise<void>((done) => server.listen(0, "127.0.0.1", done));
+    const { port } = servers[1].address() as AddressInfo;
+    // The real fetch, with the approved origin answered by a redirecting server.
+    vi.stubGlobal("fetch", (url: string, init: RequestInit) =>
+      realFetch(url.replace(ORIGIN, `http://127.0.0.1:${port}`), init),
+    );
+    const result = await readAccount(TOKEN);
+    for (const server of servers) server.close();
+    expect(result).toEqual({ ok: false, reason: "unavailable" });
+    expect(landed).toHaveLength(0);
   });
 });
 

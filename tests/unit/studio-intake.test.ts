@@ -182,6 +182,8 @@ it.each([
 });
 it("requires explicit preview configuration and always blocks Production", () => {
   vi.stubEnv("VERCEL_ENV", "preview");
+  vi.stubEnv("STUDIO_APPROVED_ORIGIN", "https://isolated-studio.example.test");
+  vi.stubEnv("STUDIO_REWRITE_ORIGIN", "https://isolated-studio.example.test");
   vi.stubEnv(
     "STUDIO_INTAKE_URL",
     "https://isolated-studio.example.test/api/webhooks/website",
@@ -191,6 +193,16 @@ it("requires explicit preview configuration and always blocks Production", () =>
   expect(studioTestConfiguration()).toBeNull();
   vi.stubEnv("VERCEL_ENV", "preview");
   vi.stubEnv("QUOTE_STUDIO_TEST_ENABLED", "false");
+  expect(studioTestConfiguration()).toBeNull();
+});
+it("sends a Preview's credentials only to the approved origin", () => {
+  vi.stubEnv("VERCEL_ENV", "preview");
+  vi.stubEnv("STUDIO_APPROVED_ORIGIN", "https://isolated-studio.example.test");
+  vi.stubEnv("STUDIO_REWRITE_ORIGIN", "https://isolated-studio.example.test");
+  vi.stubEnv(
+    "STUDIO_INTAKE_URL",
+    "https://other-studio.example.test/api/webhooks/website",
+  );
   expect(studioTestConfiguration()).toBeNull();
 });
 

@@ -5,6 +5,7 @@ import {
   type QuoteAttempt,
 } from "@/lib/quote-attempt";
 import { readQuoteBody } from "@/lib/quote-request-guard";
+import { pairedStudio } from "@/lib/studio-access";
 
 /** An explicit isolated test gate. Never enables the customer-auth UI. */
 export function studioTestConfiguration(): {
@@ -24,7 +25,7 @@ export function studioTestConfiguration(): {
     const loopback = ["localhost", "127.0.0.1", "[::1]"].includes(url.hostname);
     const isolated =
       process.env.VERCEL_ENV === "preview"
-        ? url.protocol === "https:"
+        ? url.protocol === "https:" && pairedStudio(url.origin)
         : !process.env.VERCEL && !process.env.VERCEL_ENV && loopback;
     if (
       !isolated ||

@@ -29,6 +29,13 @@ createServer((req, res) => {
       "x-content-type-options": "nosniff",
       "set-cookie": "synthetic-session=test; Path=/; HttpOnly; SameSite=Lax",
     };
+    const url = new URL(req.url, "http://studio-stub");
+    const away = url.searchParams.get("test-redirect-away");
+    if (away) {
+      res.writeHead(307, { ...headers, location: away });
+      res.end();
+      return;
+    }
     if (req.url === "/me?test-redirect=1") {
       res.writeHead(303, { ...headers, location: "/me/login" });
       res.end();
@@ -44,7 +51,13 @@ createServer((req, res) => {
         `<p id="action">${escape(req.headers["next-action"] ?? "")}</p>` +
         `<p id="rsc">${escape(req.headers.rsc ?? "")}</p>` +
         `<p id="origin">${escape(req.headers.origin ?? "")}</p>` +
-        `<p id="access">${escape(req.headers["x-vercel-protection-bypass"] ?? "")}</p>`,
+        `<p id="access">${escape(req.headers["x-vercel-protection-bypass"] ?? "")}</p>` +
+        `<p id="infrastructure">${escape(
+          Object.keys(req.headers)
+            .filter((name) => name.startsWith("x-vercel-"))
+            .filter((name) => name !== "x-vercel-protection-bypass")
+            .join(" "),
+        )}</p>`,
     );
   });
 }).listen(port, "127.0.0.1");

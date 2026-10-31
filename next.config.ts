@@ -1,8 +1,23 @@
 import type { NextConfig } from "next";
-import { studioOrigin, studioRewrites } from "./src/lib/studio-routes";
+import {
+  isApprovedStudio,
+  studioOrigin,
+  studioRewrites,
+} from "./src/lib/studio-routes";
 
 /** Where the Studio's recipient pages are forwarded (see lib/studio-routes). */
 const STUDIO_ORIGIN = studioOrigin(process.env.STUDIO_ORIGIN);
+
+// A Preview forwards only to the Studio Preview an operator approved.
+if (
+  process.env.VERCEL_ENV === "preview" &&
+  !isApprovedStudio(process.env.STUDIO_ORIGIN)
+) {
+  throw new Error(
+    "A Preview build needs STUDIO_ORIGIN to equal STUDIO_APPROVED_ORIGIN " +
+      "exactly (docs/protected-preview-access.md).",
+  );
+}
 
 /** Pages from the old Cosmos Staffing site, removed in the cleaning rebrand. */
 const STAFFING_PAGES = [
@@ -17,6 +32,9 @@ const nextConfig: NextConfig = {
   // Test builds use their own folder so they never disturb a running
   // `npm run dev`, which writes to .next.
   distDir: process.env.NEXT_DIST_DIR || ".next",
+  // The origin these rewrites were built with, for lib/studio-access.ts. Not a
+  // secret; runtime settings can't change where a build forwards.
+  env: { STUDIO_REWRITE_ORIGIN: STUDIO_ORIGIN },
   images: {
     // Full-screen 4K photography: serve AVIF where supported, then WebP.
     formats: ["image/avif", "image/webp"],

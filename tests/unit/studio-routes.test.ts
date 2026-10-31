@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import nextConfig from "../../next.config";
 import vercelConfig from "../../vercel.json";
 import { cleaners, siteConfig } from "@/lib/site";
@@ -113,6 +113,50 @@ describe("Studio forwarding", () => {
     ]) {
       expect(() => studioOrigin(bad)).toThrow();
     }
+  });
+});
+
+describe("Preview builds", () => {
+  const ORIGIN = "https://studio-preview.example";
+  const load = () => {
+    vi.resetModules();
+    return import("../../next.config");
+  };
+  beforeEach(() => {
+    vi.stubEnv("VERCEL_ENV", "preview");
+    vi.stubEnv("STUDIO_ORIGIN", ORIGIN);
+    vi.stubEnv("STUDIO_APPROVED_ORIGIN", ORIGIN);
+  });
+  afterEach(() => {
+    vi.unstubAllEnvs();
+  });
+
+  it("build for the approved Studio, and record where they forward", async () => {
+    const { default: config } = await load();
+    expect(config.env?.STUDIO_REWRITE_ORIGIN).toBe(ORIGIN);
+  });
+
+  it.each([
+    ["no STUDIO_ORIGIN", { STUDIO_ORIGIN: "" }],
+    ["no approval", { STUDIO_APPROVED_ORIGIN: "" }],
+    ["a different origin", { STUDIO_ORIGIN: "https://other.example" }],
+    ["a trailing slash", { STUDIO_ORIGIN: `${ORIGIN}/` }],
+    [
+      "the production Studio",
+      {
+        STUDIO_ORIGIN: DEFAULT_STUDIO_ORIGIN,
+        STUDIO_APPROVED_ORIGIN: DEFAULT_STUDIO_ORIGIN,
+      },
+    ],
+  ])("refuse to build with %s", async (_, env) => {
+    for (const [key, value] of Object.entries(env)) vi.stubEnv(key, value);
+    await expect(load()).rejects.toThrow(/STUDIO_APPROVED_ORIGIN/);
+  });
+
+  it("don't apply outside a Preview", async () => {
+    vi.stubEnv("VERCEL_ENV", "");
+    vi.stubEnv("STUDIO_APPROVED_ORIGIN", "");
+    await expect(load()).resolves.toBeDefined();
   });
 });
 

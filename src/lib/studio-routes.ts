@@ -62,6 +62,31 @@ export function studioOrigin(value: string | undefined): string {
   return url.origin;
 }
 
+/** Hosts that are production's, whatever a Preview's settings say. */
+const PRODUCTION_HOST =
+  /(^|\.)cosmosservicesllc\.com$|^internal-tools-cosmos\.vercel\.app$/;
+
+/**
+ * The value only if it's already exactly a non-production origin, so that a
+ * trailing slash, capitals or a default port can't match after tidying.
+ */
+export function pairedOrigin(value: string | undefined): string | null {
+  try {
+    const origin = value ? studioOrigin(value) : null;
+    return origin === value && !PRODUCTION_HOST.test(new URL(origin).hostname)
+      ? origin
+      : null;
+  } catch {
+    return null;
+  }
+}
+
+/** Whether this is exactly the Studio Preview an operator approved. */
+export function isApprovedStudio(origin: string | undefined) {
+  const approved = pairedOrigin(process.env.STUDIO_APPROVED_ORIGIN);
+  return !!approved && origin === approved;
+}
+
 /** Rewrites for next.config, each path forwarded to the same path upstream. */
 export function studioRewrites(origin: string) {
   return STUDIO_PATHS.map((path) => ({

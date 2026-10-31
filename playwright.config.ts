@@ -25,6 +25,8 @@ const CUSTOMER_STUB_SECRET = "synthetic-only-customer-api-secret-01";
 const AUTH_E2E = process.env.AUTH_E2E === "1";
 /** The same build as a paired Vercel Preview (tests/e2e/studio-access.spec.ts). */
 const PREVIEW_PORT = 3203;
+/** And one whose runtime settings no longer match where the build forwards. */
+const DRIFTED_PORT = 3204;
 function localAuthKey() {
   const env = execFileSync("supabase", ["status", "-o", "env"], {
     encoding: "utf8",
@@ -145,6 +147,21 @@ export default defineConfig({
         NEXT_DIST_DIR: ".next-test",
         VERCEL_ENV: "preview",
         STUDIO_ORIGIN: STUDIO_STUB_ORIGIN,
+        STUDIO_APPROVED_ORIGIN: STUDIO_STUB_ORIGIN,
+        STUDIO_PROTECTION_BYPASS: "synthetic-only-protection-value",
+        ...QUIET_DELIVERY,
+        ...NO_ACCOUNTS,
+      },
+    },
+    {
+      command: `npm run start -- -p ${DRIFTED_PORT}`,
+      url: `http://localhost:${DRIFTED_PORT}`,
+      reuseExistingServer: !process.env.CI,
+      env: {
+        NEXT_DIST_DIR: ".next-test",
+        VERCEL_ENV: "preview",
+        STUDIO_ORIGIN: "https://approved-studio-preview.example",
+        STUDIO_APPROVED_ORIGIN: "https://approved-studio-preview.example",
         STUDIO_PROTECTION_BYPASS: "synthetic-only-protection-value",
         ...QUIET_DELIVERY,
         ...NO_ACCOUNTS,
