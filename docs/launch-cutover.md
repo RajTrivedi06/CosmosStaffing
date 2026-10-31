@@ -40,24 +40,22 @@ stays forwarded, because the Studio's quote pages link to it.
 **Held off the site until there's a confirmed policy.** None of this is public.
 To publish any of it, confirm the policy, then add the wording.
 
-| Topic              | What was removed                                                                                                      |
-| ------------------ | --------------------------------------------------------------------------------------------------------------------- |
-| Insurance          | "Insured", the FAQ, "You don't need your own insurance to apply", and what company insurance covers for cleaners      |
-| Re-clean           | "We come back free", and "If anything was missed... we will put it right"                                             |
-| Cancellation       | "Can I pause or cancel?", and the description of what the terms cover                                                 |
-| Cleaner assignment | "Same team, every visit", the FAQ, "A team your staff will recognise", and "Meet your team"                           |
-| Supplies           | "Do you bring supplies?", and "Products chosen for each material"                                                     |
-| Cleaner pay        | Pay rates, how much work to expect, and payout timing and process                                                     |
-| Scheduling         | "A schedule that runs itself", and "Set it up once. Then it runs itself."                                             |
-| Other promises     | "One contact, one invoice", one point of contact, a note after each visit, "trained, fairly paid", and "1 of 8 rooms" |
-| Trust claims       | "Trusted", and "Many clients share a key or door code"                                                                |
+| Topic              | What was removed                                                                                                                                                                                                                                                |
+| ------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Insurance          | "Insured", the FAQ, "You don't need your own insurance to apply", and what company insurance covers for cleaners                                                                                                                                                |
+| Re-clean           | "We come back free", and "If anything was missed... we will put it right"                                                                                                                                                                                       |
+| Cancellation       | "Can I pause or cancel?", and the description of what the terms cover                                                                                                                                                                                           |
+| Cleaner assignment | "Same team, every visit", the FAQ, "A team your staff will recognise", and "Meet your team"                                                                                                                                                                     |
+| Supplies           | "Do you bring supplies?", and "Products chosen for each material"                                                                                                                                                                                               |
+| Cleaner pay        | Pay rates, how much work to expect, and payout timing and process                                                                                                                                                                                               |
+| Scheduling         | "A schedule that runs itself", and "Set it up once. Then it runs itself."                                                                                                                                                                                       |
+| Other promises     | "One contact, one invoice", one point of contact, a note after each visit, "trained, fairly paid", "1 of 8 rooms", the written standard and per-room checklists, "Notes kept for every home", "We ask before moving anything precious", and restocked restrooms |
+| Trust claims       | "Trusted", and "Many clients share a key or door code"                                                                                                                                                                                                          |
 
-**Still on the site, stated as fact. Please confirm or tell us to remove:**
+**Still on the site. Please check these are accurate:**
 
-- Every visit follows a written standard, with a checklist for each room, and
-  client notes are added to it (Home, Services).
-- Kitchen checklist items, and what each service includes (Home, Services).
-- "Notes kept for every home", and "We ask before moving anything precious".
+- What each service typically includes, and the example kitchen list. The
+  Services page heads these "Typically includes", and quotes set the real scope.
 - Larger or unusual jobs may get a walkthrough first.
 - Coordinating cleaning providers elsewhere in Texas and across the US.
 - Cleaner payment methods: the questionnaire offers Zelle, Cash App, Venmo or

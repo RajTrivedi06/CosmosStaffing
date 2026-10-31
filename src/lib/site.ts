@@ -125,7 +125,7 @@ export const faq = [
   },
   {
     q: "What about pets?",
-    a: "Tell us their names and routines in your quote request and we will plan the visit around them.",
+    a: "Tell us about them in your request, and our team will take them into account.",
   },
 ] as const;
 
@@ -140,7 +140,7 @@ export const services = [
     image: "kitchen",
     alt: "A mother and daughter laughing in a bright, spotless kitchen.",
     detail:
-      "A steady rhythm of care for the rooms you live in. Your team follows a written checklist for each room and adds your own notes to it, so the details you care about are never left to memory.",
+      "Regular care for the rooms you live in. Tell us what matters most, and your quote sets out the scope.",
     includes: [
       "Kitchen surfaces, hob, sink and appliance fronts",
       "Bathrooms: toilet, shower, bath, basin and mirrors",
@@ -173,13 +173,13 @@ export const services = [
     image: "move",
     alt: "A couple carrying a large plant into a bright, empty apartment.",
     detail:
-      "For empty or nearly empty homes at the start or end of a lease or sale. We plan around your move date and any handover checklist from your landlord or agent.",
+      "For empty or nearly empty homes at the start or end of a lease or sale. Tell us your move date and share any handover checklist from your landlord or agent, and our team coordinates the details with you.",
     includes: [
       "Inside every cupboard, drawer and wardrobe",
       "Kitchen appliances inside and out",
       "Bathrooms descaled and polished",
       "Floors, skirting and door frames throughout",
-      "Your landlord's or agent's checklist, if you share it",
+      "Items from your landlord's or agent's checklist, as agreed in your quote",
     ],
   },
   {
@@ -193,7 +193,7 @@ export const services = [
     includes: [
       "Desks, shared surfaces and touch points",
       "Kitchens and break rooms",
-      "Restrooms cleaned and restocked",
+      "Restrooms cleaned",
       "Floors vacuumed and mopped",
       "Bins emptied and recycling sorted",
     ],
@@ -228,7 +228,7 @@ export const home = {
       },
       {
         title: "Come home to calm",
-        body: "We work from the checklist we agree with you.",
+        body: "We work to the scope in your quote.",
       },
     ],
   },
@@ -250,8 +250,8 @@ export const home = {
 
   standard: {
     title: "Ordinary work, done with pride.",
-    lede: "Every visit follows a written standard, room by room, and your notes are added to it.",
-    checklistTitle: "Kitchen, every visit",
+    lede: "Your quote sets out the scope of the work, and our team coordinates the details with you.",
+    checklistTitle: "Example: a kitchen",
     checklist: [
       "Hob and oven front degreased",
       "Inside the microwave wiped",
@@ -264,10 +264,10 @@ export const home = {
 
   care: {
     title: "We look after what you love.",
-    lede: "Oiled oak, natural stone, old brass, a bowl someone mended by hand. We learn what each surface needs and care for it that way, so your things keep their character.",
+    lede: "Oiled oak, natural stone, old brass, a bowl someone mended by hand. Tell us what needs special care when you send your request.",
     points: [
-      "Notes kept for every home",
-      "We ask before moving anything precious",
+      "Add notes to your request",
+      "Our team reviews them with your quote",
     ],
     alt: "A mended kintsugi bowl with gold seams on a polished walnut table in late sun.",
   },
@@ -311,7 +311,7 @@ export const servicesPage = {
       },
       {
         title: "We manage the work",
-        body: "Our team coordinates scheduling with you. We agree the checklist, share it with the cleaners and keep your access notes with the job.",
+        body: "Our team coordinates scheduling with you. Your quote sets out the scope, and your access notes stay with the job.",
       },
       {
         title: "After the visit",
