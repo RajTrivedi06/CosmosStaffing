@@ -237,6 +237,7 @@ export function ServicePicker() {
             <span key={service.id} data-on={index <= selected || undefined} />
           ))}
         </div>
+        <h3 className="service-picker-includes">{home.services.includes}</h3>
         <ul className="service-picker-details">
           {item.includes.slice(0, 3).map((included) => (
             <li key={included}>{included}</li>

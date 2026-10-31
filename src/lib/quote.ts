@@ -15,7 +15,7 @@ export const SERVICE_OPTIONS = [
     label: "Regular home cleaning",
     hint: "Request weekly, every two weeks or monthly",
   },
-  { value: "deep", label: "Deep clean", hint: "A top-to-bottom reset" },
+  { value: "deep", label: "Deep clean", hint: "A more detailed reset" },
   {
     value: "move",
     label: "Move-in or move-out",
@@ -101,7 +101,7 @@ const TIMINGS: Option[] = [
 const HOME_EXTRAS: Option[] = [
   { value: "pets", label: "Pets at home" },
   { value: "oven", label: "Inside the oven" },
-  { value: "fridge", label: "Inside the fridge" },
+  { value: "fridge", label: "Inside the refrigerator" },
   { value: "windows", label: "Interior windows" },
   { value: "sensitivities", label: "Allergies or product preferences" },
 ];

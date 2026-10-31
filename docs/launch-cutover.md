@@ -52,15 +52,16 @@ To publish any of it, confirm the policy, then add the wording.
 | Other promises     | "One contact, one invoice", one point of contact, a note after each visit, "trained, fairly paid", "1 of 8 rooms", the written standard and per-room checklists, "Notes kept for every home", "We ask before moving anything precious", and restocked restrooms |
 | Trust claims       | "Trusted", and "Many clients share a key or door code"                                                                                                                                                                                                          |
 
-**The only public claims that still need Raj's confirmation:**
-
-1. The exact service checklist: what each service typically includes, and the
-   example kitchen list. Sent to Raj for approval on October 31.
+**No public claim is waiting on Raj's confirmation.**
 
 Decided by Raj on October 31: weekly, every-two-weeks and monthly cleaning are
 frequencies customers can request; Cosmos confirms the scope, location and schedule
 in the quote; recruitment describes the independent-cleaner opportunity and
-agreement. Cleaner SMS sign-in stays off the site until the hosted flow is verified:
+agreement; service lists use U.S. wording and are examples of what a cleaning can
+include. Oven and refrigerator interiors, interior windows and move-out checklist
+items are tasks customers can request and Cosmos must confirm. Studio's quote
+doesn't itemize tasks, so the site says "Tell us which tasks matter to you. Our team
+will confirm what's included before scheduling." Cleaner SMS sign-in stays off the site until the hosted flow is verified:
 then set `cleaners.signIn.available` in `src/lib/site.ts`, which publishes the link,
 the note and the step together.
 

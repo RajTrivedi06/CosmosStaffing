@@ -849,6 +849,12 @@
     .reel-progress [data-on] {
       background: var(--ink);
     }
+    .service-picker-includes {
+      margin: 0;
+      color: var(--ink);
+      font-size: 0.9rem;
+      font-weight: 600;
+    }
     .service-picker-details {
       display: grid;
       gap: 4px;

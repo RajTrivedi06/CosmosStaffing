@@ -52,12 +52,23 @@ export default function ServicesPage() {
             <div className="stack">
               <h2 id={`${s.id}-h`}>{s.title}</h2>
               <p className="lede">{s.detail}</p>
-              <h3>Typically includes</h3>
+              <h3>{servicesPage.includesTitle}</h3>
               <ul className="ticks">
                 {s.includes.map((line) => (
                   <li key={line}>{line}</li>
                 ))}
               </ul>
+              {s.onRequest.length > 0 && (
+                <>
+                  <h3>{servicesPage.onRequestTitle}</h3>
+                  <ul className="ticks">
+                    {s.onRequest.map((line) => (
+                      <li key={line}>{line}</li>
+                    ))}
+                  </ul>
+                </>
+              )}
+              <p>{servicesPage.confirm}</p>
               <Link className="btn btn-primary" href={`/quote?service=${s.id}`}>
                 Get a {s.title.toLowerCase()} quote
               </Link>

@@ -130,7 +130,15 @@ export const faq = [
 
 export type FaqItem = (typeof faq)[number];
 
-/** The services we offer. Ids match the quote flow's service values. */
+/** Shown beside any list of tasks: the quote doesn't itemize them. */
+const TASKS_CONFIRMED =
+  "Tell us which tasks matter to you. Our team will confirm what's included before scheduling.";
+
+/**
+ * The services we offer. Ids match the quote flow's service values. `includes`
+ * lists examples of what a cleaning can include, never a promise of everything
+ * on it; `onRequest` lists tasks a client can ask for and Cosmos must confirm.
+ */
 export const services = [
   {
     id: "regular",
@@ -141,28 +149,32 @@ export const services = [
     detail:
       "Regular care for the rooms you live in. Request weekly, every-two-weeks or monthly cleaning and tell us what matters most. Cosmos confirms the scope, location and schedule in your quote.",
     includes: [
-      "Kitchen surfaces, hob, sink and appliance fronts",
-      "Bathrooms: toilet, shower, bath, basin and mirrors",
-      "Dusting of reachable surfaces and skirting",
-      "Floors vacuumed and mopped throughout",
-      "Beds made and rooms tidied",
+      "Kitchen counters, stovetop, sink and appliance fronts",
+      "Bathroom toilets, showers, tubs, sinks and mirrors",
+      "Dusting reachable surfaces and baseboards",
+      "Vacuuming and mopping floors",
+      "Making beds and tidying rooms",
     ],
+    onRequest: ["Oven and refrigerator interiors", "Interior windows"],
   },
   {
     id: "deep",
     title: "Deep cleans",
     short:
-      "A top-to-bottom reset for a new season, a new baby or a fresh start.",
+      "A more detailed reset for a new season, a new baby or a fresh start.",
     image: "bath",
     alt: "A bright limestone bathroom with a white tub and fresh towels.",
     detail:
       "A longer, more detailed visit for homes that need more than upkeep. Good as a first visit before regular cleaning, or once or twice a year.",
     includes: [
-      "Everything in a regular clean",
-      "Built-up grime, limescale and grease",
-      "Inside cupboards, oven and fridge on request",
-      "Door frames, switches, vents and high edges",
-      "Interior windows on request",
+      "Regular cleaning tasks, in more detail",
+      "Built-up grime, hard-water stains and grease",
+      "Door frames, light switches, vents and high edges",
+    ],
+    onRequest: [
+      "Inside cabinets",
+      "Oven and refrigerator interiors",
+      "Interior windows",
     ],
   },
   {
@@ -172,13 +184,17 @@ export const services = [
     image: "move",
     alt: "A couple carrying a large plant into a bright, empty apartment.",
     detail:
-      "For empty or nearly empty homes at the start or end of a lease or sale. Tell us your move date and share any handover checklist from your landlord or agent, and our team coordinates the details with you.",
+      "For empty or nearly empty homes at the start or end of a lease or sale. Tell us your move date and share any move-out checklist from your landlord or property manager, and our team coordinates the details with you.",
     includes: [
-      "Inside every cupboard, drawer and wardrobe",
-      "Kitchen appliances inside and out",
-      "Bathrooms descaled and polished",
-      "Floors, skirting and door frames throughout",
-      "Items from your landlord's or agent's checklist, as agreed in your quote",
+      "Inside cabinets, drawers and closets",
+      "Kitchen appliance exteriors",
+      "Bathroom fixtures, tile and mirrors",
+      "Floors, baseboards and door frames",
+    ],
+    onRequest: [
+      "Oven and refrigerator interiors",
+      "Interior windows",
+      "Items from your landlord's or property manager's move-out checklist",
     ],
   },
   {
@@ -192,10 +208,11 @@ export const services = [
     includes: [
       "Desks, shared surfaces and touch points",
       "Kitchens and break rooms",
-      "Restrooms cleaned",
-      "Floors vacuumed and mopped",
-      "Bins emptied and recycling sorted",
+      "Restrooms",
+      "Vacuuming and mopping floors",
+      "Emptying trash and sorting recycling",
     ],
+    onRequest: [],
   },
 ] as const;
 
@@ -222,7 +239,7 @@ export const home = {
         body: "A few quick questions about rooms, pets and timing. We reply with a personal quote.",
       },
       {
-        title: "Agree the details",
+        title: "Agree on the details",
         body: "Cosmos confirms the scope, location and schedule in your quote.",
       },
       {
@@ -237,6 +254,7 @@ export const home = {
     more: "All services",
     go: "Get a quote",
     choose: "Choose a service",
+    includes: "A cleaning can include",
   },
 
   workplaces: {
@@ -250,15 +268,16 @@ export const home = {
   standard: {
     title: "Ordinary work, done with pride.",
     lede: "Cosmos confirms the scope, location and schedule in your quote, and our team coordinates the details with you.",
-    checklistTitle: "Example: a kitchen",
+    checklistTitle: "Example: what a kitchen cleaning can include",
     checklist: [
-      "Hob and oven front degreased",
-      "Inside the microwave wiped",
+      "Degreasing the stovetop and oven door",
+      "Wiping out the microwave",
       "Cabinet fronts and handles",
-      "Splashback and counters",
-      "Sink and tap polished",
-      "Floor vacuumed and mopped",
+      "Backsplash and counters",
+      "Sink and faucet",
+      "Vacuuming and mopping the floor",
     ],
+    confirm: TASKS_CONFIRMED,
   },
 
   care: {
@@ -318,6 +337,9 @@ export const servicesPage = {
       },
     ],
   },
+  includesTitle: "A cleaning can include",
+  onRequestTitle: "Tasks you can request",
+  confirm: TASKS_CONFIRMED,
   coverageTitle: "Where we work",
   faqTitle: "Questions",
 } as const;

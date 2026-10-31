@@ -31,6 +31,7 @@ export function Standard() {
               </li>
             ))}
           </ul>
+          <p className="micro">{standard.confirm}</p>
         </div>
       </div>
     </section>

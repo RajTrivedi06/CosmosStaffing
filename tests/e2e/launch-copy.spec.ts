@@ -1,10 +1,17 @@
+import { readFileSync } from "node:fs";
 import { expect, test } from "@playwright/test";
-import { cleaners, services, siteConfig } from "../../src/lib/site";
+import {
+  cleaners,
+  home,
+  services,
+  servicesPage,
+  siteConfig,
+} from "../../src/lib/site";
 
 /** What the launch version must say, and must no longer say. */
 const PAGES = ["/", "/services", "/contact", "/clean-with-cosmos"];
 const REMOVED =
-  /background.check|\brating\b|testimonial|real review|review count|business day|how long a review|no account|account to create|\[PLACEHOLDER|insur|come back free|same small team|same team|same people|your team every|runs itself|one invoice|one contact|one point of contact|do you bring supplies|re-clean|put it right|pause or cancel|fairly paid|pay rates|payout|still to confirm|full terms|written standard|every visit|notes kept|restocked|never left to memory|spotless|walkthrough|before or after hours|working hours|first meeting|often, yes|zelle|cash app|venmo/i;
+  /background.check|\brating\b|testimonial|real review|review count|business day|how long a review|no account|account to create|\[PLACEHOLDER|insur|come back free|same small team|same team|same people|your team every|runs itself|one invoice|one contact|one point of contact|do you bring supplies|re-clean|put it right|pause or cancel|fairly paid|pay rates|payout|still to confirm|full terms|written standard|every visit|notes kept|restocked|never left to memory|spotless|walkthrough|before or after hours|working hours|first meeting|often, yes|zelle|cash app|venmo|typically includes|throughout|top-to-bottom|inside every|everything in a|\\bhob\\b|skirting|splashback|limescale|cupboard|wardrobe|fridge|\\btap\\b|\\bbasin\\b|\\bbins\\b|agree the details|handover/i;
 
 for (const path of PAGES)
   test(`${path} makes no unverified claims`, async ({ page }) => {
@@ -45,6 +52,45 @@ test("regular cleaning frequencies read as requests", async ({ page }) => {
   await expect(page.locator("main")).toContainText(
     "Request weekly, every two weeks or monthly",
   );
+});
+
+test("service lists read as examples, and requests need confirming", async ({
+  page,
+}) => {
+  await page.goto("/services");
+  const main = page.locator("main");
+  for (const service of services) {
+    const article = main.locator(`article#${service.id}`);
+    await expect(article).toContainText(servicesPage.includesTitle);
+    await expect(article).toContainText(servicesPage.confirm);
+    for (const task of service.onRequest)
+      await expect(article).toContainText(task);
+  }
+  for (const id of ["regular", "deep", "move"]) {
+    const article = main.locator(`article#${id}`);
+    await expect(article).toContainText(servicesPage.onRequestTitle);
+    await expect(article).toContainText("Oven and refrigerator interiors");
+    await expect(article).toContainText("Interior windows");
+  }
+  await expect(main.locator("article#move")).toContainText(
+    "Items from your landlord's or property manager's move-out checklist",
+  );
+  // Tasks to request are listed only as requests.
+  for (const service of services)
+    expect(service.includes.join(" ")).not.toMatch(
+      /refrigerator|interior windows|oven interior/i,
+    );
+
+  await page.goto("/");
+  await expect(page.locator("#checklist")).toContainText(home.standard.confirm);
+  await expect(page.locator("#checklist")).toContainText("Backsplash");
+});
+
+test("the quote questions use U.S. wording", () => {
+  const source = readFileSync("src/lib/quote.ts", "utf8");
+  expect(source).toContain("Inside the refrigerator");
+  expect(source).not.toContain("Inside the fridge");
+  expect(source).not.toContain("top-to-bottom");
 });
 
 test("recruitment describes the opportunity and agreement", async ({
