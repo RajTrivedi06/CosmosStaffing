@@ -6,16 +6,16 @@ pushed, deployed or enabled, and no hosted setting or DNS record changed.
 
 ## The candidate
 
-- **Current candidate: `d05541c82e82f6fc49d4f11a225c3bb34979bf4c`**, on branch
+- **Current candidate: `736faab6ee70842412a4b080ad91ce970e90154f`**, on branch
   `presentation/candidate-2026-10-30`, in
-  `/Users/raaj/Documents/CS/cosmos/wt-website-presentation`. It's `eeff78c` plus
-  three commits: pinch zoom over the service cards (`89d1c43`), copy decided on
-  October 31 (`68fccca`), and server-side access to a protected Studio Preview
-  (`d05541c`, see `docs/protected-preview-access.md`). On `d05541c`: lint, types and
-  format clean, 294 unit, 116 main browser with 3 intentionally skipped, 78 real
-  Auth. The test table below describes `54dd966`. The 44 paired tests last ran on
-  `4d59821`, and `d05541c` changes `src/proxy.ts` and `src/lib/customer-api.ts`, so
-  the protected Preview must cover that integration again.
+  `/Users/raaj/Documents/CS/cosmos/wt-website-presentation`. It's `eeff78c` plus pinch
+  zoom (`89d1c43`), the copy decided on October 31 (`68fccca`, `91e5c85`), and
+  server-side access to a protected Studio Preview, bound to one approved origin
+  (`d05541c`, `616a066`, `736faab`; see `docs/protected-preview-access.md`). On
+  `736faab`: lint, types and format clean, 349 unit, 122 main browser with 3
+  intentionally skipped, 78 real Auth. The test table below describes `54dd966`. The
+  44 paired tests last ran on `4d59821`, and they don't cover the new proxy and
+  customer API path or Studio's later changes, so the protected Preview must.
 - It's the launch commits plus the hero, services reel and image work.
 - **Your original work is safe.** It's preserved at
   `presentation/original-2026-10-30`. The main checkout is still on
@@ -78,9 +78,9 @@ Updated October 31. Contact is decided: email only, with no phone numbers or hou
 - **Internal Tools:** the Terms page or a replacement step, its Production guard
   change, the migration rehearsal, backup, hosted Auth and templates, and the
   support lookup.
-- **Website Codex:** delta review of `54dd966..d05541c`. Its reviews are in `docs/`,
-  and the findings I own are fixed. Its hosted checklist is
-  `hosted-preview-acceptance.md`.
+- **Website Codex:** delta review of `d05541c..736faab`; see
+  `docs/claude-handoff-736faab.md`. Its reviews are in `docs/`, and its hosted
+  checklist is `hosted-preview-acceptance.md`.
 
 ## Known limits
 
