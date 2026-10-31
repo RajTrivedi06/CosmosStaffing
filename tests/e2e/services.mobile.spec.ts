@@ -163,6 +163,80 @@ test("a vertical drag on a card still scrolls the page", async ({ page }) => {
     .toBeGreaterThan(before);
 });
 
+/** A two-finger spread over a point on the page, as the browser reads one. */
+async function pinch(page: Page, x: number, y: number) {
+  const cdp = await page.context().newCDPSession(page);
+  await cdp.send("Input.synthesizePinchGesture", {
+    x,
+    y,
+    scaleFactor: 2,
+    relativeSpeed: 300,
+    gestureSourceType: "touch",
+  });
+  await expect
+    .poll(() => page.evaluate(() => visualViewport!.scale))
+    .toBeGreaterThan(1.5);
+}
+
+const viewportLeft = (page: Page) =>
+  page.evaluate(() => visualViewport!.offsetLeft);
+
+test("pinching a card zooms the page and keeps the card", async ({ page }) => {
+  await scrollReel(page, 1 / (services.length - 1));
+  await expectSelection(page, 1);
+  const before = await page.evaluate(() => window.scrollY);
+  const box = (await group(page).getByRole("radio").nth(1).boundingBox())!;
+  const x = box.x + box.width / 2;
+  const y = box.y + box.height / 2;
+
+  await pinch(page, x, y);
+  await expectSelection(page, 1);
+  expect(await page.evaluate(() => window.scrollY)).toBe(before);
+
+  // One finger now moves around the magnified page, both ways, and a
+  // sideways drag doesn't count as a swipe.
+  await expect
+    .poll(async () => {
+      await swipe(page, { x: 300, y }, { x: 100, y });
+      return viewportLeft(page);
+    })
+    .toBeGreaterThan(150);
+  await expect
+    .poll(async () => {
+      await swipe(page, { x: 100, y }, { x: 300, y });
+      return viewportLeft(page);
+    })
+    .toBeLessThan(50);
+  await expectSelection(page, 1);
+});
+
+test("a two-finger gesture never counts as a swipe", async ({ page }) => {
+  await scrollReel(page, 0);
+  const box = (await group(page).getByRole("radio").first().boundingBox())!;
+  const y = box.y + box.height / 2;
+  const cdp = await page.context().newCDPSession(page);
+  const send = (type: string, points: { x: number; y: number }[]) =>
+    cdp.send("Input.dispatchTouchEvent", {
+      type,
+      touchPoints: points,
+    } as never);
+
+  // The second finger lands above the cards, then the first travels sideways.
+  await send("touchStart", [{ x: 330, y }]);
+  await send("touchStart", [
+    { x: 330, y },
+    { x: 200, y: 30 },
+  ]);
+  for (let i = 1; i <= 8; i++)
+    await send("touchMove", [
+      { x: 330 - i * 34, y },
+      { x: 200, y: 30 },
+    ]);
+  await send("touchEnd", []);
+  await page.waitForTimeout(400);
+  await expectSelection(page, 0);
+});
+
 test("a trackpad flick moves one card", async ({ page }) => {
   await scrollReel(page, 0);
   const box = (await group(page).getByRole("radio").first().boundingBox())!;

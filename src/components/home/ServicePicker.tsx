@@ -19,13 +19,16 @@ const LAST = services.length - 1;
 const SWIPE = 40;
 /** A trackpad keeps sending momentum; one flick moves one card. */
 const FLICK_MS = 600;
+/** Above this page scale the customer has pinched in. */
+const ZOOMED = 1.01;
 
 /**
  * Phones: the services as a reel. Scrolling down pins the section and
  * carries the full-photo cards past one by one; the card in place is the
  * selected service, and the one "Get a quote" button below starts a quote
  * for it. Tapping a card, the arrow keys, or swiping sideways scrolls the page
- * to it, so vertical scrolling stays the browser's and there's one position.
+ * to it, so vertical scrolling and pinch zoom stay the browser's and there's
+ * one position.
  *
  * Under reduced motion the row is a native swipe instead, and selection
  * follows the card that comes to rest. Without JavaScript the linked grid
@@ -81,13 +84,23 @@ export function ServicePicker() {
           const next = selectedRef.current + direction;
           if (next >= 0 && next <= LAST) goToRef.current(next);
         };
+        // Pinching and moving around a magnified page stay the browser's: the
+        // cards take a swipe only from one finger at normal scale.
+        const zoomed = () => (window.visualViewport?.scale ?? 1) > ZOOMED;
+        const onViewport = () => {
+          track.toggleAttribute("data-zoomed", zoomed());
+        };
         let touch: { x: number; y: number } | null = null;
         const onTouchStart = (event: TouchEvent) => {
           const [first] = event.touches;
           touch =
-            event.touches.length === 1
+            event.touches.length === 1 && !zoomed()
               ? { x: first.clientX, y: first.clientY }
               : null;
+        };
+        // The second finger can land off the cards, where touchstart can't see it.
+        const onTouchMove = (event: TouchEvent) => {
+          if (event.touches.length > 1) touch = null;
         };
         const onTouchEnd = (event: TouchEvent) => {
           const [last] = event.changedTouches;
@@ -110,12 +123,17 @@ export function ServicePicker() {
           flickedAt = event.timeStamp;
         };
         track.addEventListener("touchstart", onTouchStart, { passive: true });
+        track.addEventListener("touchmove", onTouchMove, { passive: true });
         track.addEventListener("touchend", onTouchEnd, { passive: true });
         track.addEventListener("wheel", onWheel, { passive: true });
+        window.visualViewport?.addEventListener("resize", onViewport);
         return () => {
           track.removeEventListener("touchstart", onTouchStart);
+          track.removeEventListener("touchmove", onTouchMove);
           track.removeEventListener("touchend", onTouchEnd);
           track.removeEventListener("wheel", onWheel);
+          window.visualViewport?.removeEventListener("resize", onViewport);
+          track.removeAttribute("data-zoomed");
         };
       },
     );
