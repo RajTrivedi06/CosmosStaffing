@@ -39,7 +39,7 @@ test("scrolling down leaves only the button, which doesn't move", async ({
   expect(await brand.boundingBox()).toEqual(brandPlace);
 
   // At the top of the page the wordmark sits on the page itself.
-  await page.evaluate(() => window.scrollTo({ top: 0, behavior: "instant" }));
+  await page.mouse.wheel(0, -4000);
   await expect.poll(() => backing(page)).toBe("0");
 });
 
@@ -48,7 +48,10 @@ test("keyboard focus brings the full bar back", async ({ page }) => {
   const header = page.locator("header.nav");
   await page.mouse.wheel(0, 1600);
   await expect(header).toHaveAttribute("data-compact");
-  await page.keyboard.press("Shift+Tab");
+  // The wordmark is out of the tab order while hidden, so this reaches the
+  // button, and focus inside the bar opens it.
+  await page.keyboard.press("Tab");
+  await page.keyboard.press("Tab");
   await expect(header).not.toHaveAttribute("data-compact");
   await expect(page.locator(".brand")).toBeVisible();
 });

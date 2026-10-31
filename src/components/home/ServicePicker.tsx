@@ -15,12 +15,17 @@ const STEPS: Record<string, number> = {
   ArrowUp: -1,
 };
 const LAST = services.length - 1;
+/** Sideways travel, in pixels, that counts as a swipe or a trackpad flick. */
+const SWIPE = 40;
+/** A trackpad keeps sending momentum; one flick moves one card. */
+const FLICK_MS = 600;
 
 /**
  * Phones: the services as a reel. Scrolling down pins the section and
  * carries the full-photo cards past one by one; the card in place is the
  * selected service, and the one "Get a quote" button below starts a quote
- * for it. Tapping a card (or the arrow keys) scrolls the page to it.
+ * for it. Tapping a card, the arrow keys, or swiping sideways scrolls the page
+ * to it, so vertical scrolling stays the browser's and there's one position.
  *
  * Under reduced motion the row is a native swipe instead, and selection
  * follows the card that comes to rest. Without JavaScript the linked grid
@@ -70,6 +75,47 @@ export function ServicePicker() {
         goToRef.current = (index) => {
           const st = tween.scrollTrigger;
           if (st) scrollToY(st.start + ((st.end - st.start) * index) / LAST);
+        };
+
+        const step = (direction: number) => {
+          const next = selectedRef.current + direction;
+          if (next >= 0 && next <= LAST) goToRef.current(next);
+        };
+        let touch: { x: number; y: number } | null = null;
+        const onTouchStart = (event: TouchEvent) => {
+          const [first] = event.touches;
+          touch =
+            event.touches.length === 1
+              ? { x: first.clientX, y: first.clientY }
+              : null;
+        };
+        const onTouchEnd = (event: TouchEvent) => {
+          const [last] = event.changedTouches;
+          if (!touch || !last) return;
+          const dx = last.clientX - touch.x;
+          const dy = last.clientY - touch.y;
+          touch = null;
+          if (Math.abs(dx) >= SWIPE && Math.abs(dx) > Math.abs(dy))
+            step(dx < 0 ? 1 : -1);
+        };
+        let travel = 0;
+        let flickedAt = -Infinity;
+        const onWheel = (event: WheelEvent) => {
+          if (Math.abs(event.deltaX) <= Math.abs(event.deltaY)) return;
+          if (event.timeStamp - flickedAt < FLICK_MS) return;
+          travel += event.deltaX;
+          if (Math.abs(travel) < SWIPE) return;
+          step(travel > 0 ? 1 : -1);
+          travel = 0;
+          flickedAt = event.timeStamp;
+        };
+        track.addEventListener("touchstart", onTouchStart, { passive: true });
+        track.addEventListener("touchend", onTouchEnd, { passive: true });
+        track.addEventListener("wheel", onWheel, { passive: true });
+        return () => {
+          track.removeEventListener("touchstart", onTouchStart);
+          track.removeEventListener("touchend", onTouchEnd);
+          track.removeEventListener("wheel", onWheel);
         };
       },
     );

@@ -878,6 +878,8 @@
       padding-bottom: calc(env(safe-area-inset-bottom, 0px) + 20px);
     }
     html[data-motion="on"] .service-picker-cards {
+      /* Sideways swipes are ours (ServicePicker); vertical stays native. */
+      touch-action: pan-y;
       flex: 1 1 auto;
       min-height: 0;
       will-change: transform;

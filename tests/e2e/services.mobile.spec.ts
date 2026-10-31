@@ -99,6 +99,78 @@ test("Get a quote fills in the service on screen", async ({ page }) => {
   ).toBeVisible();
 });
 
+/** A real touch drag, as a finger would make it. */
+async function swipe(
+  page: Page,
+  from: { x: number; y: number },
+  to: { x: number; y: number },
+) {
+  const cdp = await page.context().newCDPSession(page);
+  const send = (type: string, points: { x: number; y: number }[]) =>
+    cdp.send("Input.dispatchTouchEvent", {
+      type,
+      touchPoints: points,
+    } as never);
+  await send("touchStart", [from]);
+  for (let i = 1; i <= 8; i++)
+    await send("touchMove", [
+      {
+        x: from.x + ((to.x - from.x) * i) / 8,
+        y: from.y + ((to.y - from.y) * i) / 8,
+      },
+    ]);
+  await send("touchEnd", []);
+}
+
+test("swiping sideways moves through the services, in normal motion", async ({
+  page,
+}) => {
+  await scrollReel(page, 0);
+  await expectSelection(page, 0);
+  const box = (await group(page).getByRole("radio").first().boundingBox())!;
+  const y = box.y + box.height / 2;
+
+  await swipe(page, { x: 330, y }, { x: 60, y });
+  await expectSelection(page, 1);
+  await swipe(page, { x: 330, y }, { x: 60, y });
+  await expectSelection(page, 2);
+  await swipe(page, { x: 60, y }, { x: 330, y });
+  await expectSelection(page, 1);
+
+  // The shared button follows, and the row itself moved with the selection.
+  await expect
+    .poll(
+      async () =>
+        (await group(page).getByRole("radio").nth(1).boundingBox())!.x,
+    )
+    .toBeLessThan(40);
+  await swipe(page, { x: 60, y }, { x: 330, y });
+  await expectSelection(page, 0);
+  // There's nothing before the first card.
+  await swipe(page, { x: 60, y }, { x: 330, y });
+  await page.waitForTimeout(400);
+  await expectSelection(page, 0);
+});
+
+test("a vertical drag on a card still scrolls the page", async ({ page }) => {
+  await scrollReel(page, 0);
+  const before = await page.evaluate(() => window.scrollY);
+  const box = (await group(page).getByRole("radio").first().boundingBox())!;
+  const x = box.x + box.width / 2;
+  await swipe(page, { x, y: box.y + box.height - 40 }, { x, y: box.y + 40 });
+  await expect
+    .poll(() => page.evaluate(() => window.scrollY))
+    .toBeGreaterThan(before);
+});
+
+test("a trackpad flick moves one card", async ({ page }) => {
+  await scrollReel(page, 0);
+  const box = (await group(page).getByRole("radio").first().boundingBox())!;
+  await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+  for (let i = 0; i < 6; i++) await page.mouse.wheel(30, 0);
+  await expectSelection(page, 1);
+});
+
 test("tablet and desktop keep the linked grid", async ({ page }) => {
   for (const width of [1024, 1440]) {
     await page.setViewportSize({ width, height: 900 });
