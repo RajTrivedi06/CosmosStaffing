@@ -61,6 +61,9 @@ To publish any of it, confirm the policy, then add the wording.
 - Cleaner payment methods: the questionnaire offers Zelle, Cash App, Venmo or
   check, from the Studio's onboarding document.
 
+**Unresolved contact detail:** the public phone number. None is published until
+it's confirmed; the Contact page and footer list the monitored email only.
+
 **Blocks the release steps, from the canonical plan:**
 
 - [ ] Confirm the Vercel team and projects, and give the deploying owner access.
@@ -73,15 +76,15 @@ To publish any of it, confirm the policy, then add the wording.
 
 ## Verification still owed
 
-- [ ] Website Codex's review of this candidate.
-- [ ] A fresh paired reservation from Internal Tools, then the full suite against
-      a **production build** of this candidate. The 44 passes on `d234192` used
-      `next dev`, and later commits changed password, payment and error
-      behaviour. Studio's own `961d519` is new too.
+- [ ] Website Codex's delta review of the final candidate.
 - [ ] Protected Preview: cookies, Server Actions, native POST, caching and `/q`
       forwarding on the real edge, plus the 429 screens under the real WAF rule.
+      A native form's 429 needs a usable edge response; the React screen can't
+      cover it. See `hosted-preview-acceptance.md`.
 - [ ] Cleaner and staff regression on the shared project.
-- [ ] A physical phone, once.
+- [ ] A physical iPhone and Android phone, once.
+- [ ] A new paired reservation only if integration code changes. The production
+      build passed 44 of 44 on `4d59821`; see the morning handoff.
 
 ## Website steps in the canonical order
 
