@@ -6,10 +6,12 @@ pushed, deployed or enabled, and no hosted setting or DNS record changed.
 
 ## The candidate
 
-- **Final candidate: `54dd966470c88108720aa14bca744c49e8f04d38`**, on branch
+- **Final candidate: `eeff78ca97ff87e5585bb26e595459f9e952df9d`**, on branch
   `presentation/candidate-2026-10-30`, in
-  `/Users/raaj/Documents/CS/cosmos/wt-website-presentation`. The commit holding
-  this handoff sits on top of it and changes docs only.
+  `/Users/raaj/Documents/CS/cosmos/wt-website-presentation`. It's `54dd966` plus
+  one copy-only commit omitting optional unconfirmed claims. The test table below
+  describes `54dd966`; on `eeff78c` the unit, lint and main browser checks were
+  rerun and passed (290 unit, 106 main, 2 intentionally skipped).
 - It's the launch commits plus the hero, services reel and image work.
 - **Your original work is safe.** It's preserved at
   `presentation/original-2026-10-30`. The main checkout is still on
@@ -72,7 +74,7 @@ Updated October 31. Contact is decided: email only, with no phone numbers or hou
 - **Internal Tools:** the Terms page or a replacement step, its Production guard
   change, the migration rehearsal, backup, hosted Auth and templates, and the
   support lookup.
-- **Website Codex:** delta review of `8ece299..54dd966`. Its reviews of `8ece299`
+- **Website Codex:** delta review of `8ece299..eeff78c`. Its reviews of `8ece299`
   and `fb6d083` are in `docs/`. The findings I own are fixed. Its hosted checklist
   is `hosted-preview-acceptance.md`.
 
