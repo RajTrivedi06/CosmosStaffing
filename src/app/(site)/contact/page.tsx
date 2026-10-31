@@ -12,7 +12,7 @@ export const metadata: Metadata = pageMetadata({
 
 export default function ContactPage() {
   const { actions } = contactPage;
-  const { phones, email } = siteConfig.contact;
+  const { email } = siteConfig.contact;
   return (
     <main id="main" className="page">
       <header className="page-hero pad">
@@ -21,16 +21,6 @@ export default function ContactPage() {
       </header>
       <div className="contact pad">
         <dl className="contact-list">
-          <div>
-            <dt>Phone</dt>
-            <dd>
-              {phones.map((phone) => (
-                <a key={phone.href} href={phone.href} className="block">
-                  {phone.label}
-                </a>
-              ))}
-            </dd>
-          </div>
           <div>
             <dt>Email</dt>
             <dd>

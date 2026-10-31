@@ -5,7 +5,7 @@ couldn't confirm an earlier request", or asks whether a request reached us.
 
 This follows the Studio's investigation procedure in
 `docs/03-guides/launch-2026-10-30.md`, which governs if the two ever differ.
-Customers reach us at the phone numbers and email on the Contact page.
+Customers reach us at the email on the Contact page.
 
 ## What it means
 

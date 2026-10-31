@@ -38,10 +38,6 @@ export const siteConfig = {
 
   /** Confirmed by Raj, 2026-10-30. */
   contact: {
-    phones: [
-      { label: "737-399-3919", href: "tel:+17373993919" },
-      { label: "608-590-9550", href: "tel:+16085909550" },
-    ],
     email: "info@cosmosservicesllc.com",
   },
 

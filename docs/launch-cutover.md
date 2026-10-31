@@ -139,7 +139,7 @@ nothing.
 5. Use "Forgot your password?". **If the reset page asks for a link straight
    after using one, stop:** it means hosted Auth marks links differently from the
    local stack, and recovery is broken.
-6. The Contact page's phone and email links reach someone at Cosmos.
+6. The Contact page's email link reaches someone at Cosmos.
 7. An approved second account sees none of the first's records.
 8. An open payment reads "We'll arrange payment with you directly", with no link.
 9. A deliberately blocked form shows the 429 screen, and nothing resends.

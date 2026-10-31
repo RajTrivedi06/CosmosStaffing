@@ -32,11 +32,6 @@ export function SiteFooter() {
       <div>
         <h2>Talk to us</h2>
         <ul>
-          {siteConfig.contact.phones.map((phone) => (
-            <li key={phone.href}>
-              <a href={phone.href}>{phone.label}</a>
-            </li>
-          ))}
           <li>
             <a href={`mailto:${siteConfig.contact.email}`}>
               {siteConfig.contact.email}

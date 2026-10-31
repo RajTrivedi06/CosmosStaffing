@@ -27,24 +27,19 @@ test("service concerns and scheduling use the confirmed wording", async ({
   await expect(main).toContainText("Our team coordinates scheduling with you.");
 });
 
-test("the contact page and footer give real ways to reach us", async ({
+test("the contact page and footer publish the monitored email only", async ({
   page,
 }) => {
-  const { phones, email } = siteConfig.contact;
+  const { email } = siteConfig.contact;
   await page.goto("/contact");
   const main = page.locator("main");
   const footer = page.locator("footer");
-  for (const place of [main, footer]) {
-    for (const phone of phones)
-      await expect(
-        place.getByRole("link", { name: phone.label }),
-      ).toHaveAttribute("href", phone.href);
+  for (const place of [main, footer])
     await expect(place.getByRole("link", { name: email })).toHaveAttribute(
       "href",
       `mailto:${email}`,
     );
-  }
+  await expect(page.locator('a[href^="tel:"]')).toHaveCount(0);
+  await expect(main.getByText("Phone", { exact: true })).toHaveCount(0);
   await expect(main.getByText("Hours", { exact: true })).toHaveCount(0);
-  await expect(main.getByText("[PLACEHOLDER")).toHaveCount(0);
-  await expect(footer.getByText("[PLACEHOLDER")).toHaveCount(0);
 });
