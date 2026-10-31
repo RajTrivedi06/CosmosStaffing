@@ -31,16 +31,30 @@ From the Studio's read-only checks, which can drift, so recheck at cutover:
 
 ## Needed from Raj
 
-**Blocks launch:**
+**Decisions on public statements.** These still show as visible `[PLACEHOLDER]`
+text, or state a promise as fact, and each needs a yes, new wording or removal.
 
-- [ ] Company **phone, email and office hours**. None are recorded anywhere. The
-      Contact page shows `[PLACEHOLDER]` for all three, and the uncertain-request
-      screen sends customers there.
-- [ ] A decision on the other visible `[PLACEHOLDER]` tokens: reviews and
-      ratings, insurance and background checks, re-clean and cancellation
-      policies, reply time, and the "to confirm" FAQ and service wording.
-- [ ] Whether the release includes the uncommitted presentation work (hero,
-      services reel, images). It isn't in this candidate.
+| Topic        | Where                    | Current wording                                                               | Shown as    |
+| ------------ | ------------------------ | ----------------------------------------------------------------------------- | ----------- |
+| Insurance    | Home hero                | "Insured"                                                                     | Placeholder |
+| Insurance    | FAQ                      | "Are the cleaners insured?": the answer isn't written                         | Placeholder |
+| Insurance    | Clean with Cosmos        | What Cosmos's company insurance covers for independent cleaners               | Placeholder |
+| Insurance    | Clean with Cosmos        | "You don't need your own insurance to apply."                                 | Fact        |
+| Re-clean     | Home hero                | "Not right? We come back free"                                                | Placeholder |
+| Re-clean     | FAQ                      | "What if something isn't right?": the answer isn't written                    | Placeholder |
+| Re-clean     | Services, "We follow up" | "If anything was missed, tell us and we will put it right."                   | Fact        |
+| Cancellation | FAQ                      | "Can I pause or cancel?": the answer isn't written                            | Placeholder |
+| Cancellation | Services                 | "Our full terms cover quotes, scheduling, access, cancellations and payment." | Fact        |
+
+**Other statements needing the same decision:**
+
+- Placeholders: the same team every visit (home, FAQ), bringing supplies (FAQ),
+  "A team your staff will recognise", "trained, fairly paid", "1 of 8 rooms", and
+  on Clean with Cosmos: pay rates, how much work to expect, and payout timing.
+- Stated as fact: "One contact, one invoice", a short note after each visit, and
+  the checklists and notes kept for every home.
+- Automatic-sounding scheduling, which is manual at launch: "on a schedule that
+  runs itself", and "Set it up once. Then it runs itself."
 
 **Blocks the release steps, from the canonical plan:**
 
@@ -50,6 +64,7 @@ From the Studio's read-only checks, which can drift, so recheck at cutover:
 - [ ] Controlled test mail recipients, and the SMTP sender.
 - [ ] The WAF budget and cost.
 - [ ] A maintenance window and a DNS operator.
+- [ ] Who verifies customers for support, and who holds the read-only lookup.
 
 ## Verification still owed
 
@@ -64,6 +79,16 @@ From the Studio's read-only checks, which can drift, so recheck at cutover:
 - [ ] A physical phone, once.
 
 ## Website steps in the canonical order
+
+**Don't merge to `main` until deployment control is in place.** A merge to
+`main` can auto-deploy, which would put schema-dependent code live before
+maintenance and migrations. Before any merge, record each project's actual
+deployment trigger and how it's being held, or leave the merge until the
+approved deployment step. Changing a hosted setting needs its own approval.
+
+Payments depend on the Studio's `CUSTOMER_CHECKOUT_ENABLED` staying off on every
+checkout path, with signed webhooks still running. The website hiding its `Pay`
+link isn't enough on its own, because `/pay` stays forwarded.
 
 | Canonical step           | What the website does                                                                                                                                               |
 | ------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -107,7 +132,7 @@ nothing.
 5. Use "Forgot your password?". **If the reset page asks for a link straight
    after using one, stop:** it means hosted Auth marks links differently from the
    local stack, and recovery is broken.
-6. Check the Contact page shows real details, with no placeholders.
+6. The Contact page's phone and email links reach someone at Cosmos.
 7. An approved second account sees none of the first's records.
 8. An open payment reads "We'll arrange payment with you directly", with no link.
 9. A deliberately blocked form shows the 429 screen, and nothing resends.

@@ -5,6 +5,7 @@ couldn't confirm an earlier request", or asks whether a request reached us.
 
 This follows the Studio's investigation procedure in
 `docs/03-guides/launch-2026-10-30.md`, which governs if the two ever differ.
+Customers reach us at the phone numbers and email on the Contact page.
 
 ## What it means
 
@@ -24,9 +25,13 @@ none of their answers.
   quote and payment links or anything from an email.
 - Never tell them to clear their browser data to make the message go away.
 
-An email address or reference someone gives you is a search hint, not proof of
-who they are. It's never enough on its own to reveal a record or attach one to
-an account.
+An email address, reference or screenshot someone gives you is a search hint,
+not proof of who they are. It's never enough on its own to reveal a record or
+attach one to an account. If you need to confirm who's asking, contact them at
+the verified email already on their account, not an address they've just given
+you, and never change that email because someone asked.
+
+If the marker shows no reference, note that, and don't invent one.
 
 ## How to investigate
 
@@ -40,30 +45,34 @@ inquiry · name".
 
 **Step 3: if it's still unclear, an authorized Studio operator looks up the
 reference.** The Studio doesn't show references, so this needs someone with
-read-only production database access. They run a bounded query like this, with
-the reference in place of the zeros, selecting no answers, hashes or tokens:
+read-only production database access. Internal Tools must confirm the supported
+lookup and who holds that access before launch. They run a bounded query like
+this, with the reference in place of the zeros, selecting no answers, hashes or
+tokens:
 
 ```sql
-select job_id, lead_id, created_at
+select job_id, lead_id, customer_user_id, created_at
 from studio_private.website_intake_receipts
 where submission_id = '00000000-0000-0000-0000-000000000000';
 ```
 
-From a row, they follow `job_id` to the job, its client to `customer_accounts`,
-and that to the verified account. **If you can't independently establish that
-the record belongs to this customer, don't disclose it.** Ask them to check
-their signed-in history, and escalate internally.
+**Compare `customer_user_id` with the verified account of the person asking.**
+A row that belongs to someone else, or that you can't tie to them, gets the same
+generic answer as an unresolved request, and an internal escalation. Don't
+reveal that a record exists. Keep investigating only against this customer's own
+history.
 
 ## What the result means
 
-**A row exists:** the Studio saved the request. Work from the existing job. Don't
-create another one, and don't change its reference. If it's confirmed as theirs,
-tell them it's in and they don't need to send it again.
+**A row for this verified customer:** the Studio saved the request. Work from the
+existing job. Don't create another one, and don't change its reference. Tell
+them it's in, and that it isn't a booking until we confirm one.
 
-**No row:** this doesn't prove nothing arrived. The attempt may not have settled,
-or you may be looking in the wrong place. Confirm you're on production, wait for
-any active attempt to settle, then check the receipts and job history again. Don't
-tell them "nothing arrived" from a single lookup.
+**No row:** this doesn't prove nothing arrived. The attempt may still be in
+progress, or you may be looking in the wrong place. Confirm you're on production,
+ask Internal Tools whether anything was failing or still running at that time,
+then check the receipts and job history again. Don't tell them "nothing arrived"
+from a single lookup. If it stays unclear, it stays unresolved: say so.
 
 **A "conflict" message:** it can mean different answers, or a reference tied to
 another account. It proves neither receipt nor failure, and it isn't permission
@@ -74,7 +83,8 @@ to show anyone the earlier request.
 Only the customer can do this, on their own screen, with "Start a separate
 request". Before they do, explain that it can create a second request if the
 first one later turns up. Then review for duplicates before sending any quote or
-booking.
+booking. If you enter a request by hand instead, check it against the original in
+the same way.
 
 Record the outcome internally on the job's timeline, without answers or tokens.
 
