@@ -2,14 +2,16 @@
  * Central site configuration: brand, navigation and page copy.
  *
  * Keep brand/content here rather than hard-coding it in pages. Unknown facts
- * (phone, email, rating, reviews, policies) are rendered as visible
- * `[PLACEHOLDER: …]` tokens via the <Placeholder> component. Do not replace
- * them with invented values.
+ * (policies) are rendered as visible `[PLACEHOLDER: …]` tokens via the
+ * <Placeholder> component. Do not replace them with invented values.
+ *
+ * Ratings, reviews, background checks and response times are left out of the
+ * site until they're real; don't add them back from memory.
  *
  * Promises still to confirm before launch (some copy states them as fact):
- * insured and background-checked teams, the same team every visit, a free
- * re-clean, cancellation notice, a note after each visit, fair pay, and the
- * number of room checklists. Policy answers that are not yet approved are
+ * insurance, the same team every visit, a free re-clean, cancellation notice,
+ * a note after each visit, fair pay, and the number of room checklists.
+ * See docs/launch-cutover.md. Policy answers that are not yet approved are
  * marked `confirm: true` below and render as placeholders.
  */
 export const siteConfig = {
@@ -40,6 +42,16 @@ export const siteConfig = {
 
   primaryCta: { label: "Get my price", href: "/quote" },
   contactCta: { label: "Contact us", href: "/contact" },
+
+  /** Confirmed by Raj, 2026-10-30. */
+  contact: {
+    phones: [
+      { label: "737-399-3919", href: "tel:+17373993919" },
+      { label: "608-590-9550", href: "tel:+16085909550" },
+    ],
+    email: "info@cosmosservicesllc.com",
+    hours: "Monday to Saturday, 9am to 6pm Central",
+  },
 
   footer: {
     services: [
@@ -106,7 +118,7 @@ export const PHOTO_QUALITY = 90;
 export const faq = [
   {
     q: "How do I get a price?",
-    a: "Answer a few questions about your space and schedule. We review them and reply with a personal quote. There is no account to create and no card to enter.",
+    a: "Answer a few questions about your space and schedule. You'll create an account to send your request, then we review it and reply with a personal quote. There's no card to enter.",
   },
   {
     q: "Do I need to be home?",
@@ -127,8 +139,8 @@ export const faq = [
     a: "Often, yes. Those are our main markets, and we coordinate providers elsewhere in Texas and across the US. Send a quote request with your ZIP code and we will confirm availability.",
   },
   {
-    q: "Are the cleaners insured and background-checked?",
-    a: "Insurance and background-check policy",
+    q: "Are the cleaners insured?",
+    a: "Insurance policy",
     confirm: true,
   },
   {
@@ -225,7 +237,7 @@ export const home = {
     lede: siteConfig.description,
     secondaryCta: { label: "See how it works", href: "#how" },
     /** Unconfirmed promises: shown marked for review until approved. */
-    trust: ["Insured and background-checked", "Not right? We come back free"],
+    trust: ["Insured", "Not right? We come back free"],
     say: ["You get on with your day.", "We take care of the rest."],
     alt: "A couple laughing over coffee at a long oak table in a sunlit room, their dog asleep at their feet.",
   },
@@ -309,33 +321,10 @@ export const home = {
     alt: "A mended kintsugi bowl with gold seams on a polished walnut table in late sun.",
   },
 
-  reviews: {
-    title: "Calm, in their words.",
-    // Placeholders on purpose: never invent reviews. Use real ones with a
-    // first name, neighbourhood and service.
-    items: [
-      {
-        quote: "a real review: a specific change in their week, in their words",
-        who: "client name, neighbourhood",
-        service: "Homes",
-      },
-      {
-        quote: "a real review: why they trusted the team with their keys",
-        who: "client name, neighbourhood",
-        service: "Homes",
-      },
-      {
-        quote: "a real review: an office manager on reliability",
-        who: "name, company",
-        service: "Workplaces",
-      },
-    ],
-  },
-
   pricing: {
     title: "A price made for your space.",
     lede: "Every home and workplace is different, so we don't publish one-size prices. Answer a few questions and we'll prepare a quote for yours.",
-    micro: "A few questions. No account, no card.",
+    micro: "Start with a few questions about your space. No card needed.",
   },
 
   evening: {
@@ -351,7 +340,7 @@ export const home = {
   },
 
   close: {
-    micro: "A few questions. No account, no card.",
+    micro: "Start with a few questions about your space. No card needed.",
   },
 } as const;
 
@@ -465,8 +454,6 @@ export const cleaners = {
   /** Not decided or not live yet: shown as placeholders, never guessed. */
   pending: [
     "pay rates and earnings",
-    "how long a review takes",
-    "background checks (not live yet)",
     "how much work to expect",
     "payout timing and process",
   ],

@@ -47,9 +47,6 @@ export function Hero() {
             </a>
           </div>
           <div className="trust">
-            <span>
-              <Placeholder>rating and review count</Placeholder>
-            </span>
             {home.hero.trust.map((item) => (
               <span key={item}>
                 <Placeholder>to confirm: {item}</Placeholder>

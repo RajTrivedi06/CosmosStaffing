@@ -2,7 +2,6 @@ import type { Metadata } from "next";
 import { pageMetadata } from "@/lib/metadata";
 import Link from "next/link";
 import { cleaners, contactPage, coverage, siteConfig } from "@/lib/site";
-import { Placeholder } from "@/components/ui/Placeholder";
 import { CleanerSignIn } from "@/components/cleaners/ApplyAction";
 
 export const metadata: Metadata = pageMetadata({
@@ -13,6 +12,7 @@ export const metadata: Metadata = pageMetadata({
 
 export default function ContactPage() {
   const { actions } = contactPage;
+  const { phones, email, hours } = siteConfig.contact;
   return (
     <main id="main" className="page">
       <header className="page-hero pad">
@@ -24,20 +24,22 @@ export default function ContactPage() {
           <div>
             <dt>Phone</dt>
             <dd>
-              <Placeholder>phone</Placeholder>
+              {phones.map((phone) => (
+                <a key={phone.href} href={phone.href} className="block">
+                  {phone.label}
+                </a>
+              ))}
             </dd>
           </div>
           <div>
             <dt>Email</dt>
             <dd>
-              <Placeholder>email</Placeholder>
+              <a href={`mailto:${email}`}>{email}</a>
             </dd>
           </div>
           <div>
             <dt>Hours</dt>
-            <dd>
-              <Placeholder>office hours</Placeholder>
-            </dd>
+            <dd>{hours}</dd>
           </div>
         </dl>
         <p className="lede">{coverage.summary}</p>

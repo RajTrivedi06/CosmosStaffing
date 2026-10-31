@@ -7,7 +7,6 @@ import { Services } from "@/components/home/Services";
 import { Workplaces } from "@/components/home/Workplaces";
 import { Standard } from "@/components/home/Standard";
 import { Care } from "@/components/home/Care";
-import { Reviews } from "@/components/home/Reviews";
 import { Pricing } from "@/components/home/Pricing";
 import { Evening } from "@/components/home/Evening";
 import { Faq } from "@/components/home/Faq";
@@ -28,7 +27,6 @@ export default function Home() {
       <Workplaces />
       <Standard />
       <Care />
-      <Reviews />
       <Pricing />
       <Evening />
       <Faq />
