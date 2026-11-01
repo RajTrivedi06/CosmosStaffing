@@ -250,6 +250,10 @@ test.afterAll(async () => {
   await bobContext?.close();
 });
 
+/** The quote's owner sees this; online acceptance is paused (contract 2.3). */
+const openQuote = (page: Page) =>
+  page.getByRole("heading", { name: "Ready to book?" });
+
 test("signup, confirmation in a new tab, explicit adoption and an authenticated send", async ({
   browser,
   baseURL,
@@ -453,9 +457,7 @@ test("a signed-out quote link signs in and returns to that exact quote", async (
   );
   await signIn(page, alice.email);
   await expect(page).toHaveURL(quotePath, { timeout: 20_000 });
-  await expect(
-    page.getByRole("button", { name: "Accept quote", exact: true }),
-  ).toBeVisible();
+  await expect(openQuote(page)).toBeVisible();
   await context.close();
 });
 
@@ -464,9 +466,7 @@ test("another account's quote link reads exactly like a missing one", async () =
   await page.goto(`/q/${UNKNOWN_TOKEN}`);
   const missing = await page.locator("body").innerText();
   await page.goto(quotePath);
-  await expect(
-    page.getByRole("button", { name: "Accept quote", exact: true }),
-  ).toHaveCount(0);
+  await expect(openQuote(page)).toHaveCount(0);
   expect(await page.locator("body").innerText()).toBe(missing);
   await expect(page.locator("body")).not.toContainText(alice.name);
   await page.close();
@@ -494,9 +494,7 @@ test("another account can't act on the quote through the Studio's API", async ()
   await page.close();
   const owner = await aliceContext.newPage();
   await owner.goto(quotePath);
-  await expect(
-    owner.getByRole("button", { name: "Accept quote", exact: true }),
-  ).toBeVisible();
+  await expect(openQuote(owner)).toBeVisible();
   await owner.close();
 });
 
@@ -507,9 +505,7 @@ test("the session refreshes through the gateway on a Studio page", async ({
   const page = await aliceContext.newPage();
   const response = await page.goto(quotePath);
   expect(response?.headers()["cache-control"]).toContain("no-store");
-  await expect(
-    page.getByRole("button", { name: "Accept quote", exact: true }),
-  ).toBeVisible();
+  await expect(openQuote(page)).toBeVisible();
   const after = await readSession(aliceContext);
   expect(after.refresh_token).not.toBe(before);
   expect(after.expires_at).toBeGreaterThan(Date.now() / 1000);
@@ -536,27 +532,25 @@ test("the session refreshes through this site's own proxy too", async ({
   await page.close();
 });
 
-test("the owner accepts through the gateway; that is not a booking", async () => {
+test("online acceptance stays paused for the owner, and nothing is booked", async () => {
   const page = await aliceContext.newPage();
   await page.goto(quotePath);
-  await page.getByLabel("Type your full name to accept").fill(alice.name);
-  await page
-    .getByRole("checkbox", { name: /I agree to the Terms of Service/ })
-    .check();
-  await page.getByRole("button", { name: "Accept quote", exact: true }).click();
+  await expect(openQuote(page)).toBeVisible();
   await expect(
-    page.getByRole("heading", { name: "Quote accepted" }),
-  ).toBeVisible({ timeout: 20_000 });
+    page.getByRole("button", { name: "Accept quote", exact: true }),
+  ).toHaveCount(0);
+  const token = quotePath.split("/").at(-1)!;
+  expect(
+    await studioAs(aliceContext, page)("POST", `/quotes/${token}/accept`, {
+      name: alice.name,
+      terms_accepted: true,
+    }),
+  ).toEqual({ status: 503, body: { ok: false, code: "terms_unavailable" } });
 
   await page.goto(requestPath);
   const facts = await page.locator(".account-head").innerText();
-  expect(facts).toContain("Quote accepted");
-  expect(facts).toContain("Not scheduled yet");
+  expect(facts).not.toContain("Quote accepted");
   expect(facts).not.toMatch(/\bBooked\b/);
-  await page.goto("/account");
-  await expect(
-    page.getByRole("heading", { name: account.home.sections.quotes }),
-  ).toHaveCount(0);
   await page.close();
 });
 
@@ -618,6 +612,28 @@ test("a payment link is the owner's alone, and returns through sign-in", async (
   await signIn(fresh, alice.email);
   await expect(fresh).toHaveURL(payPath, { timeout: 20_000 });
   await context.close();
+});
+
+test("the Studio's real redirects stay on this site", async ({
+  baseURL,
+  playwright,
+}) => {
+  const signedOut = await playwright.request.newContext({ baseURL });
+  const login = (path: string) =>
+    `/account/login?next=${encodeURIComponent(path)}`;
+  for (const [path, destination] of [
+    [quotePath, login(quotePath)],
+    [payPath, login(payPath)],
+    ["/me", "/me/login"],
+  ]) {
+    const response = await signedOut.get(path, { maxRedirects: 0 });
+    expect(response.status(), path).toBeGreaterThanOrEqual(300);
+    expect(response.status(), path).toBeLessThan(400);
+    const location = new URL(response.headers().location, baseURL);
+    expect(location.origin, path).toBe(new URL(baseURL!).origin);
+    expect(`${location.pathname}${location.search}`, path).toBe(destination);
+  }
+  await signedOut.dispose();
 });
 
 test("a changed session sends nothing as the new account", async () => {
