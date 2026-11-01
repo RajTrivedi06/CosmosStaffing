@@ -212,19 +212,26 @@ async function signalSignOut(context: BrowserContext) {
   );
 }
 
-/** Holds this page's owner checks; release answers them, abort fails them. */
+/** Holds this page's owner checks, until they're released or set to fail. */
 async function holdOwnerChecks(page: Page) {
   const held: Route[] = [];
+  let failing = false;
   await page.route("**/account/session", (route) => {
+    if (failing) return route.abort();
     held.push(route);
   });
-  const finish = async (answer: (route: Route) => Promise<void>) => {
-    for (const route of held.splice(0)) await answer(route);
-    await page.unroute("**/account/session");
-  };
+  const stop = () => page.unroute("**/account/session");
   return {
-    release: () => finish((route) => route.continue()),
-    fail: () => finish((route) => route.abort()),
+    release: async () => {
+      for (const route of held.splice(0)) await route.continue();
+      await stop();
+    },
+    fail: async () => {
+      failing = true;
+      for (const route of held.splice(0)) await route.abort();
+    },
+    /** The check works again. */
+    stop,
     count: () => held.length,
   };
 }
@@ -473,6 +480,7 @@ test("the quote stays hidden on every return until the owner is confirmed", asyn
   await checks.fail();
   await expect(page.getByText(account.privacy.unconfirmed)).toBeVisible();
   await expect(answers).toBeHidden();
+  await checks.stop();
   await page.getByRole("button", { name: account.privacy.retry }).click();
   await expect(answers).toBeVisible();
   expect(loads.count).toBe(0);
@@ -965,6 +973,7 @@ test("focus hides the page before it asks, and a failed check keeps it hidden", 
   await expect(page.getByText(account.privacy.unconfirmed)).toBeVisible();
   await expect(page.getByText("Fay Focus")).toBeHidden();
 
+  await checks.stop();
   await page.getByRole("button", { name: account.privacy.retry }).click();
   await expect(page.getByText("Fay Focus")).toBeVisible();
   await expect(page.getByText(account.privacy.unconfirmed)).toHaveCount(0);
@@ -1095,6 +1104,94 @@ test("a sign-out that never lands doesn't bring the page back by itself", async 
   });
   await expect(page.getByText("Nell Lands")).toHaveCount(0);
   expect(loads.count).toBe(0);
+});
+
+test("a session that can't be verified is no proof of sign-out", async ({
+  page,
+  context,
+}) => {
+  const email = uniqueEmail("unverified");
+  await signUpAndConfirm(page, email);
+  await requestOpen(page, "Vera Unverified", email);
+  const loads = countLoads(page);
+
+  // An Auth outage: the good cookie stays, and the server can't vouch for it.
+  // tests/unit/account-session.test.ts checks that it answers like this.
+  let outage = true;
+  let unknown = 0;
+  await page.route("**/account/session", (route) => {
+    if (!outage) return route.fallback();
+    unknown += 1;
+    return route.fulfill({
+      status: 503,
+      headers: { "cache-control": "private, no-store" },
+    });
+  });
+
+  // An ordinary return: hidden, with a way back.
+  await windowFocus(page);
+  await expect(page.getByText(account.privacy.unconfirmed)).toBeVisible();
+  await expect(page.getByText("Vera Unverified")).toBeHidden();
+  outage = false;
+  await page.getByRole("button", { name: account.privacy.retry }).click();
+  await expect(page.getByText("Vera Unverified")).toBeVisible();
+
+  // Sign-out signalled during the outage: it stays gone, with no reload...
+  outage = true;
+  unknown = 0;
+  await signalSignOut(context);
+  await expect.poll(() => unknown).toBeGreaterThan(2);
+  await expect(page.getByText("Vera Unverified")).toHaveCount(0);
+  expect(loads.count).toBe(0);
+
+  // ...and when Auth recovers as the same client, sign-out still hasn't landed.
+  const recovered = page.waitForResponse(
+    (response) =>
+      new URL(response.url()).pathname === "/account/session" &&
+      response.status() === 200,
+  );
+  outage = false;
+  await recovered;
+  await expect(page.getByText("Vera Unverified")).toHaveCount(0);
+  expect(loads.count).toBe(0);
+
+  // Only now does it land.
+  await context.clearCookies();
+  await expect(
+    page.getByRole("heading", { name: account.signIn.title }),
+  ).toBeVisible();
+  await expect(page.getByText("Vera Unverified")).toHaveCount(0);
+});
+
+test("a session that has really ended goes to sign-in without a click", async ({
+  page,
+  context,
+}) => {
+  const email = uniqueEmail("ended");
+  await signUpAndConfirm(page, email);
+  await requestOpen(page, "Enzo Ended", email);
+
+  // The server can't verify this cookie, says so once, and clears it.
+  const session = await context.cookies();
+  await context.addCookies(
+    session
+      .filter((cookie) => cookie.name.startsWith("cosmos-client-auth"))
+      .map((cookie) => ({
+        ...cookie,
+        value: "base64-eyJleHBpcmVkIjp0cnVlfQ",
+      })),
+  );
+  const unknown = page.waitForResponse(
+    (response) =>
+      new URL(response.url()).pathname === "/account/session" &&
+      response.status() === 503,
+  );
+  await windowFocus(page);
+  await unknown;
+  await expect(
+    page.getByRole("heading", { name: account.signIn.title }),
+  ).toBeVisible();
+  await expect(page.getByText("Enzo Ended")).toHaveCount(0);
 });
 
 test("a page restored from history checks first", async ({ page, context }) => {

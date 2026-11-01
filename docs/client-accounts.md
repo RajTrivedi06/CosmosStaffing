@@ -40,7 +40,8 @@ blocked**: nothing here is deployed, and no hosted setting has changed.
   regains focus, the page is stored for back/forward, or another client's page
   opens in this browser. It comes back only after `/account/session` confirms
   the same owner; another owner reloads it, so the server decides what this
-  browser may see. An unknown owner keeps it hidden with a retry, and never
+  browser may see. An unknown owner, including a session that can't be verified
+  (the route answers 503), keeps it hidden with a retry, and never
   counts as proof that sign-out landed: after a sign-out signal only a different
   session allows a reload, and if that never comes the tab stays cleared. This
   covers what's already on screen; each page still authorizes for itself. It

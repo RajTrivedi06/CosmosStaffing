@@ -87,7 +87,10 @@ export function AccountPrivacy({
     const check = async () => {
       const id = ++latest;
       running = id;
-      const seen = await liveOwner();
+      let seen = await liveOwner();
+      // A session that has really ended reads as unknown once, as its cookie
+      // goes, and as nobody after that. An outage reads as unknown both times.
+      if (seen === undefined && id === latest) seen = await liveOwner();
       if (running === id) running = 0;
       if (id !== latest) return;
       if (seen === undefined) {
