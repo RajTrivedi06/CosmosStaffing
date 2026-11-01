@@ -23,7 +23,7 @@ const OWN_PATH = /^\/(account|quote|api\/quote)(\/|$)/;
  */
 export async function proxy(request: NextRequest) {
   if (!OWN_PATH.test(request.nextUrl.pathname)) {
-    const refused = prepareStudioRequest(request);
+    const refused = await prepareStudioRequest(request);
     return refused
       ? new NextResponse(null, { status: refused })
       : NextResponse.next({ request });

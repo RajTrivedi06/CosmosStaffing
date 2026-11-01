@@ -51,11 +51,11 @@ createServer((req, res) => {
         `<p id="action">${escape(req.headers["next-action"] ?? "")}</p>` +
         `<p id="rsc">${escape(req.headers.rsc ?? "")}</p>` +
         `<p id="origin">${escape(req.headers.origin ?? "")}</p>` +
-        `<p id="access">${escape(req.headers["x-vercel-protection-bypass"] ?? "")}</p>` +
+        `<p id="access">${escape(req.headers["x-vercel-trusted-oidc-idp-token"] ?? "")}</p>` +
         `<p id="infrastructure">${escape(
           Object.keys(req.headers)
             .filter((name) => name.startsWith("x-vercel-"))
-            .filter((name) => name !== "x-vercel-protection-bypass")
+            .filter((name) => name !== "x-vercel-trusted-oidc-idp-token")
             .join(" "),
         )}</p>`,
     );

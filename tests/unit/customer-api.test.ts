@@ -39,6 +39,9 @@ const attempt = {
 };
 
 type Seen = { url: string; init: RequestInit };
+const oidc = vi.hoisted(() => vi.fn());
+vi.mock("@vercel/oidc", () => ({ getVercelOidcToken: oidc }));
+
 const seen: Seen[] = [];
 function studio(status: number, body: unknown) {
   vi.stubGlobal("fetch", async (url: string, init: RequestInit) => {
@@ -126,8 +129,8 @@ describe("configuration", () => {
 describe("protected Preview access", () => {
   const ORIGIN = "https://studio-preview.example";
   const PREVIEW_API = `${ORIGIN}/api/customer/v2`;
-  const ACCESS = "x-vercel-protection-bypass";
-  const VALUE = "synthetic-only-protection-value";
+  const ACCESS = "x-vercel-trusted-oidc-idp-token";
+  const VALUE = "synthetic-only-oidc-value";
   const sent = async () => {
     studio(200, { ok: true, linked: false });
     await readAccount(TOKEN);
@@ -139,7 +142,7 @@ describe("protected Preview access", () => {
     vi.stubEnv("STUDIO_CUSTOMER_API_URL", PREVIEW_API);
     vi.stubEnv("STUDIO_APPROVED_ORIGIN", ORIGIN);
     vi.stubEnv("STUDIO_REWRITE_ORIGIN", ORIGIN);
-    vi.stubEnv("STUDIO_PROTECTION_BYPASS", VALUE);
+    oidc.mockReset().mockResolvedValue(VALUE);
   });
 
   it("sends the credential to the approved origin", async () => {
@@ -149,13 +152,17 @@ describe("protected Preview access", () => {
     expect(seen.at(-1)?.init.redirect).toBe("error");
   });
 
-  it("sends no bypass without the variable, and still reaches the Studio", async () => {
-    vi.stubEnv("STUDIO_PROTECTION_BYPASS", "");
-    expect(await sent()).not.toHaveProperty(ACCESS);
-    expect(seen).toHaveLength(1);
+  it("sends nothing without a token, and that isn't about the client", async () => {
+    oidc.mockRejectedValue(new Error("no token"));
+    studio(200, { ok: true, linked: false });
+    expect(await readAccount(TOKEN)).toEqual({
+      ok: false,
+      reason: "unavailable",
+    });
+    expect(seen).toHaveLength(0);
   });
 
-  // None of these may get the bypass, the service secret or a customer's token.
+  // None of these may get the token, the service secret or a customer's token.
   it.each([
     ["no approval", { STUDIO_APPROVED_ORIGIN: "" }],
     [
@@ -221,7 +228,7 @@ describe("protected Preview access", () => {
     expect(seen).toHaveLength(0);
   });
 
-  it("ignores the variable in Vercel Production", async () => {
+  it("asks for no token in Vercel Production", async () => {
     const api = "https://studio.cosmosservicesllc.com/api/customer/v2";
     vi.stubEnv("VERCEL_ENV", "production");
     vi.stubEnv("CUSTOMER_API_PRODUCTION_ENABLED", "true");
@@ -232,6 +239,7 @@ describe("protected Preview access", () => {
     );
     expect(await sent()).not.toHaveProperty(ACCESS);
     expect(seen).toHaveLength(1);
+    expect(oidc).not.toHaveBeenCalled();
   });
 
   it("follows no redirect, so nothing reaches another host", async () => {

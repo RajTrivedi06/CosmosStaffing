@@ -7,16 +7,19 @@ import {
 } from "@/lib/studio-access";
 import { pairedOrigin } from "@/lib/studio-routes";
 
+const token = vi.hoisted(() => vi.fn());
+vi.mock("@vercel/oidc", () => ({ getVercelOidcToken: token }));
+
 const ORIGIN = "https://studio-preview.example";
-const ACCESS = "x-vercel-protection-bypass";
-const VALUE = "synthetic-only-protection-value";
-const OIDC = "x-vercel-trusted-oidc-idp-token";
+const ACCESS = "x-vercel-trusted-oidc-idp-token";
+const VALUE = "synthetic-only-oidc-value";
+const BYPASS = "x-vercel-protection-bypass";
 
 const visitor = (path = "/q/synthetic") =>
   new NextRequest(`https://site.example${path}`, {
     headers: {
       [ACCESS]: "forged",
-      [OIDC]: "forged",
+      [BYPASS]: "forged",
       "x-vercel-set-bypass-cookie": "true",
       "next-action": "kept",
       cookie: "_vercel_jwt=forged; cosmos-client-auth=kept",
@@ -27,7 +30,7 @@ beforeEach(() => {
   vi.stubEnv("VERCEL_ENV", "preview");
   vi.stubEnv("STUDIO_APPROVED_ORIGIN", ORIGIN);
   vi.stubEnv("STUDIO_REWRITE_ORIGIN", ORIGIN);
-  vi.stubEnv("STUDIO_PROTECTION_BYPASS", VALUE);
+  token.mockReset().mockResolvedValue(VALUE);
 });
 afterEach(() => {
   vi.unstubAllEnvs();
@@ -62,30 +65,47 @@ describe("pairedOrigin", () => {
 });
 
 describe("studioAccessHeaders", () => {
-  it("adds the header only for the approved origin", () => {
-    expect(studioAccessHeaders(ORIGIN)).toEqual({ [ACCESS]: VALUE });
-    expect(studioAccessHeaders("https://other.example")).toEqual({});
-    expect(studioAccessHeaders(`${ORIGIN}/`)).toEqual({});
+  it("adds the header only for the approved origin", async () => {
+    expect(await studioAccessHeaders(ORIGIN)).toEqual({ [ACCESS]: VALUE });
+    expect(await studioAccessHeaders("https://other.example")).toBeNull();
+    expect(await studioAccessHeaders(`${ORIGIN}/`)).toBeNull();
+    expect(token).toHaveBeenCalledTimes(1);
   });
 
-  it("needs the build's origin to match too", () => {
+  it("needs the build's origin to match too", async () => {
     vi.stubEnv("STUDIO_REWRITE_ORIGIN", "https://other.example");
     expect(pairedStudio(ORIGIN)).toBe(false);
-    expect(studioAccessHeaders(ORIGIN)).toEqual({});
+    expect(await studioAccessHeaders(ORIGIN)).toBeNull();
+    expect(token).not.toHaveBeenCalled();
   });
 
-  it.each(["production", "development", ""])("adds nothing on %s", (env) => {
-    vi.stubEnv("VERCEL_ENV", env);
-    expect(studioAccessHeaders(ORIGIN)).toEqual({});
+  it("asks for a fresh token every time", async () => {
+    token.mockResolvedValueOnce("first").mockResolvedValueOnce("second");
+    expect(await studioAccessHeaders(ORIGIN)).toEqual({ [ACCESS]: "first" });
+    expect(await studioAccessHeaders(ORIGIN)).toEqual({ [ACCESS]: "second" });
   });
+
+  it("can't go without a token", async () => {
+    token.mockRejectedValue(new Error("no token"));
+    expect(await studioAccessHeaders(ORIGIN)).toBeNull();
+  });
+
+  it.each(["production", "development", ""])(
+    "needs nothing and asks for nothing on %s",
+    async (env) => {
+      vi.stubEnv("VERCEL_ENV", env);
+      expect(await studioAccessHeaders(ORIGIN)).toEqual({});
+      expect(token).not.toHaveBeenCalled();
+    },
+  );
 });
 
 describe("prepareStudioRequest", () => {
-  it("replaces what a visitor sent with the server's own credential", () => {
+  it("replaces what a visitor sent with the server's own credential", async () => {
     const request = visitor();
-    expect(prepareStudioRequest(request)).toBeNull();
+    expect(await prepareStudioRequest(request)).toBeNull();
     expect(request.headers.get(ACCESS)).toBe(VALUE);
-    expect(request.headers.get(OIDC)).toBeNull();
+    expect(request.headers.get(BYPASS)).toBeNull();
     expect(request.headers.get("x-vercel-set-bypass-cookie")).toBeNull();
     expect(request.headers.get("next-action")).toBe("kept");
     expect(request.headers.get("cookie")).toBe("cosmos-client-auth=kept");
@@ -102,31 +122,38 @@ describe("prepareStudioRequest", () => {
       { STUDIO_REWRITE_ORIGIN: "https://other.example" },
     ],
     ["no record of the build's origin", { STUDIO_REWRITE_ORIGIN: "" }],
-  ])("forwards nothing from a Preview with %s", (_, env) => {
+  ])("forwards nothing from a Preview with %s", async (_, env) => {
     for (const [key, value] of Object.entries(env)) vi.stubEnv(key, value);
     const request = visitor();
-    expect(prepareStudioRequest(request)).toBe(503);
+    expect(await prepareStudioRequest(request)).toBe(503);
     expect(request.headers.get(ACCESS)).toBeNull();
   });
 
-  it.each(["production", ""])("only strips, on %s", (env) => {
+  it("forwards nothing from a Preview with no token", async () => {
+    token.mockRejectedValue(new Error("no token"));
+    const request = visitor();
+    expect(await prepareStudioRequest(request)).toBe(503);
+    expect(request.headers.get(ACCESS)).toBeNull();
+  });
+
+  it.each(["production", ""])("only strips, on %s", async (env) => {
     vi.stubEnv("VERCEL_ENV", env);
     vi.stubEnv("STUDIO_APPROVED_ORIGIN", "");
     const request = visitor();
-    expect(prepareStudioRequest(request)).toBeNull();
+    expect(await prepareStudioRequest(request)).toBeNull();
     expect(request.headers.get(ACCESS)).toBeNull();
-    expect(request.headers.get(OIDC)).toBeNull();
+    expect(request.headers.get(BYPASS)).toBeNull();
     expect(request.headers.get("cookie")).toBe("cosmos-client-auth=kept");
   });
 
   it.each(["/q/x%2f..%2flogin", "/q/..%2flogin", "/q/%5c%5cevil.example"])(
     "stops %s",
-    (path) => {
-      expect(prepareStudioRequest(visitor(path))).toBe(404);
+    async (path) => {
+      expect(await prepareStudioRequest(visitor(path))).toBe(404);
     },
   );
 
-  it("lets ordinary tokens through", () => {
-    expect(prepareStudioRequest(visitor("/q/AbC-12_x"))).toBeNull();
+  it("lets ordinary tokens through", async () => {
+    expect(await prepareStudioRequest(visitor("/q/AbC-12_x"))).toBeNull();
   });
 });

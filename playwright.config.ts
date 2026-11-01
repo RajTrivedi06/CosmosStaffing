@@ -27,6 +27,11 @@ const AUTH_E2E = process.env.AUTH_E2E === "1";
 const PREVIEW_PORT = 3203;
 /** And one whose runtime settings no longer match where the build forwards. */
 const DRIFTED_PORT = 3204;
+/** And one with no token, as if Vercel's request context had none. */
+const TOKENLESS_PORT = 3205;
+/** Shaped like a Vercel token so the real helper returns it; signed by nobody. */
+const SYNTHETIC_OIDC_TOKEN =
+  "eyJhbGciOiJub25lIn0.eyJleHAiOjQxMDI0NDQ4MDB9.synthetic-only";
 function localAuthKey() {
   const env = execFileSync("supabase", ["status", "-o", "env"], {
     encoding: "utf8",
@@ -148,7 +153,7 @@ export default defineConfig({
         VERCEL_ENV: "preview",
         STUDIO_ORIGIN: STUDIO_STUB_ORIGIN,
         STUDIO_APPROVED_ORIGIN: STUDIO_STUB_ORIGIN,
-        STUDIO_PROTECTION_BYPASS: "synthetic-only-protection-value",
+        VERCEL_OIDC_TOKEN: SYNTHETIC_OIDC_TOKEN,
         ...QUIET_DELIVERY,
         ...NO_ACCOUNTS,
       },
@@ -162,7 +167,20 @@ export default defineConfig({
         VERCEL_ENV: "preview",
         STUDIO_ORIGIN: "https://approved-studio-preview.example",
         STUDIO_APPROVED_ORIGIN: "https://approved-studio-preview.example",
-        STUDIO_PROTECTION_BYPASS: "synthetic-only-protection-value",
+        VERCEL_OIDC_TOKEN: SYNTHETIC_OIDC_TOKEN,
+        ...QUIET_DELIVERY,
+        ...NO_ACCOUNTS,
+      },
+    },
+    {
+      command: `npm run start -- -p ${TOKENLESS_PORT}`,
+      url: `http://localhost:${TOKENLESS_PORT}`,
+      reuseExistingServer: !process.env.CI,
+      env: {
+        NEXT_DIST_DIR: ".next-test",
+        VERCEL_ENV: "preview",
+        STUDIO_ORIGIN: STUDIO_STUB_ORIGIN,
+        STUDIO_APPROVED_ORIGIN: STUDIO_STUB_ORIGIN,
         ...QUIET_DELIVERY,
         ...NO_ACCOUNTS,
       },

@@ -81,12 +81,15 @@ async function call(
 ): Promise<Call> {
   const config = customerApiConfig();
   if (!config) return null;
+  const access = await studioAccessHeaders(new URL(config.base).origin);
+  // Nothing was sent, and nothing about the client is known: a transport failure.
+  if (!access) return { status: 0, body: null };
   // Explicitly constructed: never the browser's cookies, auth or host headers.
   const headers: Record<string, string> = {
     Accept: "application/json",
     Authorization: `Bearer ${token}`,
     "X-Webhook-Secret": config.secret,
-    ...studioAccessHeaders(new URL(config.base).origin),
+    ...access,
   };
   if (init.body) headers["Content-Type"] = "application/json";
   if (init.idempotencyKey) headers["Idempotency-Key"] = init.idempotencyKey;

@@ -15,7 +15,8 @@ import { STUDIO_PATHS } from "../../src/lib/studio-routes";
 const PLAIN = "http://localhost:3200";
 const PREVIEW = "http://localhost:3203";
 const DRIFTED = "http://localhost:3204";
-const VALUE = "synthetic-only-protection-value";
+const TOKENLESS = "http://localhost:3205";
+const VALUE = "eyJhbGciOiJub25lIn0.eyJleHAiOjQxMDI0NDQ4MDB9.synthetic-only";
 const paths = STUDIO_PATHS.map((path) => path.replace(":path+", "synthetic"));
 const access = (value: string) => `<p id="access">${value}</p>`;
 const FORGED = {
@@ -78,6 +79,14 @@ test("a Preview that no longer matches its approval forwards nothing", async ({
   }
 });
 
+test("a Preview with no token forwards nothing", async ({ request }) => {
+  for (const path of paths) {
+    const response = await request.get(`${TOKENLESS}${path}`);
+    expect(response.status(), path).toBe(503);
+    expect(await response.text(), path).not.toContain("Studio stub");
+  }
+});
+
 test("outside a Preview the credential is never sent", async ({ request }) => {
   for (const path of paths) {
     const response = await request.get(`${PLAIN}${path}`);
@@ -113,6 +122,8 @@ test("a visitor's infrastructure credentials never reach the Studio", async () =
   }
 });
 
+// The next two check for leaks, not for where redirects may go: destinations are
+// the Studio's to keep safe, and tests/paired follows its real ones.
 test("an upstream redirect to another host isn't followed by this server", async ({
   request,
 }) => {
