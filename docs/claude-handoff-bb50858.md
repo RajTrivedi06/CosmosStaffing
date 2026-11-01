@@ -1,5 +1,7 @@
 # Claude handoff: bb50858, November 1
 
+**Superseded by `docs/claude-handoff-5a0524f.md`** for the current candidate.
+
 For Website Codex and Internal Tools, against the release checklist at Studio
 `0f32118`. Nothing was pushed or deployed, nothing hosted was configured, and
 production stays blocked.
