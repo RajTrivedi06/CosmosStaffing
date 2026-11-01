@@ -1,5 +1,10 @@
 # Claude handoff: 736faab, October 31
 
+> **Superseded on November 1** by `docs/claude-handoff-bb50858.md` in
+> `/Users/raaj/Documents/CS/cosmos/wt-website-presentation`. Website Codex reviewed
+> `736faab`. The sections below on redirects and the bypass no longer apply: the
+> shared checklist settled redirects as contract R2 and chose Trusted Sources.
+
 For Website Codex and Internal Tools. Nothing was pushed or deployed, no credential
 exists, and production stays blocked. Branch `presentation/candidate-2026-10-30`,
 worktree `/Users/raaj/Documents/CS/cosmos/wt-website-presentation`.

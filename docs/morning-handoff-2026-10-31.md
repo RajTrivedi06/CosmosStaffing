@@ -1,21 +1,28 @@
 # Morning handoff, October 31
 
+The release tracker is now Internal Tools' five-section checklist, in the Studio's
+`docs/03-guides/release-morning-2026-10-31.md`. This file records the website's state.
+
 **Recommendation: not ready for production.** The website candidate is ready for
 review. What's left is Studio work, hosted setup and your decisions. Nothing was
 pushed, deployed or enabled, and no hosted setting or DNS record changed.
 
 ## The candidate
 
-- **Current candidate: `736faab6ee70842412a4b080ad91ce970e90154f`**, on branch
+- **Current candidate: `bb5085806dd39654ed8f73f91d0e0d9d03e06757`**, on branch
   `presentation/candidate-2026-10-30`, in
-  `/Users/raaj/Documents/CS/cosmos/wt-website-presentation`. It's `eeff78c` plus pinch
-  zoom (`89d1c43`), the copy decided on October 31 (`68fccca`, `91e5c85`), and
-  server-side access to a protected Studio Preview, bound to one approved origin
-  (`d05541c`, `616a066`, `736faab`; see `docs/protected-preview-access.md`). On
-  `736faab`: lint, types and format clean, 349 unit, 122 main browser with 3
-  intentionally skipped, 78 real Auth. The test table below describes `54dd966`. The
-  44 paired tests last ran on `4d59821`, and they don't cover the new proxy and
-  customer API path or Studio's later changes, so the protected Preview must.
+  `/Users/raaj/Documents/CS/cosmos/wt-website-presentation`. Both exist only in this
+  local branch, not on GitHub. It's `eeff78c` plus pinch zoom (`89d1c43`), the copy
+  decided on October 31 (`68fccca`, `91e5c85`), and server-side access to a protected
+  Studio Preview, bound to one approved origin (`d05541c`, `616a066`, `736faab`) and
+  now using Vercel Trusted Sources (`b7f638e`, `bb50858`). See
+  `docs/protected-preview-access.md` and `docs/claude-handoff-bb50858.md`. Website
+  Codex reviewed `736faab` and found no new defect; `bb50858` awaits its review.
+  `736faab` last ran the full suites: 349 unit, 122 main browser with 3 intentionally
+  skipped, 78 real Auth. `bb50858` reran the checks its changes affect: 352 unit, 51 focused browser. The test table
+  below describes `54dd966`. The 44 paired tests last ran on `4d59821`, and they don't
+  cover the new proxy and customer API path or Studio's later changes, so the
+  protected Preview must.
 - It's the launch commits plus the hero, services reel and image work.
 - **Your original work is safe.** It's preserved at
   `presentation/original-2026-10-30`. The main checkout is still on
@@ -78,8 +85,8 @@ Updated October 31. Contact is decided: email only, with no phone numbers or hou
 - **Internal Tools:** the Terms page or a replacement step, its Production guard
   change, the migration rehearsal, backup, hosted Auth and templates, and the
   support lookup.
-- **Website Codex:** delta review of `d05541c..736faab`; see
-  `docs/claude-handoff-736faab.md`. Its reviews are in `docs/`, and its hosted
+- **Website Codex:** delta review of `736faab..bb50858`; see
+  `docs/claude-handoff-bb50858.md`. Its reviews are in `docs/`, and its hosted
   checklist is `hosted-preview-acceptance.md`.
 
 ## Known limits

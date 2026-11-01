@@ -81,9 +81,13 @@ redirect to prove nothing leaks; that's a leak test, not approval of off-site
 destinations. `tests/paired` follows the Studio's real redirects and proves they stay
 on this site. A later Stripe checkout redirect needs its own payment review.
 
+Website Codex accepts this design on conditions the hosted run has to meet. Its
+terms are in `release-review-736faab.md`: if an approved setup sends a customer off
+the website, the fix is at the source or a shared, reviewed gateway, not a waiver.
+
 **If admission fails on the hosted Preview,** Vercel may answer with its own login
 redirect, which shows the Studio Preview's hostname to the browser. It carries no
-credential. Treat it as a failed check, not a pass.
+credential, and Studio code can't prevent it. Treat it as a failed check, not a pass.
 
 Rejected: a bypass secret (it covers every deployment in the Studio project, and can
 skip firewall checks), turning protection off, and a preview-only gateway (it
@@ -147,7 +151,9 @@ None of that is hosted proof. These stay open until the first hosted run:
 5. Vercel's edge, not just `next start`, keeps the proxy's header on an external
    rewrite, removes forged headers, and doesn't follow an upstream redirect.
 6. An upstream redirect to a separate capturing host receives no credential, and
-   the Studio's real redirects stay on the website Preview.
+   the Studio's real redirects stay on the website Preview. Capture both `Location`
+   and Server Action redirects, for signed-out and expired sessions, successful
+   actions, forged destinations, and missing or wrong admission.
 7. A request to the website Preview without tester access is still refused. So is
    an unsigned direct request to the Studio Preview, and one with a forged token.
 8. Rate-limit checks run without a bypass, since a bypass can skip those controls.
