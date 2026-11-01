@@ -383,6 +383,17 @@ export function settleQuoteStorage(current?: string | null, now = Date.now()) {
 export const SIGNED_OUT_SIGNAL = "cosmos-quote-signed-out";
 
 /**
+ * The opaque tag of the client whose page opened last. A tab holding someone
+ * else's page hears it change, as when an emailed link signs a new client in
+ * with no sign-out. Gone at sign-out; it grants nothing.
+ */
+export const ACCOUNT_OWNER_SIGNAL = "cosmos-account-owner";
+
+export function announceOwner(owner: string) {
+  set("local", ACCOUNT_OWNER_SIGNAL, owner);
+}
+
+/**
  * On sign-out: forget answers in this browser that another person could see
  * next. Drafts go (anonymous and this tab's owned ones), every attempt keeps
  * only its marker, and other open tabs are told to do the same.
@@ -390,5 +401,6 @@ export const SIGNED_OUT_SIGNAL = "cosmos-quote-signed-out";
 export function forgetOnSignOut() {
   anonymousWork.clear();
   settleQuoteStorage(null);
+  set("local", ACCOUNT_OWNER_SIGNAL, null);
   set("local", SIGNED_OUT_SIGNAL, String(Date.now()));
 }

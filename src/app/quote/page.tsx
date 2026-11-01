@@ -4,6 +4,7 @@ import { quoteIntakeMode } from "@/lib/quote-intake";
 import { clientSession } from "@/lib/account/server";
 import { ownerTag } from "@/lib/account/owner";
 import { pageMetadata } from "@/lib/metadata";
+import { AccountPrivacy } from "@/components/account/AccountPrivacy";
 import { QuoteFlow } from "@/components/quote/QuoteFlow";
 
 export const metadata: Metadata = pageMetadata({
@@ -24,18 +25,19 @@ export default async function QuotePage() {
   // Read the same runtime cutover setting as /api/quote.
   await connection();
   const session = await clientSession();
+  const owner =
+    session.state === "signed_in" ? ownerTag(session.client.id) : null;
   return (
-    <QuoteFlow
-      intakeMode={quoteIntakeMode()}
-      accountsOn={session.state !== "off"}
-      account={
-        session.state === "signed_in"
-          ? {
-              email: session.client.email,
-              owner: ownerTag(session.client.id),
-            }
-          : null
-      }
-    />
+    <AccountPrivacy key={owner} owner={owner}>
+      <QuoteFlow
+        intakeMode={quoteIntakeMode()}
+        accountsOn={session.state !== "off"}
+        account={
+          session.state === "signed_in" && owner
+            ? { email: session.client.email, owner }
+            : null
+        }
+      />
+    </AccountPrivacy>
   );
 }

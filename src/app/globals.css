@@ -1523,8 +1523,7 @@
     transform: translate(-50%, -50%);
   }
   /* Most checks finish first; the note is for the slow ones. */
-  .account-check[data-view="checking"],
-  .account-check[data-view="cleared"] {
+  .account-check[data-view="checking"] {
     animation: account-check-note 1ms 400ms both;
   }
   @keyframes account-check-note {

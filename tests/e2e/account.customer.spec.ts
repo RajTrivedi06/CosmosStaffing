@@ -1,4 +1,10 @@
-import { expect, test, type BrowserContext, type Page } from "@playwright/test";
+import {
+  expect,
+  test,
+  type BrowserContext,
+  type Page,
+  type Route,
+} from "@playwright/test";
 import { account } from "../../src/lib/site";
 import { homeQuote } from "../unit/fixtures";
 import { choicesLink, finishQuestions, storedText } from "./quote-helpers";
@@ -188,6 +194,60 @@ async function requestOpen(page: Page, name: string, email: string) {
   return new URL(page.url()).pathname;
 }
 
+/** As if the new account landed on a page that can't announce itself. */
+const missOwnerSignal = (page: Page) =>
+  page.addInitScript(() =>
+    window.addEventListener("storage", (event) => {
+      if (event.key === "cosmos-account-owner")
+        event.stopImmediatePropagation();
+    }),
+  );
+
+/** Another tab's sign-out as it starts, while the cookies are still valid. */
+async function signalSignOut(context: BrowserContext) {
+  const other = await context.newPage();
+  await other.goto("/");
+  await other.evaluate(() =>
+    localStorage.setItem("cosmos-quote-signed-out", String(Date.now())),
+  );
+}
+
+/** Holds this page's owner checks; release answers them, abort fails them. */
+async function holdOwnerChecks(page: Page) {
+  const held: Route[] = [];
+  await page.route("**/account/session", (route) => {
+    held.push(route);
+  });
+  const finish = async (answer: (route: Route) => Promise<void>) => {
+    for (const route of held.splice(0)) await answer(route);
+    await page.unroute("**/account/session");
+  };
+  return {
+    release: () => finish((route) => route.continue()),
+    fail: () => finish((route) => route.abort()),
+    count: () => held.length,
+  };
+}
+
+/** Counts this tab's page loads, for "it did not reload". */
+function countLoads(page: Page) {
+  const loads = { count: 0 };
+  page.on("load", () => {
+    loads.count += 1;
+  });
+  return loads;
+}
+
+const windowFocus = (page: Page) =>
+  page.evaluate(() => window.dispatchEvent(new Event("focus")));
+
+const history = (page: Page, type: "pagehide" | "pageshow") =>
+  page.evaluate(
+    (name) =>
+      window.dispatchEvent(new PageTransitionEvent(name, { persisted: true })),
+    type,
+  );
+
 /** The tab goes to the background, or comes back. */
 async function tabIs(page: Page, state: "hidden" | "visible") {
   await page.evaluate((value) => {
@@ -321,6 +381,7 @@ test("if the session changes with no signal, nothing is sent as the new account"
   page,
   context,
 }) => {
+  await missOwnerSignal(page);
   const alice = uniqueEmail("alice");
   const bob = uniqueEmail("bob");
   await signUpAndConfirm(page, bob);
@@ -349,6 +410,141 @@ test("if the session changes with no signal, nothing is sent as the new account"
   await expect(
     other.getByRole("heading", { name: account.quote.adoptTitle }),
   ).toHaveCount(0);
+});
+
+test("a switch takes the answers off the quote before anything is sent", async ({
+  page,
+  context,
+}) => {
+  const alice = uniqueEmail("quote-a");
+  const bob = uniqueEmail("quote-b");
+  await signUpAndConfirm(page, bob);
+  await signOut(page);
+  await signUpAndConfirm(page, alice);
+  await anonymousAnswers(page, "Alice Quoted", alice);
+  await adoptAndReview(page, "Alice Quoted", alice);
+
+  // Nobody presses anything on this tab.
+  await context.clearCookies();
+  const other = await context.newPage();
+  await signIn(other, bob);
+  await expect(page.getByText("Alice Quoted")).toHaveCount(0);
+  // Bob's quote starts clean: not even Alice's choices come across in the URL.
+  await expect(page).toHaveURL(/\/quote$/);
+  expect(await storedText(page)).not.toContain("Alice Quoted");
+  expect((await stubState(page, alice)).requests).toBe(0);
+  expect((await stubState(page, bob)).requests).toBe(0);
+});
+
+test("the quote stays hidden on every return until the owner is confirmed", async ({
+  page,
+  context,
+}) => {
+  await missOwnerSignal(page);
+  const alice = uniqueEmail("return-a");
+  await signUpAndConfirm(page, alice);
+  await anonymousAnswers(page, "Alice Returning", alice);
+  await adoptAndReview(page, "Alice Returning", alice);
+  const answers = page.getByText("Alice Returning");
+  const loads = countLoads(page);
+
+  // The same client gets their answers back, in place, each way.
+  await tabIs(page, "hidden");
+  await expect(answers).toBeHidden();
+  await tabIs(page, "visible");
+  await expect(answers).toBeVisible();
+
+  let checks = await holdOwnerChecks(page);
+  await windowFocus(page);
+  await expect(answers).toBeHidden();
+  await expect.poll(checks.count).toBeGreaterThan(0);
+  await expect(answers).toBeHidden();
+  await checks.release();
+  await expect(answers).toBeVisible();
+
+  await history(page, "pagehide");
+  await expect(answers).toBeHidden();
+  await history(page, "pageshow");
+  await expect(answers).toBeVisible();
+
+  checks = await holdOwnerChecks(page);
+  await windowFocus(page);
+  await expect.poll(checks.count).toBeGreaterThan(0);
+  await checks.fail();
+  await expect(page.getByText(account.privacy.unconfirmed)).toBeVisible();
+  await expect(answers).toBeHidden();
+  await page.getByRole("button", { name: account.privacy.retry }).click();
+  await expect(answers).toBeVisible();
+  expect(loads.count).toBe(0);
+
+  // Then the session goes while the tab is away, and history brings it back.
+  await history(page, "pagehide");
+  await context.clearCookies();
+  await history(page, "pageshow");
+  await expect(answers).toHaveCount(0);
+  await expect(page).toHaveURL(/\/quote$/);
+  expect(await storedText(page)).not.toContain("Alice Returning");
+});
+
+test("a sign-out signal on the quote waits for proof, whatever the first check says", async ({
+  page,
+  context,
+}) => {
+  const email = uniqueEmail("quote-race");
+  await signUpAndConfirm(page, email);
+  await anonymousAnswers(page, "Quinn Race", email);
+  await adoptAndReview(page, "Quinn Race", email);
+  let checks = 0;
+  await page.route("**/account/session", (route) => {
+    checks += 1;
+    return checks === 1 ? route.abort() : route.continue();
+  });
+  const loads = countLoads(page);
+
+  await signalSignOut(context);
+  await expect(page.getByText("Quinn Race")).toHaveCount(0);
+  await expect.poll(() => checks).toBeGreaterThan(2);
+  expect(loads.count).toBe(0);
+  await expect(page.getByText("Quinn Race")).toHaveCount(0);
+
+  await context.clearCookies();
+  await expect.poll(() => loads.count).toBe(1);
+  await expect(page).toHaveURL(/\/quote$/);
+  await expect(page.getByText("Quinn Race")).toHaveCount(0);
+});
+
+test("a switch keeps an unresolved attempt's ID for its owner, and sends nothing", async ({
+  page,
+  context,
+}) => {
+  const alice = uniqueEmail("keep-a");
+  const bob = uniqueEmail("keep-b");
+  await signUpAndConfirm(page, bob);
+  await signOut(page);
+  await signUpAndConfirm(page, alice);
+  await anonymousAnswers(page, "Alice Unresolved", alice);
+  await adoptAndReview(page, "Alice Unresolved", alice);
+  await failNextIntake(page, alice);
+  await page.getByRole("button", { name: "Send my request" }).click();
+  await expect(
+    page.getByText("We couldn't confirm that your request was saved."),
+  ).toBeVisible();
+  const before = await stubState(page, alice);
+
+  await context.clearCookies();
+  const other = await context.newPage();
+  await signIn(other, bob);
+  await expect(page.getByText("Alice Unresolved")).toHaveCount(0);
+  await expect(other.getByText("Alice Unresolved")).toHaveCount(0);
+  expect((await stubState(page, bob)).requests).toBe(0);
+
+  await other.close();
+  await context.clearCookies();
+  await signIn(page, alice);
+  await page.goto("/quote");
+  await expectBlocked(page, before.submissions[0]);
+  await expect(page.getByText("Alice Unresolved")).toHaveCount(0);
+  expect(await stubState(page, alice)).toEqual(before);
 });
 
 test("after sign-out only the attempt's ID stays, for its own account, and sending stops", async ({
@@ -698,6 +894,8 @@ test("a private page in another tab clears at sign-out and stays gone for the ne
     page.getByRole("heading", { name: account.signIn.title }),
   ).toBeVisible();
 
+  expect(await storedText(other)).not.toContain("cosmos-account-owner");
+
   await signIn(other, bob);
   await page.bringToFront();
   await expect(page.getByText("Alice Retained")).toHaveCount(0);
@@ -717,11 +915,7 @@ test("the signal hides a private page before sign-out has finished", async ({
   await requestOpen(page, "Tess Race", email);
 
   // Sign-out signals as it starts, while the cookies are still valid.
-  const other = await context.newPage();
-  await other.goto("/");
-  await other.evaluate(() =>
-    localStorage.setItem("cosmos-quote-signed-out", String(Date.now())),
-  );
+  await signalSignOut(context);
   await expect(page.getByText("Tess Race")).toHaveCount(0);
   await context.clearCookies();
   await expect(
@@ -734,6 +928,7 @@ test("a tab that returns after a switch with no signal never shows the old accou
   page,
   context,
 }) => {
+  await missOwnerSignal(page);
   const alice = uniqueEmail("switch-a");
   const bob = uniqueEmail("switch-b");
   await signUpAndConfirm(page, bob);
@@ -754,20 +949,152 @@ test("a tab that returns after a switch with no signal never shows the old accou
   await expect(page.getByText("Alice Switched")).toHaveCount(0);
 });
 
-test("focus catches a switch on a tab that never left the screen", async ({
+test("focus hides the page before it asks, and a failed check keeps it hidden", async ({
   page,
-  context,
 }) => {
   const email = uniqueEmail("focus");
   await signUpAndConfirm(page, email);
   await requestOpen(page, "Fay Focus", email);
+  const loads = countLoads(page);
+
+  const checks = await holdOwnerChecks(page);
+  await windowFocus(page);
+  await expect(page.getByText("Fay Focus")).toBeHidden();
+  await expect.poll(checks.count).toBeGreaterThan(0);
+  await checks.fail();
+  await expect(page.getByText(account.privacy.unconfirmed)).toBeVisible();
+  await expect(page.getByText("Fay Focus")).toBeHidden();
+
+  await page.getByRole("button", { name: account.privacy.retry }).click();
+  await expect(page.getByText("Fay Focus")).toBeVisible();
+  await expect(page.getByText(account.privacy.unconfirmed)).toHaveCount(0);
+  expect(loads.count).toBe(0);
+});
+
+test("focus catches a switch on a tab that never left the screen", async ({
+  page,
+  context,
+}) => {
+  await missOwnerSignal(page);
+  const alice = uniqueEmail("focus-a");
+  const bob = uniqueEmail("focus-b");
+  await signUpAndConfirm(page, bob);
+  await signOut(page);
+  await signUpAndConfirm(page, alice);
+  await requestOpen(page, "Fay Switched", alice);
 
   await context.clearCookies();
-  await page.evaluate(() => window.dispatchEvent(new Event("focus")));
+  const other = await context.newPage();
+  await signIn(other, bob);
+  const checks = await holdOwnerChecks(page);
+  await windowFocus(page);
+  await expect(page.getByText("Fay Switched")).toBeHidden();
+  await expect.poll(checks.count).toBeGreaterThan(0);
+  await expect(page.getByText("Fay Switched")).toBeHidden();
+  await checks.release();
+  await expect(
+    page.getByRole("heading", { name: account.request.notFound.title }),
+  ).toBeVisible();
+  await expect(page.getByText("Fay Switched")).toHaveCount(0);
+});
+
+test("a new account arriving beside an open tab clears it with no tab change", async ({
+  page,
+  context,
+}) => {
+  const alice = uniqueEmail("beside-a");
+  const bob = uniqueEmail("beside-b");
+  await signUpAndConfirm(page, bob);
+  await signOut(page);
+  await signUpAndConfirm(page, alice);
+  await requestOpen(page, "Alice Beside", alice);
+
+  await context.clearCookies();
+  const other = await context.newPage();
+  await signIn(other, bob);
+  await expect(
+    page.getByRole("heading", { name: account.request.notFound.title }),
+  ).toBeVisible();
+  await expect(page.getByText("Alice Beside")).toHaveCount(0);
+});
+
+test("an unknown owner never ends the wait for sign-out", async ({
+  page,
+  context,
+}) => {
+  const email = uniqueEmail("unknown");
+  await signUpAndConfirm(page, email);
+  await requestOpen(page, "Uma Unknown", email);
+  let checks = 0;
+  await page.route("**/account/session", (route) => {
+    checks += 1;
+    return checks === 1 ? route.abort() : route.continue();
+  });
+  const loads = countLoads(page);
+
+  await signalSignOut(context);
+  await expect(page.getByText("Uma Unknown")).toHaveCount(0);
+  // The check has recovered and still sees this client: sign-out isn't done.
+  await expect.poll(() => checks).toBeGreaterThan(2);
+  expect(loads.count).toBe(0);
+  await expect(page.getByText("Uma Unknown")).toHaveCount(0);
+
+  await context.clearCookies();
   await expect(
     page.getByRole("heading", { name: account.signIn.title }),
   ).toBeVisible();
-  await expect(page.getByText("Fay Focus")).toHaveCount(0);
+  await expect(page.getByText("Uma Unknown")).toHaveCount(0);
+});
+
+test("through a total outage after sign-out the page stays gone", async ({
+  page,
+  context,
+}) => {
+  const email = uniqueEmail("outage");
+  await signUpAndConfirm(page, email);
+  await requestOpen(page, "Otto Outage", email);
+  await page.route("**/account/session", (route) => route.abort());
+  const loads = countLoads(page);
+
+  await signalSignOut(context);
+  await expect(page.getByText("Otto Outage")).toHaveCount(0);
+  await expect(page.getByText(account.privacy.unconfirmed)).toBeVisible({
+    timeout: 15_000,
+  });
+  expect(loads.count).toBe(0);
+
+  // Still unknown: trying again shows nothing.
+  await page.getByRole("button", { name: account.privacy.retry }).click();
+  await expect(page.getByText(account.privacy.unconfirmed)).toBeVisible({
+    timeout: 15_000,
+  });
+  await expect(page.getByText("Otto Outage")).toHaveCount(0);
+  expect(loads.count).toBe(0);
+
+  await page.unroute("**/account/session");
+  await context.clearCookies();
+  await page.getByRole("button", { name: account.privacy.retry }).click();
+  await expect(
+    page.getByRole("heading", { name: account.signIn.title }),
+  ).toBeVisible();
+  await expect(page.getByText("Otto Outage")).toHaveCount(0);
+});
+
+test("a sign-out that never lands doesn't bring the page back by itself", async ({
+  page,
+  context,
+}) => {
+  const email = uniqueEmail("no-landing");
+  await signUpAndConfirm(page, email);
+  await requestOpen(page, "Nell Lands", email);
+  const loads = countLoads(page);
+
+  await signalSignOut(context);
+  await expect(page.getByText(account.privacy.unconfirmed)).toBeVisible({
+    timeout: 15_000,
+  });
+  await expect(page.getByText("Nell Lands")).toHaveCount(0);
+  expect(loads.count).toBe(0);
 });
 
 test("a page restored from history checks first", async ({ page, context }) => {
@@ -775,18 +1102,10 @@ test("a page restored from history checks first", async ({ page, context }) => {
   await signUpAndConfirm(page, email);
   await requestOpen(page, "Rae Restored", email);
 
-  await page.evaluate(() =>
-    window.dispatchEvent(
-      new PageTransitionEvent("pagehide", { persisted: true }),
-    ),
-  );
+  await history(page, "pagehide");
   await expect(page.getByText("Rae Restored")).toBeHidden();
   await context.clearCookies();
-  await page.evaluate(() =>
-    window.dispatchEvent(
-      new PageTransitionEvent("pageshow", { persisted: true }),
-    ),
-  );
+  await history(page, "pageshow");
   await expect(
     page.getByRole("heading", { name: account.signIn.title }),
   ).toBeVisible();

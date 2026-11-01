@@ -3,12 +3,17 @@
 import { useEffect, useRef, useState } from "react";
 import { createPortal, flushSync } from "react-dom";
 import { account } from "@/lib/site";
-import { SIGNED_OUT_SIGNAL } from "@/lib/quote-store";
+import {
+  ACCOUNT_OWNER_SIGNAL,
+  SIGNED_OUT_SIGNAL,
+  announceOwner,
+  forgetTabDrafts,
+} from "@/lib/quote-store";
 
-type View = "open" | "checking" | "unconfirmed" | "cleared";
+type View = "open" | "checking" | "unconfirmed";
 
-/** Sign-out signals as it starts and can take over 3 s; wait a little longer. */
-const SIGN_OUT_CHECKS = 8;
+/** Sign-out signals as it starts and can take over 3 s; give it about 6 s. */
+const SIGN_OUT_CHECKS = 12;
 const SIGN_OUT_CHECK_MS = 500;
 
 /** The session's owner tag, null for nobody, undefined if it can't be told. */
@@ -26,10 +31,15 @@ async function liveOwner(): Promise<string | null | undefined> {
 /**
  * A page stays on screen after its session ends, so a tab left open would keep
  * one client's details in front of the next person at this browser. This holds
- * a signed-in client's page: hidden as soon as the tab leaves, and shown again
- * only once the session is confirmed to still be theirs. If it isn't, the page
- * is dropped and reloaded, and the server decides what this browser may see.
+ * a signed-in client's page: hidden whenever the tab leaves or returns, and
+ * shown again only once the session is confirmed to still be theirs. A
+ * different session drops the page and reloads, so the server decides what this
+ * browser may see. An unknown one proves nothing either way: the page stays
+ * hidden, and is never reloaded on the strength of it.
+ *
  * Pages still authorize for themselves; this only governs what's already here.
+ * A dropped /quote leaves storage as settleQuoteStorage does on any load: its
+ * answers go, and an unresolved attempt keeps its ID under its own account.
  */
 export function AccountPrivacy({
   owner,
@@ -39,20 +49,24 @@ export function AccountPrivacy({
   children: React.ReactNode;
 }) {
   const [view, setView] = useState<View>("open");
-  /** Runs a check for the "Try again" button; set while a client is signed in. */
+  const [cleared, setCleared] = useState(false);
+  /** Asks again for the "Try again" button; set while a client is signed in. */
   const retryRef = useRef(() => {});
 
   useEffect(() => {
     if (!owner) return;
     let concealed = false;
+    /** The page is on its way out, and nothing brings it back. */
     let leaving = false;
     /** Only the newest check counts; hiding the page cancels any in flight. */
     let latest = 0;
+    let running = 0;
     let focused: HTMLElement | null = null;
 
     const conceal = () => {
       latest += 1;
-      if (concealed || leaving) return;
+      running = 0;
+      if (concealed) return;
       concealed = true;
       if (document.activeElement instanceof HTMLElement)
         focused = document.activeElement;
@@ -61,65 +75,93 @@ export function AccountPrivacy({
     };
     const clear = () => {
       leaving = true;
-      latest += 1;
-      flushSync(() => setView("cleared"));
+      conceal();
+      flushSync(() => setCleared(true));
     };
-    const reload = () => window.location.replace(window.location.href);
+    const leaveFor = (seen: string | null) => {
+      clear();
+      forgetTabDrafts(seen ?? undefined);
+      // Without the query, which on /quote carries the old client's choices.
+      window.location.replace(window.location.pathname);
+    };
     const check = async () => {
-      if (leaving) return;
       const id = ++latest;
+      running = id;
       const seen = await liveOwner();
+      if (running === id) running = 0;
       if (id !== latest) return;
       if (seen === undefined) {
-        if (concealed) setView("unconfirmed");
+        setView("unconfirmed");
       } else if (seen !== owner) {
-        clear();
-        reload();
-      } else if (concealed) {
+        leaveFor(seen);
+      } else {
         concealed = false;
         flushSync(() => setView("open"));
         focused?.focus({ preventScroll: true });
         focused = null;
       }
     };
-
-    const onVisibility = () => {
-      conceal();
-      if (document.visibilityState === "visible") void check();
-    };
-    const onPageShow = (event: PageTransitionEvent) => {
-      if (!event.persisted) return;
+    const revalidate = () => {
+      if (leaving) return;
       conceal();
       void check();
     };
-    // A switch can happen with no sign-out and no tab change, such as a
-    // confirmation link in a window beside this one.
-    const onFocus = () => {
-      if (!concealed) void check();
-    };
-    const onStorage = async (event: StorageEvent) => {
-      if (event.key !== SIGNED_OUT_SIGNAL || leaving) return;
-      clear();
+    /** Only another session proves sign-out has landed; then it's safe to load. */
+    const awaitSignOut = async () => {
+      const id = ++latest;
       for (let i = 0; i < SIGN_OUT_CHECKS; i += 1) {
-        if ((await liveOwner()) !== owner) break;
+        const seen = await liveOwner();
+        if (id !== latest) return;
+        if (seen !== undefined && seen !== owner) return leaveFor(seen);
         await new Promise((done) => setTimeout(done, SIGN_OUT_CHECK_MS));
+        if (id !== latest) return;
       }
-      reload();
+      setView("unconfirmed");
+    };
+
+    const onHide = () => {
+      if (!leaving) conceal();
+    };
+    const onVisibility = () => {
+      if (document.visibilityState === "visible") revalidate();
+      else onHide();
+    };
+    const onPageShow = (event: PageTransitionEvent) => {
+      if (event.persisted) revalidate();
+    };
+    // Coming back to this window fires this too, after a check has started.
+    const onFocus = () => {
+      if (!running) revalidate();
+    };
+    const onStorage = (event: StorageEvent) => {
+      if (leaving) return;
+      if (event.key === SIGNED_OUT_SIGNAL) {
+        clear();
+        forgetTabDrafts();
+        void awaitSignOut();
+      } else if (
+        event.key === ACCOUNT_OWNER_SIGNAL &&
+        event.newValue &&
+        event.newValue !== owner
+      ) {
+        revalidate();
+      }
     };
     retryRef.current = () => {
       setView("checking");
-      void check();
+      void (leaving ? awaitSignOut() : check());
     };
 
+    announceOwner(owner);
     document.addEventListener("visibilitychange", onVisibility);
-    window.addEventListener("pagehide", conceal);
+    window.addEventListener("pagehide", onHide);
     window.addEventListener("pageshow", onPageShow);
     window.addEventListener("focus", onFocus);
     window.addEventListener("storage", onStorage);
     return () => {
       latest += 1;
       document.removeEventListener("visibilitychange", onVisibility);
-      window.removeEventListener("pagehide", conceal);
+      window.removeEventListener("pagehide", onHide);
       window.removeEventListener("pageshow", onPageShow);
       window.removeEventListener("focus", onFocus);
       window.removeEventListener("storage", onStorage);
@@ -130,7 +172,7 @@ export function AccountPrivacy({
   return (
     <>
       <div className="account-private" data-concealed={concealed || undefined}>
-        {view !== "cleared" && children}
+        {!cleared && children}
       </div>
       {concealed &&
         // On the body: the card would otherwise place it, off-screen on a long page.

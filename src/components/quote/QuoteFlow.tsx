@@ -6,7 +6,6 @@ import { AnimatePresence, motion, useReducedMotion } from "motion/react";
 import { account as accountCopy, coverage, siteConfig } from "@/lib/site";
 import { quoteHandoff } from "@/lib/quote-handoff";
 import {
-  SIGNED_OUT_SIGNAL,
   anonymousWork,
   forgetTabDrafts,
   quoteSlots,
@@ -222,19 +221,6 @@ export function QuoteFlow({
       viewport?.removeEventListener("resize", reveal);
     };
   }, []);
-
-  // Signed out in another tab: stop showing this client's answers here, so
-  // the next person at this browser never sees them.
-  useEffect(() => {
-    if (!owner) return;
-    const signedOut = (event: StorageEvent) => {
-      if (event.key !== SIGNED_OUT_SIGNAL) return;
-      forgetTabDrafts();
-      window.location.replace("/quote");
-    };
-    window.addEventListener("storage", signedOut);
-    return () => window.removeEventListener("storage", signedOut);
-  }, [owner]);
 
   useEffect(() => {
     if (status === "sent") headingRef.current?.focus({ preventScroll: true });
