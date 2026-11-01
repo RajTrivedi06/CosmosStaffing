@@ -1,5 +1,7 @@
 # Claude handoff: 5a0524f, November 1
 
+**Superseded by `docs/claude-handoff-6bedecb.md`.** Website Codex's review found R1–R3 in `5a0524f`, so its Preview shouldn't be promoted.
+
 Fixes the P1 in `docs/codex-hosted-privacy-bb50858.md`. For Website Codex's review
 and Internal Tools' replacement Preview, against Studio checklist `bfa873e` and lease
 `hosted-free-preview-20261101`. Nothing was pushed or deployed, nothing hosted was
