@@ -4,6 +4,7 @@ import { connection } from "next/server";
 import { siteConfig } from "@/lib/site";
 import { clientSession } from "@/lib/account/server";
 import { ownerTag } from "@/lib/account/owner";
+import { AccountPrivacy } from "@/components/account/AccountPrivacy";
 import { QuoteStorageSweep } from "@/components/quote/QuoteStorageSweep";
 
 export const metadata: Metadata = {
@@ -26,15 +27,11 @@ export default async function AccountLayout({
   // without the auth settings would prerender "accounts off" for good.
   await connection();
   const session = await clientSession();
+  const owner =
+    session.state === "signed_in" ? ownerTag(session.client.id) : null;
   return (
     <div className="quote-shell account-shell">
-      {session.state !== "off" && (
-        <QuoteStorageSweep
-          owner={
-            session.state === "signed_in" ? ownerTag(session.client.id) : null
-          }
-        />
-      )}
+      {session.state !== "off" && <QuoteStorageSweep owner={owner} />}
       <header className="quote-top">
         <Link href="/" className="wordmark">
           {siteConfig.shortName}
@@ -44,7 +41,9 @@ export default async function AccountLayout({
         </Link>
       </header>
       <main id="main" className="quote-card account-card">
-        {children}
+        <AccountPrivacy key={owner} owner={owner}>
+          {children}
+        </AccountPrivacy>
       </main>
       <p className="quote-foot">
         Need help?{" "}

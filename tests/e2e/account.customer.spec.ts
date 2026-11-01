@@ -175,6 +175,30 @@ async function startSeparate(page: Page) {
   await expect(page.getByRole("heading", { name: noteTitle })).toHaveCount(0);
 }
 
+/** A sent request, open on its detail page. Returns the page's path. */
+async function requestOpen(page: Page, name: string, email: string) {
+  await anonymousAnswers(page, name, email);
+  await adoptAndReview(page, name, email);
+  await page.getByRole("button", { name: "Send my request" }).click();
+  await expect(page.getByRole("heading", { name: SENT })).toBeVisible();
+  await page.goto("/account");
+  await page.getByRole("link", { name: "Details" }).click();
+  await expect(page).toHaveURL(/\/account\/requests\//);
+  await expect(page.getByText(name)).toBeVisible();
+  return new URL(page.url()).pathname;
+}
+
+/** The tab goes to the background, or comes back. */
+async function tabIs(page: Page, state: "hidden" | "visible") {
+  await page.evaluate((value) => {
+    Object.defineProperty(document, "visibilityState", {
+      configurable: true,
+      get: () => value,
+    });
+    document.dispatchEvent(new Event("visibilitychange"));
+  }, state);
+}
+
 const ownAddress = (context: BrowserContext) =>
   context.setExtraHTTPHeaders({
     "x-forwarded-for": `10.88.${Math.floor(Math.random() * 250)}.${Math.floor(Math.random() * 250)}`,
@@ -653,6 +677,195 @@ test("another customer's request reads as not found", async ({ page }) => {
   await expect(page.getByText("Alice Owner")).toHaveCount(0);
   await page.goto("/account");
   await expect(page.getByText(account.home.noRequests)).toBeVisible();
+});
+
+test("a private page in another tab clears at sign-out and stays gone for the next client", async ({
+  page,
+  context,
+}) => {
+  const alice = uniqueEmail("tab-a");
+  const bob = uniqueEmail("tab-b");
+  await signUpAndConfirm(page, bob);
+  await signOut(page);
+  await signUpAndConfirm(page, alice);
+  const detail = await requestOpen(page, "Alice Retained", alice);
+
+  const other = await context.newPage();
+  await signOut(other);
+  // No click here: the signal from the other tab clears this page.
+  await expect(page.getByText("Alice Retained")).toHaveCount(0);
+  await expect(
+    page.getByRole("heading", { name: account.signIn.title }),
+  ).toBeVisible();
+
+  await signIn(other, bob);
+  await page.bringToFront();
+  await expect(page.getByText("Alice Retained")).toHaveCount(0);
+  await other.goto(detail);
+  await expect(
+    other.getByRole("heading", { name: account.request.notFound.title }),
+  ).toBeVisible();
+  await expect(other.getByText("Alice Retained")).toHaveCount(0);
+});
+
+test("the signal hides a private page before sign-out has finished", async ({
+  page,
+  context,
+}) => {
+  const email = uniqueEmail("tab-race");
+  await signUpAndConfirm(page, email);
+  await requestOpen(page, "Tess Race", email);
+
+  // Sign-out signals as it starts, while the cookies are still valid.
+  const other = await context.newPage();
+  await other.goto("/");
+  await other.evaluate(() =>
+    localStorage.setItem("cosmos-quote-signed-out", String(Date.now())),
+  );
+  await expect(page.getByText("Tess Race")).toHaveCount(0);
+  await context.clearCookies();
+  await expect(
+    page.getByRole("heading", { name: account.signIn.title }),
+  ).toBeVisible();
+  await expect(page.getByText("Tess Race")).toHaveCount(0);
+});
+
+test("a tab that returns after a switch with no signal never shows the old account", async ({
+  page,
+  context,
+}) => {
+  const alice = uniqueEmail("switch-a");
+  const bob = uniqueEmail("switch-b");
+  await signUpAndConfirm(page, bob);
+  await signOut(page);
+  await signUpAndConfirm(page, alice);
+  await requestOpen(page, "Alice Switched", alice);
+
+  await tabIs(page, "hidden");
+  await expect(page.getByText("Alice Switched")).toBeHidden();
+  await context.clearCookies();
+  const other = await context.newPage();
+  await signIn(other, bob);
+
+  await tabIs(page, "visible");
+  await expect(
+    page.getByRole("heading", { name: account.request.notFound.title }),
+  ).toBeVisible();
+  await expect(page.getByText("Alice Switched")).toHaveCount(0);
+});
+
+test("focus catches a switch on a tab that never left the screen", async ({
+  page,
+  context,
+}) => {
+  const email = uniqueEmail("focus");
+  await signUpAndConfirm(page, email);
+  await requestOpen(page, "Fay Focus", email);
+
+  await context.clearCookies();
+  await page.evaluate(() => window.dispatchEvent(new Event("focus")));
+  await expect(
+    page.getByRole("heading", { name: account.signIn.title }),
+  ).toBeVisible();
+  await expect(page.getByText("Fay Focus")).toHaveCount(0);
+});
+
+test("a page restored from history checks first", async ({ page, context }) => {
+  const email = uniqueEmail("restored");
+  await signUpAndConfirm(page, email);
+  await requestOpen(page, "Rae Restored", email);
+
+  await page.evaluate(() =>
+    window.dispatchEvent(
+      new PageTransitionEvent("pagehide", { persisted: true }),
+    ),
+  );
+  await expect(page.getByText("Rae Restored")).toBeHidden();
+  await context.clearCookies();
+  await page.evaluate(() =>
+    window.dispatchEvent(
+      new PageTransitionEvent("pageshow", { persisted: true }),
+    ),
+  );
+  await expect(
+    page.getByRole("heading", { name: account.signIn.title }),
+  ).toBeVisible();
+  await expect(page.getByText("Rae Restored")).toHaveCount(0);
+});
+
+test("back after signing out shows nothing private", async ({ page }) => {
+  const email = uniqueEmail("back");
+  await signUpAndConfirm(page, email);
+  await requestOpen(page, "Bo Back", email);
+
+  await page.getByRole("link", { name: account.request.back }).click();
+  await expect(page).toHaveURL(/\/account$/);
+  await page.getByRole("button", { name: account.home.signOut }).click();
+  await expect(page).toHaveURL(
+    /\/account\/login\?reason=signed_out(_local)?$/,
+    {
+      timeout: 10_000,
+    },
+  );
+
+  await page.goBack();
+  await expect(page.getByText(email)).toHaveCount(0);
+  await page.goBack();
+  await expect(page.getByText("Bo Back")).toHaveCount(0);
+  await expect(page).toHaveURL(/\/account\/login/);
+  await page.goForward();
+  await expect(page.getByText("Bo Back")).toHaveCount(0);
+});
+
+test("the same client coming back keeps the page, and can move around it", async ({
+  page,
+}) => {
+  const email = uniqueEmail("same");
+  await signUpAndConfirm(page, email);
+  const detail = await requestOpen(page, "Sam Same", email);
+  await page.evaluate(() => {
+    (window as unknown as { sameDocument: boolean }).sameDocument = true;
+  });
+  await page.getByRole("link", { name: account.request.back }).focus();
+
+  await tabIs(page, "hidden");
+  await expect(page.getByText("Sam Same")).toBeHidden();
+  await tabIs(page, "visible");
+  await expect(page.getByText("Sam Same")).toBeVisible();
+  await expect(
+    page.getByRole("link", { name: account.request.back }),
+  ).toBeFocused();
+  // Shown again in place: no reload, nothing left of the check.
+  expect(
+    await page.evaluate(
+      () => (window as unknown as { sameDocument?: boolean }).sameDocument,
+    ),
+  ).toBe(true);
+
+  await page.getByRole("link", { name: account.request.back }).click();
+  await expect(page).toHaveURL(/\/account$/);
+  await page.getByRole("link", { name: "Details" }).click();
+  await expect(page).toHaveURL(new RegExp(`${detail}$`));
+  await expect(page.getByText("Sam Same")).toBeVisible();
+});
+
+test("a check that can't finish keeps the page hidden until one does", async ({
+  page,
+}) => {
+  const email = uniqueEmail("offline");
+  await signUpAndConfirm(page, email);
+  await requestOpen(page, "Olive Offline", email);
+
+  await page.route("**/account/session", (route) => route.abort());
+  await tabIs(page, "hidden");
+  await tabIs(page, "visible");
+  await expect(page.getByText(account.privacy.unconfirmed)).toBeVisible();
+  await expect(page.getByText("Olive Offline")).toBeHidden();
+
+  await page.unroute("**/account/session");
+  await page.getByRole("button", { name: account.privacy.retry }).click();
+  await expect(page.getByText("Olive Offline")).toBeVisible();
+  await expect(page.getByText(account.privacy.unconfirmed)).toHaveCount(0);
 });
 
 test("a session the Studio refuses during a send needs a real new sign-in, without a loop", async ({

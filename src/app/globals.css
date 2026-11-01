@@ -1504,6 +1504,34 @@
   .account-card {
     margin-top: clamp(20px, 8svh, 80px);
   }
+  /* A hidden page keeps its layout, so it comes back where the client left it. */
+  .account-private {
+    display: contents;
+  }
+  .account-private[data-concealed] {
+    visibility: hidden;
+  }
+  .account-check {
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    display: grid;
+    gap: 12px;
+    justify-items: center;
+    width: min(320px, calc(100vw - 32px));
+    text-align: center;
+    transform: translate(-50%, -50%);
+  }
+  /* Most checks finish first; the note is for the slow ones. */
+  .account-check[data-view="checking"],
+  .account-check[data-view="cleared"] {
+    animation: account-check-note 1ms 400ms both;
+  }
+  @keyframes account-check-note {
+    from {
+      opacity: 0;
+    }
+  }
   .account-section {
     display: grid;
     gap: 18px;

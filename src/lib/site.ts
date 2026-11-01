@@ -463,6 +463,11 @@ export const account = {
   label: "My account",
   signInLabel: "Client sign-in",
 
+  privacy: {
+    checking: "Checking your account…",
+    unconfirmed: "We couldn't confirm your account. Check your connection.",
+    retry: "Try again",
+  },
   signIn: {
     title: "Sign in",
     lede: "Sign in to your Cosmos account.",

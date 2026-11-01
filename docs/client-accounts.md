@@ -34,6 +34,15 @@ blocked**: nothing here is deployed, and no hosted setting has changed.
   when Supabase confirmed the revocation; otherwise "You've signed out in this browser. We couldn't confirm server-side session revocation."
   Clearing this browser is not revocation, and no claim is made about when an
   unrevoked session stops working. Also forgets a quote waiting for sign-in.
+- **Open tabs** (`AccountPrivacy` in the account shell): a signed-in client's
+  page disappears as soon as sign-out is signalled from another tab, and is
+  hidden whenever the tab leaves the screen or is stored for back/forward. It
+  comes back only after `/account/session` confirms the same owner; any other
+  answer reloads the page, so the server decides what this browser may see. If
+  the check can't finish the page stays hidden and offers a retry. This covers
+  what's already on screen; each page still authorizes for itself. It needs
+  JavaScript, and it doesn't reach `/quote`, which has its own sign-out listener
+  and owner check at send, or the Studio's `/q`, `/pay` and `/me` pages.
 - **Refused sign-in** keeps the typed email and the validated destination,
   clears the password and puts the cursor there; with or without JavaScript
   (the form's permalink carries `?next=`, and a native post to a Studio
