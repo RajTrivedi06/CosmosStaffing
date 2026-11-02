@@ -6,6 +6,7 @@ import { z } from "zod";
 import type { AuthError } from "@supabase/supabase-js";
 import { account } from "@/lib/site";
 import { recentEmailProof } from "@/lib/account/config";
+import { CAPTCHA_FIELD, captchaSiteKey } from "@/lib/account/captcha";
 import {
   authClient,
   clearClientCookies,
@@ -44,6 +45,7 @@ const password = z.string().min(8).max(72);
 const { errors } = account;
 
 function failure(error: AuthError | null): FormState {
+  if (error?.code === "captcha_failed") return { error: errors.captcha };
   if (error?.status === 429 || error?.code === "over_email_send_rate_limit")
     return { error: errors.rateLimited };
   if (error?.code === "weak_password") return { error: errors.weakPassword };
@@ -62,6 +64,18 @@ async function arrive(next: string): Promise<FormState> {
   redirect(next);
 }
 
+/**
+ * The form's security-check token for Auth (lib/account/captcha.ts). With a
+ * site key set, a form without one is refused here: it can't pass Auth's
+ * check, and asking anyway would spend the shared per-address Auth limits
+ * that every visitor's requests count against. Null means refuse.
+ */
+function captcha(form: FormData): { captchaToken?: string } | null {
+  if (!captchaSiteKey()) return {};
+  const token = String(form.get(CAPTCHA_FIELD) ?? "");
+  return token && token.length <= 2048 ? { captchaToken: token } : null;
+}
+
 /** The confirmation and reset links: back here, then on to `next`. */
 async function confirmLink(next: string) {
   return `${await siteOrigin()}/account/confirm?next=${encodeURIComponent(next)}`;
@@ -76,11 +90,17 @@ export async function signIn(_: FormState, form: FormData): Promise<FormState> {
   if (!address.success) return { error: errors.email, email: typed };
   if (!secret || secret.length > 72)
     return { error: errors.credentials, email: typed };
+  const check = captcha(form);
+  if (!check) return { error: errors.captcha, email: typed };
 
   const { error } = await supabase.auth.signInWithPassword({
     email: address.data,
     password: secret,
+    options: check,
   });
+  // Before the 400 below: a refused check isn't a wrong password.
+  if (error?.code === "captcha_failed")
+    return { error: errors.captcha, email: typed };
   if (error?.code === "email_not_confirmed")
     return { error: errors.unconfirmed, unconfirmed: true, email: typed };
   if (error?.code === "invalid_credentials" || error?.status === 400)
@@ -97,12 +117,14 @@ export async function signUp(_: FormState, form: FormData): Promise<FormState> {
   const secret = password.safeParse(String(form.get("password") ?? ""));
   if (!address.success) return { error: errors.email, email: typed };
   if (!secret.success) return { error: errors.weakPassword, email: typed };
+  const check = captcha(form);
+  if (!check) return { error: errors.captcha, email: typed };
   const next = destinationOr(form.get("next"));
 
   const { data, error } = await supabase.auth.signUp({
     email: address.data,
     password: secret.data,
-    options: { emailRedirectTo: await confirmLink(next) },
+    options: { emailRedirectTo: await confirmLink(next), ...check },
   });
   // An email that already has a confirmed account gets the same answer as a
   // new one, so this page never reveals which addresses have accounts.
@@ -121,11 +143,13 @@ export async function resendConfirmation(
   if (!supabase) return { error: errors.off };
   const address = email.safeParse(String(form.get("email") ?? "").trim());
   if (!address.success) return { error: errors.email };
+  const check = captcha(form);
+  if (!check) return { error: errors.captcha, sentTo: address.data };
   const next = destinationOr(form.get("next"));
   const { error } = await supabase.auth.resend({
     type: "signup",
     email: address.data,
-    options: { emailRedirectTo: await confirmLink(next) },
+    options: { emailRedirectTo: await confirmLink(next), ...check },
   });
   if (error) return { ...failure(error), sentTo: address.data };
   return { sentTo: address.data, notice: account.checkEmail.resent };
@@ -140,9 +164,12 @@ export async function requestReset(
   const typed = String(form.get("email") ?? "").slice(0, 200);
   const address = email.safeParse(typed.trim());
   if (!address.success) return { error: errors.email, email: typed };
+  const check = captcha(form);
+  if (!check) return { error: errors.captcha, email: typed };
   const next = destinationOr(form.get("next"));
   const { error } = await supabase.auth.resetPasswordForEmail(address.data, {
     redirectTo: await confirmLink(next),
+    ...check,
   });
   // Supabase accepts a request the same way whether or not the account
   // exists, so "sent" never reveals one. Only a refused or failed request

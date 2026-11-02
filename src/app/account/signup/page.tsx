@@ -10,6 +10,7 @@ import {
   withNext,
 } from "@/lib/account/destination";
 import { SignUpForm } from "@/components/account/AuthForms";
+import { captchaSiteKey } from "@/lib/account/captcha";
 import { AccountsOff } from "@/components/account/AccountNotes";
 
 export const metadata: Metadata = { title: account.signUp.title };
@@ -30,7 +31,7 @@ export default async function SignUpPage({ searchParams }: Props) {
     <section className="account-section">
       <h1>{account.signUp.title}</h1>
       <p className="quote-help">{account.signUp.lede}</p>
-      <SignUpForm next={next} />
+      <SignUpForm next={next} captcha={captchaSiteKey()} />
       <p className="account-links">
         <span>
           {account.signUp.haveAccount}{" "}

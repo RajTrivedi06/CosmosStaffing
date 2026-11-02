@@ -8,6 +8,7 @@ import {
   withNext,
 } from "@/lib/account/destination";
 import { ForgotForm } from "@/components/account/AuthForms";
+import { captchaSiteKey } from "@/lib/account/captcha";
 import { AccountsOff } from "@/components/account/AccountNotes";
 
 export const metadata: Metadata = { title: account.forgot.title };
@@ -29,7 +30,7 @@ export default async function ForgotPage({ searchParams }: Props) {
       ) : (
         <p className="quote-help">{account.forgot.lede}</p>
       )}
-      <ForgotForm next={next} />
+      <ForgotForm next={next} captcha={captchaSiteKey()} />
       <p className="account-links">
         <Link href={withNext("/account/login", next)}>Back to sign in</Link>
       </p>

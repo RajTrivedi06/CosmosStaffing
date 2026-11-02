@@ -200,6 +200,8 @@ export default defineConfig({
               VERCEL: "1",
               AUTH_SUPABASE_URL: "http://127.0.0.1:54621",
               AUTH_SUPABASE_PUBLISHABLE_KEY: localAuthKey(),
+              // Cloudflare's always-pass test site key (supabase/config.toml).
+              TURNSTILE_SITE_KEY: "1x00000000000000000000AA",
             },
           },
           {
@@ -226,6 +228,8 @@ export default defineConfig({
               VERCEL: "1",
               AUTH_SUPABASE_URL: "http://127.0.0.1:54621",
               AUTH_SUPABASE_PUBLISHABLE_KEY: localAuthKey(),
+              // Cloudflare's always-pass test site key (supabase/config.toml).
+              TURNSTILE_SITE_KEY: "1x00000000000000000000AA",
             },
           },
         ]

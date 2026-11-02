@@ -62,6 +62,8 @@ function sessionCookie(expiresIn: number, extra: object = {}) {
 const calls: string[] = [];
 const answered: string[] = [];
 const changes: string[] = [];
+/** Each request's JSON body, by path. */
+const bodies: { path: string; body: Record<string, unknown> }[] = [];
 function authAnswers(
   answer: (path: string) => [number, object],
   delayMs: (path: string) => number = () => 0,
@@ -73,6 +75,8 @@ function authAnswers(
         .pathname;
       calls.push(path);
       if (init?.method === "PUT") changes.push(path);
+      if (typeof init?.body === "string")
+        bodies.push({ path, body: JSON.parse(init.body) });
       const wait = delayMs(path);
       if (wait) await new Promise((done) => setTimeout(done, wait));
       answered.push(path);
@@ -92,6 +96,8 @@ beforeEach(async () => {
   calls.length = 0;
   answered.length = 0;
   changes.length = 0;
+  bodies.length = 0;
+  vi.stubEnv("TURNSTILE_SITE_KEY", "");
   vi.stubEnv("AUTH_SUPABASE_URL", "http://127.0.0.1:54999");
   vi.stubEnv("AUTH_SUPABASE_PUBLISHABLE_KEY", "sb_publishable_synthetic");
   vi.resetModules();
@@ -322,4 +328,100 @@ describe("refused sign-in", () => {
       email: "a@example.test",
     });
   });
+});
+
+describe("the security check", () => {
+  const TOKEN = "synthetic-turnstile-token";
+  const fields = { email: "a@example.test", password: "calm-and-clean-42" };
+  // Each action, the Auth path it asks and the state it keeps on a refusal.
+  const cases = [
+    [
+      "sign-in",
+      () => actions.signIn,
+      "/auth/v1/token",
+      { email: "a@example.test" },
+    ],
+    [
+      "sign-up",
+      () => actions.signUp,
+      "/auth/v1/signup",
+      { email: "a@example.test" },
+    ],
+    [
+      "a new link",
+      () => actions.resendConfirmation,
+      "/auth/v1/resend",
+      { sentTo: "a@example.test" },
+    ],
+    [
+      "recovery",
+      () => actions.requestReset,
+      "/auth/v1/recover",
+      { email: "a@example.test" },
+    ],
+  ] as const;
+  const send = (
+    action: (typeof cases)[number][1],
+    extra: Record<string, string> = {},
+  ) => action()({}, form({ ...fields, ...extra })).catch((thrown) => thrown);
+
+  it.each(cases)("passes the token to Auth for %s", async (_, action, path) => {
+    vi.stubEnv("TURNSTILE_SITE_KEY", "1x00000000000000000000AA");
+    authAnswers(() => [200, {}]);
+    await send(action, { "cf-turnstile-response": TOKEN });
+    expect(bodies).toEqual([
+      {
+        path,
+        body: expect.objectContaining({
+          gotrue_meta_security: { captcha_token: TOKEN },
+        }),
+      },
+    ]);
+  });
+
+  it.each(cases)(
+    "refuses %s without a token, and doesn't ask Auth",
+    async (_, action, __, kept) => {
+      vi.stubEnv("TURNSTILE_SITE_KEY", "1x00000000000000000000AA");
+      authAnswers(() => [200, {}]);
+      for (const token of [undefined, "", "x".repeat(2049)]) {
+        const extra: Record<string, string> =
+          token === undefined ? {} : { "cf-turnstile-response": token };
+        expect(await send(action, extra)).toEqual({
+          error: account.errors.captcha,
+          ...kept,
+        });
+      }
+      expect(calls).toEqual([]);
+    },
+  );
+
+  it.each(cases)(
+    "says the check failed when Auth refuses the token for %s",
+    async (_, action, __, kept) => {
+      vi.stubEnv("TURNSTILE_SITE_KEY", "1x00000000000000000000AA");
+      authAnswers(() => [
+        400,
+        // Without Auth's API version header, auth-js reads error_code.
+        { error_code: "captcha_failed", message: "captcha protection" },
+      ]);
+      const state = await send(action, { "cf-turnstile-response": TOKEN });
+      // Not "That email and password don't match": a 400 that isn't one.
+      expect(state).toEqual({ error: account.errors.captcha, ...kept });
+    },
+  );
+
+  it.each(cases)(
+    "sends no token for %s with no site key",
+    async (_, action, path) => {
+      authAnswers(() => [200, {}]);
+      await send(action, { "cf-turnstile-response": TOKEN });
+      expect(bodies).toHaveLength(1);
+      expect(bodies[0].path).toBe(path);
+      expect(
+        (bodies[0].body.gotrue_meta_security as { captcha_token?: string })
+          ?.captcha_token,
+      ).toBeUndefined();
+    },
+  );
 });

@@ -684,3 +684,138 @@ test.describe("without JavaScript", () => {
     await expect(page).toHaveURL(/\/account\/login\?reason=signin_required$/);
   });
 });
+
+/**
+ * The security check (lib/account/captcha.ts) against real local Auth with
+ * CAPTCHA on. Normal runs use Cloudflare's always-pass test secret, so every
+ * other test here also proves a real token gets through. Tests tagged
+ * @captcha-fail need the stack restarted with the always-fail secret
+ * (supabase/config.toml) and run alone, with --grep @captcha-fail.
+ */
+const AUTH = "http://127.0.0.1:54621";
+const authKey = () =>
+  /^PUBLISHABLE_KEY="?([^"\n]+)"?$/m.exec(
+    execFileSync("supabase", ["status", "-o", "env"], {
+      encoding: "utf8",
+      stdio: ["ignore", "pipe", "ignore"],
+    }),
+  )![1];
+
+/** Auth's four email-and-password requests, straight to Auth. */
+const directRequests = (email: string) =>
+  [
+    ["/token?grant_type=password", { email, password: PASSWORD }],
+    ["/signup", { email, password: PASSWORD }],
+    ["/recover", { email }],
+    ["/resend", { type: "signup", email }],
+  ] as const;
+
+test("Auth refuses its four requests without a security token", async ({
+  page,
+}) => {
+  const apikey = authKey();
+  const email = uniqueEmail("no-token");
+  for (const [path, body] of directRequests(email))
+    for (const security of [
+      {},
+      { gotrue_meta_security: { captcha_token: "" } },
+    ]) {
+      const answer = await page.request.post(`${AUTH}/auth/v1${path}`, {
+        headers: { apikey },
+        data: { ...body, ...security },
+      });
+      expect(answer.status(), path).toBe(400);
+      const refusal = await answer.json();
+      expect(refusal.error_code ?? refusal.code, path).toBe("captcha_failed");
+    }
+  expect(await mailCount(page, email)).toBe(0);
+});
+
+test("a form without a token is refused before Auth is asked", async ({
+  page,
+}) => {
+  await ownAddress(page);
+  const email = uniqueEmail("emptied");
+  await page.goto("/account/signup");
+  await page.getByLabel("Email").fill(email);
+  await page.getByLabel("Password", { exact: true }).fill(PASSWORD);
+  const submit = page.getByRole("button", { name: account.signUp.submit });
+  await expect(submit).toBeEnabled();
+  // As a script posting the form without solving the check would.
+  await page
+    .locator('input[name="cf-turnstile-response"]')
+    .evaluate((input: HTMLInputElement) => (input.value = ""));
+  await submit.click();
+  await expect(page.getByRole("alert")).toHaveText(account.errors.captcha);
+  // A fresh token comes back for the retry, and nothing was sent.
+  await expect(submit).toBeEnabled();
+  expect(await mailCount(page, email)).toBe(0);
+});
+
+test("a check that can't load says so and keeps the form closed", async ({
+  page,
+}) => {
+  await page.route("https://challenges.cloudflare.com/**", (route) =>
+    route.abort(),
+  );
+  for (const [path, submit] of [
+    ["/account/login", account.signIn.submit],
+    ["/account/signup", account.signUp.submit],
+    ["/account/forgot", account.forgot.submit],
+  ]) {
+    await page.goto(path);
+    await expect(page.getByRole("alert")).toHaveText(
+      account.errors.captchaUnavailable,
+    );
+    await expect(
+      page.getByRole("button", { name: submit, exact: true }),
+    ).toBeDisabled();
+  }
+});
+
+test("@captcha-fail Auth's refusal reaches each form, and nothing is sent", async ({
+  page,
+}) => {
+  test.skip(
+    process.env.AUTH_CAPTCHA !== "fail",
+    "needs the always-fail secret",
+  );
+  await ownAddress(page);
+  const email = uniqueEmail("refused");
+  for (const [path, submit, password] of [
+    ["/account/signup", account.signUp.submit, true],
+    ["/account/login", account.signIn.submit, true],
+    ["/account/forgot", account.forgot.submit, false],
+  ] as const) {
+    await page.goto(path);
+    await page.getByLabel("Email").fill(email);
+    if (password)
+      await page.getByLabel("Password", { exact: true }).fill(PASSWORD);
+    await page.getByRole("button", { name: submit, exact: true }).click();
+    // Not "That email and password don't match": the check failed.
+    await expect(page.getByRole("alert")).toHaveText(account.errors.captcha);
+  }
+  expect(await mailCount(page, email)).toBe(0);
+});
+
+test("@captcha-fail Auth refuses a token Cloudflare rejects", async ({
+  page,
+}) => {
+  test.skip(
+    process.env.AUTH_CAPTCHA !== "fail",
+    "needs the always-fail secret",
+  );
+  const apikey = authKey();
+  const email = uniqueEmail("rejected-token");
+  for (const [path, body] of directRequests(email)) {
+    const answer = await page.request.post(`${AUTH}/auth/v1${path}`, {
+      headers: { apikey },
+      data: {
+        ...body,
+        gotrue_meta_security: { captcha_token: "XXXX.DUMMY.TOKEN.XXXX" },
+      },
+    });
+    expect(answer.status(), path).toBe(400);
+  }
+  expect(await mailCount(page, email)).toBe(0);
+});

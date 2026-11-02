@@ -10,6 +10,7 @@ import {
 } from "react";
 import { account } from "@/lib/site";
 import { withNext } from "@/lib/account/destination";
+import { useCaptcha } from "@/components/account/Captcha";
 import {
   requestReset,
   resendConfirmation,
@@ -122,15 +123,31 @@ function PasswordField({
   );
 }
 
-function Submit({ pending, label }: { pending: boolean; label: string }) {
+function Submit({
+  pending,
+  label,
+  ready = true,
+}: {
+  pending: boolean;
+  label: string;
+  /** False until the security check has a token. */
+  ready?: boolean;
+}) {
   return (
-    <button type="submit" className="btn btn-primary" disabled={pending}>
+    <button
+      type="submit"
+      className="btn btn-primary"
+      disabled={pending || !ready}
+    >
       {pending ? "One moment…" : label}
     </button>
   );
 }
 
-export function SignInForm({ next }: { next: string }) {
+/** Each form's page and the Turnstile site key, if the check is on. */
+type FormProps = { next: string; captcha: string | null };
+
+export function SignInForm({ next, captcha }: FormProps) {
   const [state, action, pending] = useActionState(
     signIn,
     {},
@@ -138,6 +155,7 @@ export function SignInForm({ next }: { next: string }) {
     // there, so it carries the destination through every retry.
     withNext("/account/login", next),
   );
+  const check = useCaptcha(captcha, "sign_in", state);
   const [email, setEmail] = useState("");
   const passwordRef = useRef<HTMLInputElement>(null);
   useGoTo(state);
@@ -161,36 +179,52 @@ export function SignInForm({ next }: { next: string }) {
         <EmailField defaultValue={state.email} invalid={!!state.error} />
         <PasswordField inputRef={passwordRef} />
         <Alert state={state} />
-        <Submit pending={pending} label={account.signIn.submit} />
+        {check.widget}
+        <Submit
+          pending={pending}
+          ready={check.ready}
+          label={account.signIn.submit}
+        />
       </form>
       {state.unconfirmed && (
-        <ResendForm email={email || state.email || ""} next={next} />
+        <ResendForm
+          email={email || state.email || ""}
+          next={next}
+          captcha={captcha}
+        />
       )}
     </>
   );
 }
 
-export function SignUpForm({ next }: { next: string }) {
+export function SignUpForm({ next, captcha }: FormProps) {
   const [state, action, pending] = useActionState(
     signUp,
     {},
     withNext("/account/signup", next),
   );
+  const check = useCaptcha(captcha, "sign_up", state);
   useGoTo(state);
 
-  if (state.sentTo) return <CheckEmail email={state.sentTo} next={next} />;
+  if (state.sentTo)
+    return <CheckEmail email={state.sentTo} next={next} captcha={captcha} />;
   return (
     <form action={action} className="account-form">
       <input type="hidden" name="next" value={next} />
       <EmailField defaultValue={state.email} />
       <PasswordField isNew />
       <Alert state={state} />
-      <Submit pending={pending} label={account.signUp.submit} />
+      {check.widget}
+      <Submit
+        pending={pending}
+        ready={check.ready}
+        label={account.signUp.submit}
+      />
     </form>
   );
 }
 
-function CheckEmail({ email, next }: { email: string; next: string }) {
+function CheckEmail({ email, next, captcha }: FormProps & { email: string }) {
   const { checkEmail } = account;
   return (
     <div className="account-form" role="status">
@@ -202,22 +236,24 @@ function CheckEmail({ email, next }: { email: string; next: string }) {
         <p className="quote-note">{checkEmail.sameDevice}</p>
       )}
       <p className="quote-note">{checkEmail.existing}</p>
-      <ResendForm email={email} next={next} />
+      <ResendForm email={email} next={next} captcha={captcha} />
     </div>
   );
 }
 
-function ResendForm({ email, next }: { email: string; next: string }) {
+function ResendForm({ email, next, captcha }: FormProps & { email: string }) {
   const [state, action, pending] = useActionState(resendConfirmation, {});
+  const check = useCaptcha(captcha, "resend", state);
   return (
     <form action={action} className="account-form account-resend">
       <input type="hidden" name="email" value={email} />
       <input type="hidden" name="next" value={next} />
       <Alert state={state} />
+      {check.widget}
       <button
         type="submit"
         className="btn btn-glass"
-        disabled={pending || !email}
+        disabled={pending || !email || !check.ready}
       >
         {pending ? "Sending…" : account.checkEmail.resend}
       </button>
@@ -225,12 +261,13 @@ function ResendForm({ email, next }: { email: string; next: string }) {
   );
 }
 
-export function ForgotForm({ next }: { next: string }) {
+export function ForgotForm({ next, captcha }: FormProps) {
   const [state, action, pending] = useActionState(
     requestReset,
     {},
     withNext("/account/forgot", next),
   );
+  const check = useCaptcha(captcha, "recover", state);
   if (state.notice)
     return (
       <p className="account-notice" role="status">
@@ -242,7 +279,12 @@ export function ForgotForm({ next }: { next: string }) {
       <input type="hidden" name="next" value={next} />
       <EmailField defaultValue={state.email} invalid={!!state.error} />
       <Alert state={state} />
-      <Submit pending={pending} label={account.forgot.submit} />
+      {check.widget}
+      <Submit
+        pending={pending}
+        ready={check.ready}
+        label={account.forgot.submit}
+      />
     </form>
   );
 }

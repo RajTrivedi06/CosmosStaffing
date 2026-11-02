@@ -222,10 +222,14 @@ token_verifications = 500
 web3 = 30
 
 # Configure one of the supported captcha providers: `hcaptcha`, `turnstile`.
-# [auth.captcha]
-# enabled = true
-# provider = "hcaptcha"
-# secret = ""
+# On, as production will be (lib/account/captcha.ts). The secret is
+# Cloudflare's published always-pass test key, not a credential: it pairs with
+# test site key 1x00000000000000000000AA. Its always-fail twin,
+# 2x0000000000000000000000000000000AA, is for the refusal tests.
+[auth.captcha]
+enabled = true
+provider = "turnstile"
+secret = "1x0000000000000000000000000000000AA"
 
 [auth.email]
 # Allow/disallow new user signups via email to your project.

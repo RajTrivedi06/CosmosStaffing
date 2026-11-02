@@ -10,6 +10,7 @@ import {
   withNext,
 } from "@/lib/account/destination";
 import { SignInForm } from "@/components/account/AuthForms";
+import { captchaSiteKey } from "@/lib/account/captcha";
 import { SignOutButton } from "@/components/account/SignOutButton";
 import { ContinueTo } from "@/components/account/ContinueTo";
 import { SessionRejected } from "@/components/account/AccountOverview";
@@ -91,7 +92,7 @@ export default async function SignInPage({ searchParams }: Props) {
       ) : (
         <p className="quote-help">{account.signIn.lede}</p>
       )}
-      <SignInForm next={next} />
+      <SignInForm next={next} captcha={captchaSiteKey()} />
       <p className="account-links">
         <Link href={withNext("/account/forgot", next)}>
           {account.signIn.forgot}

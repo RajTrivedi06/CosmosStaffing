@@ -629,6 +629,10 @@ export const account = {
     unavailable:
       "Sign-in isn't available right now. Please try again in a moment.",
     off: "Client accounts aren't open yet. You can still contact us directly.",
+    captcha: "Complete the security check, then try again.",
+    captchaUnavailable:
+      "The security check didn't load. Check your connection, or try another browser.",
+    captchaScript: "This form needs JavaScript for its security check.",
     interrupted: {
       title: "We couldn't confirm the result",
       body: "Please wait a moment, then return to the form. If you asked for an email, check your inbox first.",
