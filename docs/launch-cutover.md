@@ -6,6 +6,9 @@ blocked.** The canonical plan is the Studio's
 commit `961d519`), and it governs if the two ever differ. This file adds only
 what the website does. No step is authorized until Raj approves it.
 
+Open work and owners are tracked in the Studio's
+`docs/03-guides/release-morning-2026-10-31.md`.
+
 ## What launches
 
 | In                                       | Out, by decision                                 |
@@ -83,11 +86,9 @@ numbers or hours. Cosmos handles support, scheduling and payment follow-up manua
 
 ## Verification still owed
 
-- [ ] Website Codex's delta review of the final candidate.
-- [ ] Protected Preview: cookies, Server Actions, native POST, caching and `/q`
-      forwarding on the real edge, plus the 429 screens under the real WAF rule.
-      A native form's 429 needs a usable edge response; the React screen can't
-      cover it. See `hosted-preview-acceptance.md`.
+- [ ] Protected Preview: a native form POST, and the 429 screens under the real
+      WAF rule. A native form's 429 needs a usable edge response; the React
+      screen can't cover it. See item 2.8 in the release tracker.
 - [ ] Cleaner and staff regression on the shared project.
 - [ ] A physical iPhone and Android phone, once.
 - [ ] A new paired reservation only if integration code changes. The production
@@ -117,6 +118,31 @@ link isn't enough on its own, because `/pay` stays forwarded.
 | 8. DNS                   | Raj or the DNS operator changes only the apex and `www`, to the values Vercel gives. Mail records stay byte for byte.                                               |
 | 9. Live smoke test       | Run the smoke test below with approved accounts.                                                                                                                    |
 | 10. Recover if needed    | See Recovery.                                                                                                                                                       |
+
+### Final-domain configuration
+
+**The domain isn't confirmed.** Source and these docs use `cosmosservicesllc.com`.
+The Notion build status says `cosmosgroupusa.com`. Everything below assumes the first.
+
+| Setting                  | Value                                                                                           | State                                                                                 |
+| ------------------------ | ----------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------- |
+| Vercel domains           | Apex primary. `www` redirects to the apex, keeping path and query                               | Not set. Session cookies are host-only, so serving both would split sign-in           |
+| Auth Redirect URLs       | Add `https://cosmosservicesllc.com/account/confirm**`. Keep existing staff and cleaner entries  | Not set. No `www` entry is needed: email links always use `NEXT_PUBLIC_SITE_URL`      |
+| Auth Site URL            | Stays the Studio's value                                                                        | Studio-owned                                                                          |
+| Confirm and reset emails | `supabase/templates/` links, used only on the customer branch of the shared project's templates | Not set. Don't paste them in unbranched: other redirects have no query for the `&`    |
+| Email sender             | None chosen                                                                                     | See below                                                                             |
+| Support address          | `info@cosmosservicesllc.com`, on the Contact page and in the footer                             | Mail is hosted at Outlook. Who monitors it isn't confirmed, and it hasn't been tested |
+
+**Sender.** Public DNS, read November 2: SPF allows only Outlook and ends in `-all`,
+so a new sender on this domain needs an SPF change or its own sending subdomain. No
+Resend DKIM record exists at `resend._domainkey`. DMARC is a CNAME to a Wix-managed
+`p=none` policy. Other DKIM selectors can't be listed from outside.
+
+**If the domain changes,** update `url` and `contact.email` in `src/lib/site.ts`,
+`DEFAULT_STUDIO_ORIGIN` and `PRODUCTION_HOST` in `src/lib/studio-routes.ts`, the host
+checks in `src/lib/studio-intake.ts` and `src/lib/customer-api.ts`, `.env.example`, the unit and e2e tests that pin
+the host, and these docs. The Studio's `studio.` domain and its gateway settings would
+move too.
 
 ### Website Production variables
 
@@ -151,6 +177,8 @@ nothing.
 7. An approved second account sees none of the first's records.
 8. An open payment reads "We'll arrange payment with you directly", with no link.
 9. A deliberately blocked form shows the 429 screen, and nothing resends.
+10. `https://www.` plus a path and query lands on the same path on the apex.
+11. Canonical tags, `sitemap.xml` and an email link all use the final domain.
 
 ## Recovery
 

@@ -178,8 +178,8 @@ Sharing the project grants nothing beyond sign-in:
   app in the same project sends reset emails, its redirect URLs need a query
   too, or the template must branch.
 - **Custom SMTP** before launch: Supabase's built-in sender is rate limited to
-  a few emails an hour and for testing only. Resend's SMTP works with the
-  domain already verified for quote email. Sender, SPF/DKIM: Raj.
+  a few emails an hour and for testing only. No sender is chosen yet; see
+  `launch-cutover.md`. Sender, SPF/DKIM: Raj.
 - **Rate limits**: see requirement 4 above; needs a reviewed design.
 - Leave both values unset in Production until requirements 1–4 are met and
   verified on a paired Preview. Nothing was deployed or changed live.
