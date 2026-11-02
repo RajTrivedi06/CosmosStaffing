@@ -84,10 +84,10 @@ test("the website's own pages never link to /apply while it is closed", async ({
       page.locator('a[href*="/login"]:not([href="/me/login"])'),
       path,
     ).toHaveCount(0);
-    await expect(
-      page.locator('a[href*="studio.cosmosservicesllc.com"]'),
-      path,
-    ).toHaveCount(0);
+    for (const host of ["cosmosgroupusa.com", "cosmosservicesllc.com"])
+      await expect(page.locator(`a[href*="studio.${host}"]`), path).toHaveCount(
+        0,
+      );
   }
 });
 

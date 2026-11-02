@@ -17,13 +17,15 @@ describe("email link origin", () => {
   beforeEach(() => vi.stubEnv("NEXT_PUBLIC_SITE_URL", ""));
 
   it.each([
+    "cosmosgroupusa.com",
+    "www.cosmosgroupusa.com",
     "cosmosservicesllc.com",
     "www.cosmosservicesllc.com",
     "cosmosstaffing-preview.vercel.app",
     "elsewhere.example.test",
     "",
   ])("uses the canonical domain, whatever host %j asked", async (value) => {
-    expect(await origin(value)).toBe("https://cosmosservicesllc.com");
+    expect(await origin(value)).toBe("https://cosmosgroupusa.com");
   });
 
   it("keeps a loopback host and its port for local tests", async () => {

@@ -168,7 +168,7 @@ Sharing the project grants nothing beyond sign-in:
   Server only. `NEXT_PUBLIC_SITE_URL` must be the public origin; it builds
   the email links.
 - Supabase Auth URL configuration: Site URL can stay as the project owner
-  needs. Add **Redirect URLs** `https://cosmosservicesllc.com/account/confirm**`
+  needs. Add **Redirect URLs** `https://cosmosgroupusa.com/account/confirm**`
   (plus each preview origin). Email confirmations **on**; minimum password
   length 8.
 - Email templates (Confirm signup, Reset password): link to

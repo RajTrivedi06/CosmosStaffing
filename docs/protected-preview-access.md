@@ -32,8 +32,8 @@ operator's attestation of the one Studio Preview this website Preview pairs with
 **What must all match, exactly.** The API origin, `STUDIO_ORIGIN`, the origin the
 build's rewrites were fixed to, and `STUDIO_APPROVED_ORIGIN`. A value that only
 matches after tidying is refused: trailing slash, capitals, default port, path.
-Production hosts are refused even if approved: `*.cosmosservicesllc.com` and
-`internal-tools-cosmos.vercel.app`. There is no `*.vercel.app` trust.
+Production hosts are refused even if approved: `*.cosmosgroupusa.com`,
+`*.cosmosservicesllc.com` and `internal-tools-cosmos.vercel.app`. There is no `*.vercel.app` trust.
 
 | When                                    | What happens                                           |
 | --------------------------------------- | ------------------------------------------------------ |

@@ -6,6 +6,7 @@ import {
 } from "@/lib/quote-attempt";
 import { readQuoteBody } from "@/lib/quote-request-guard";
 import { pairedStudio } from "@/lib/studio-access";
+import { isProductionHost } from "@/lib/studio-routes";
 
 /** An explicit isolated test gate. Never enables the customer-auth UI. */
 export function studioTestConfiguration(): {
@@ -35,7 +36,7 @@ export function studioTestConfiguration(): {
       url.password ||
       url.search ||
       url.hash ||
-      /(^|\.)cosmosservicesllc\.com$/.test(url.hostname)
+      isProductionHost(url.hostname)
     )
       return null;
     return { url: url.href, secret };

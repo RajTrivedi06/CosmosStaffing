@@ -171,7 +171,10 @@ it("never treats a receipt as success on a failed status", () => {
   expect(confirmedQuote(200, { ok: true, id: "legacy" }, true)).toBe(false);
 });
 it.each([
+  "https://studio.cosmosgroupusa.com/api/webhooks/website",
   "https://studio.cosmosservicesllc.com/api/webhooks/website",
+  "https://studio.cosmosgroupusa.com.evil.example/api/webhooks/website",
+  "https://studio.cosmosservicesllc.com.evil.example/api/webhooks/website",
   "https://example.com/api/webhooks/website",
   "http://127.0.0.1:3398/api/other",
   "http://u:p@127.0.0.1:3398/api/webhooks/website",

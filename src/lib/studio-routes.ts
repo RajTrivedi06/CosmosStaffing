@@ -14,8 +14,14 @@
  * responses.
  */
 
-/** The Studio's production origin, from the documented template. */
-export const DEFAULT_STUDIO_ORIGIN = "https://studio.cosmosservicesllc.com";
+/**
+ * The Studio's production origin. Proposed and not live yet, so Production
+ * sets STUDIO_ORIGIN until it is (docs/launch-cutover.md).
+ */
+export const DEFAULT_STUDIO_ORIGIN = "https://studio.cosmosgroupusa.com";
+
+/** The Studio's current origin, kept working through the domain move. */
+export const TRANSITION_STUDIO_ORIGIN = "https://studio.cosmosservicesllc.com";
 
 /** Forwarded path patterns, in the documented order. */
 export const STUDIO_PATHS = [
@@ -64,7 +70,12 @@ export function studioOrigin(value: string | undefined): string {
 
 /** Hosts that are production's, whatever a Preview's settings say. */
 const PRODUCTION_HOST =
-  /(^|\.)cosmosservicesllc\.com$|^internal-tools-cosmos\.vercel\.app$/;
+  /(^|\.)(cosmosgroupusa|cosmosservicesllc)\.com$|^internal-tools-cosmos\.vercel\.app$/;
+
+/** Whether a test or Preview path must refuse this host. */
+export function isProductionHost(hostname: string) {
+  return PRODUCTION_HOST.test(hostname);
+}
 
 /** A single named host; URL parsing alone would accept a wildcard. */
 const NAMED_HOST = /^([a-z0-9-]+\.)*[a-z0-9-]+$|^\[::1\]$/;
@@ -78,7 +89,7 @@ export function pairedOrigin(value: string | undefined): string | null {
     const origin = value ? studioOrigin(value) : null;
     if (origin === null || origin !== value) return null;
     const { hostname } = new URL(origin);
-    return NAMED_HOST.test(hostname) && !PRODUCTION_HOST.test(hostname)
+    return NAMED_HOST.test(hostname) && !isProductionHost(hostname)
       ? origin
       : null;
   } catch {

@@ -3,6 +3,7 @@ import nextConfig from "../../next.config";
 import vercelConfig from "../../vercel.json";
 import { cleaners, siteConfig } from "@/lib/site";
 import {
+  isProductionHost,
   DEFAULT_STUDIO_ORIGIN,
   STUDIO_PATHS,
   studioOrigin,
@@ -19,33 +20,33 @@ const DOCUMENTED = {
   rewrites: [
     {
       source: "/pay/:path+",
-      destination: "https://studio.cosmosservicesllc.com/pay/:path+",
+      destination: "https://studio.cosmosgroupusa.com/pay/:path+",
     },
     {
       source: "/join/:path+",
-      destination: "https://studio.cosmosservicesllc.com/join/:path+",
+      destination: "https://studio.cosmosgroupusa.com/join/:path+",
     },
     {
       source: "/q/:path+",
-      destination: "https://studio.cosmosservicesllc.com/q/:path+",
+      destination: "https://studio.cosmosgroupusa.com/q/:path+",
     },
     {
       source: "/o/:path+",
-      destination: "https://studio.cosmosservicesllc.com/o/:path+",
+      destination: "https://studio.cosmosgroupusa.com/o/:path+",
     },
-    { source: "/me", destination: "https://studio.cosmosservicesllc.com/me" },
+    { source: "/me", destination: "https://studio.cosmosgroupusa.com/me" },
     {
       source: "/me/:path+",
-      destination: "https://studio.cosmosservicesllc.com/me/:path+",
+      destination: "https://studio.cosmosgroupusa.com/me/:path+",
     },
     {
       source: "/terms",
-      destination: "https://studio.cosmosservicesllc.com/terms",
+      destination: "https://studio.cosmosgroupusa.com/terms",
     },
     {
       source: "/studio-assets/_next/static/:path+",
       destination:
-        "https://studio.cosmosservicesllc.com/studio-assets/_next/static/:path+",
+        "https://studio.cosmosgroupusa.com/studio-assets/_next/static/:path+",
     },
   ],
   headers: [
@@ -160,6 +161,33 @@ describe("Preview builds", () => {
   });
 });
 
+describe("production hosts", () => {
+  it.each([
+    "cosmosgroupusa.com",
+    "www.cosmosgroupusa.com",
+    "studio.cosmosgroupusa.com",
+    "cosmosservicesllc.com",
+    "www.cosmosservicesllc.com",
+    "studio.cosmosservicesllc.com",
+    "internal-tools-cosmos.vercel.app",
+  ])("recognises %s", (host) => {
+    expect(isProductionHost(host)).toBe(true);
+  });
+
+  it.each([
+    "cosmosgroupusa.com.evil.example",
+    "studio.cosmosgroupusa.com.evil.example",
+    "cosmosservicesllc.com.evil.example",
+    "evilcosmosgroupusa.com",
+    "studio-cosmosgroupusa.com",
+    "cosmosgroupusa.co",
+    "cosmosgroupusaxcom",
+    "internal-tools-cosmos.vercel.app.evil.example",
+  ])("isn't fooled by %s", (host) => {
+    expect(isProductionHost(host)).toBe(false);
+  });
+});
+
 describe("cleaner links", () => {
   it("send cleaners to the Studio portal sign-in, never the staff login", () => {
     expect(cleaners.signIn.href).toBe("/me/login");
@@ -169,7 +197,9 @@ describe("cleaner links", () => {
       ...siteConfig.footer.company.map((item) => item.href),
     ];
     for (const href of hrefs) {
-      expect(href).not.toMatch(/^\/login|studio\.cosmosservicesllc\.com/);
+      expect(href).not.toMatch(
+        /^\/login|studio\.(cosmosgroupusa|cosmosservicesllc)\.com/,
+      );
     }
   });
 

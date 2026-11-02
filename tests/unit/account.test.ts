@@ -109,7 +109,7 @@ describe("auth configuration", () => {
   });
 
   it("keeps the session cookie host-only, HttpOnly and Lax", () => {
-    const options = cookieOptions("cosmosservicesllc.com");
+    const options = cookieOptions("cosmosgroupusa.com");
     expect(options).toEqual({
       name: AUTH_COOKIE,
       path: "/",

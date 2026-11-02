@@ -30,7 +30,9 @@ From the Studio's read-only checks, which can drift, so recheck at cutover:
   built-in email limit of 2 an hour.
 - Website project `cosmosstaffing`: its last Production deployment is
   `527e2c9`, from June. Nothing from this branch is deployed.
-- DNS: Wix nameservers, with the apex and `www` on Wix and `studio` on Vercel.
+- DNS for `cosmosservicesllc.com`: Wix nameservers, with the apex and `www` on Wix
+  and `studio` on Vercel. For `cosmosgroupusa.com`: Hostinger parking nameservers, with
+  no `studio` record.
 
 ## Needed from Raj
 
@@ -106,58 +108,62 @@ Payments depend on the Studio's `CUSTOMER_CHECKOUT_ENABLED` staying off on every
 checkout path, with signed webhooks still running. The website hiding its `Pay`
 link isn't enough on its own, because `/pay` stays forwarded.
 
-| Canonical step           | What the website does                                                                                                                                               |
-| ------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 1. Isolated Preview      | Build this commit with `QUOTE_STUDIO_TEST_ENABLED=true`, Preview credentials and the Preview origin. Run the checks above.                                          |
-| 2. Prepare recovery      | Record the current deployment and effective variables.                                                                                                              |
-| 3. Quiesce               | Keep the current site up. Website signup and intake aren't live yet, so there's nothing to drain.                                                                   |
-| 4. Migrations            | Nothing. The Studio applies them.                                                                                                                                   |
-| 5. Auth, SMTP, templates | Confirm the production callback prefix against `/account/confirm`. The Studio applies them.                                                                         |
-| 6. Stage artifacts       | Set Production variables with the switch **unset**, then `vercel deploy --prod --skip-domain`. Record the deployment. Inspect it: `/quote` says sending isn't open. |
-| 7. Production enablement | **Separate approval.** Set `CUSTOMER_API_PRODUCTION_ENABLED=true` and rebuild, together with the Studio's reviewed change.                                          |
-| 8. DNS                   | Raj or the DNS operator changes only the apex and `www`, to the values Vercel gives. Mail records stay byte for byte.                                               |
-| 9. Live smoke test       | Run the smoke test below with approved accounts.                                                                                                                    |
-| 10. Recover if needed    | See Recovery.                                                                                                                                                       |
+| Canonical step           | What the website does                                                                                                                                                                                                |
+| ------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1. Isolated Preview      | Build this commit with `QUOTE_STUDIO_TEST_ENABLED=true`, Preview credentials and the Preview origin. Run the checks above.                                                                                           |
+| 2. Prepare recovery      | Record the current deployment and effective variables.                                                                                                                                                               |
+| 3. Quiesce               | Keep the current site up. Website signup and intake aren't live yet, so there's nothing to drain.                                                                                                                    |
+| 4. Migrations            | Nothing. The Studio applies them.                                                                                                                                                                                    |
+| 5. Auth, SMTP, templates | Confirm the production callback prefix against `/account/confirm`. The Studio applies them.                                                                                                                          |
+| 6. Stage artifacts       | Set Production variables with the switch **unset**, then `vercel deploy --prod --skip-domain`. Record the deployment. Inspect it: `/quote` says sending isn't open.                                                  |
+| 7. Production enablement | **Separate approval.** Set `CUSTOMER_API_PRODUCTION_ENABLED=true` and rebuild, together with the Studio's reviewed change.                                                                                           |
+| 8. DNS                   | On `cosmosgroupusa.com`, Raj or the DNS operator changes only the apex and `www`, to the values Vercel gives, plus `studio` if adopted. Mail records stay byte for byte. Nothing on `cosmosservicesllc.com` changes. |
+| 9. Live smoke test       | Run the smoke test below with approved accounts.                                                                                                                                                                     |
+| 10. Recover if needed    | See Recovery.                                                                                                                                                                                                        |
 
 ### Final-domain configuration
 
-The final domain is `cosmosservicesllc.com`. The release tracker closed Notion's
-`cosmosgroupusa.com` line as stale. Cutover approval should still name the domain.
+The website's domain is `cosmosgroupusa.com`, Raj's official domain, with
+`studio.cosmosgroupusa.com` proposed for the Studio. An earlier version of this file
+called `cosmosservicesllc.com` final. That was wrong. Keep `cosmosservicesllc.com` and
+its email configuration in place during the transition.
 
 | Setting                  | Value                                                                                           | State                                                                                 |
 | ------------------------ | ----------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------- |
 | Vercel domains           | Apex primary. `www` redirects to the apex, keeping path and query                               | Not set. Session cookies are host-only, so serving both would split sign-in           |
-| Auth Redirect URLs       | Add `https://cosmosservicesllc.com/account/confirm**`. Keep existing staff and cleaner entries  | Not set. No `www` entry is needed: email links always use `NEXT_PUBLIC_SITE_URL`      |
+| Studio domain            | `studio.cosmosgroupusa.com`, proposed                                                           | Doesn't resolve yet. The Studio stays on `studio.cosmosservicesllc.com` until it does |
+| Auth Redirect URLs       | Add `https://cosmosgroupusa.com/account/confirm**`. Keep existing staff and cleaner entries     | Not set. No `www` entry is needed: email links always use `NEXT_PUBLIC_SITE_URL`      |
 | Auth Site URL            | Stays the Studio's value                                                                        | Studio-owned                                                                          |
 | Confirm and reset emails | `supabase/templates/` links, used only on the customer branch of the shared project's templates | Not set. Don't paste them in unbranched: other redirects have no query for the `&`    |
 | Email sender             | None chosen                                                                                     | See below                                                                             |
-| Support address          | `info@cosmosservicesllc.com`, on the Contact page and in the footer                             | Mail is hosted at Outlook. Who monitors it isn't confirmed, and it hasn't been tested |
+| Support address          | `info@cosmosservicesllc.com`, on the Contact page and in the footer                             | Unchanged by decision. Who monitors it isn't confirmed, and it hasn't been tested     |
 
-**Sender.** Public DNS, read November 2: SPF allows only Outlook and ends in `-all`,
-so a new sender on this domain needs an SPF change or its own sending subdomain. No
-Resend DKIM record exists at `resend._domainkey`. DMARC is a CNAME to a Wix-managed
-`p=none` policy. Other DKIM selectors can't be listed from outside.
+**During the transition,** Production's customer API accepts exactly the new or the
+current Studio address. Both domains stay refused on every test and Preview path. When
+the move is finished, remove `TRANSITION_STUDIO_ORIGIN` from `src/lib/studio-routes.ts`
+and keep the old domain in `PRODUCTION_HOST`. What happens to the old domain's Wix site
+isn't decided.
 
-**If the domain changes,** update `url` and `contact.email` in `src/lib/site.ts`,
-`DEFAULT_STUDIO_ORIGIN` and `PRODUCTION_HOST` in `src/lib/studio-routes.ts`, the host
-checks in `src/lib/studio-intake.ts` and `src/lib/customer-api.ts`, `.env.example`, the unit and e2e tests that pin
-the host, and these docs. The Studio's `studio.` domain and its gateway settings would
-move too.
+**Sender.** Public DNS, read November 2. `cosmosgroupusa.com` is on parking nameservers
+with Outlook MX. Its SPF allows only Outlook and ends in `-all`, and it has no DMARC
+record. `cosmosservicesllc.com` has the same SPF, and its DMARC is a CNAME to a
+Wix-managed `p=none` policy. So a new sender on either domain needs an SPF change or its
+own sending subdomain. DKIM selectors can't be fully listed from outside.
 
 ### Website Production variables
 
 Names only. Values stay in Vercel.
 
-| Variable                          | Value                                                  |
-| --------------------------------- | ------------------------------------------------------ |
-| `QUOTE_DELIVERY_MODE`             | `customer`                                             |
-| `CUSTOMER_API_PRODUCTION_ENABLED` | Unset until step 7, then `true`                        |
-| `STUDIO_CUSTOMER_API_URL`         | `https://studio.cosmosservicesllc.com/api/customer/v2` |
-| `STUDIO_ORIGIN`                   | `https://studio.cosmosservicesllc.com`                 |
-| `WEBSITE_INTAKE_SECRET`           | Server only, matching the Studio                       |
-| `AUTH_SUPABASE_URL`               | The Studio's production project                        |
-| `AUTH_SUPABASE_PUBLISHABLE_KEY`   | Publishable key only                                   |
-| `NEXT_PUBLIC_SITE_URL`            | `https://cosmosservicesllc.com`                        |
+| Variable                          | Value                                                                                                                                                     |
+| --------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `QUOTE_DELIVERY_MODE`             | `customer`                                                                                                                                                |
+| `CUSTOMER_API_PRODUCTION_ENABLED` | Unset until step 7, then `true`                                                                                                                           |
+| `STUDIO_CUSTOMER_API_URL`         | `https://studio.cosmosservicesllc.com/api/customer/v2` until `studio.cosmosgroupusa.com` is live, then its address                                        |
+| `STUDIO_ORIGIN`                   | `https://studio.cosmosservicesllc.com` until `studio.cosmosgroupusa.com` is live. **Must be set:** the default is the new host, which doesn't resolve yet |
+| `WEBSITE_INTAKE_SECRET`           | Server only, matching the Studio                                                                                                                          |
+| `AUTH_SUPABASE_URL`               | The Studio's production project                                                                                                                           |
+| `AUTH_SUPABASE_PUBLISHABLE_KEY`   | Publishable key only                                                                                                                                      |
+| `NEXT_PUBLIC_SITE_URL`            | `https://cosmosgroupusa.com`                                                                                                                              |
 
 Never set `QUOTE_STUDIO_TEST_ENABLED`, or a service-role key, in Production.
 Delivery needs the Studio's guard lifted as well: this switch alone sends

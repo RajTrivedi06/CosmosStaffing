@@ -24,7 +24,7 @@ const store = {
 };
 vi.mock("next/headers", () => ({
   cookies: async () => store,
-  headers: async () => new Headers({ host: "cosmosservicesllc.com" }),
+  headers: async () => new Headers({ host: "cosmosgroupusa.com" }),
 }));
 class Redirect extends Error {}
 vi.mock("next/navigation", () => ({

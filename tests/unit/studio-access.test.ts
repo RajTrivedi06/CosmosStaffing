@@ -54,6 +54,10 @@ describe("pairedOrigin", () => {
     "https://user:pass@studio-preview.example",
     "https://*.vercel.app",
     "studio-preview.example",
+    "https://studio.cosmosgroupusa.com",
+    "https://studio.cosmosgroupusa.com/",
+    "https://STUDIO.cosmosgroupusa.com",
+    "https://www.cosmosgroupusa.com",
     "https://studio.cosmosservicesllc.com",
     "https://studio.cosmosservicesllc.com/",
     "https://STUDIO.cosmosservicesllc.com",
@@ -115,6 +119,10 @@ describe("prepareStudioRequest", () => {
     ["no approval", { STUDIO_APPROVED_ORIGIN: "" }],
     [
       "a production approval",
+      { STUDIO_APPROVED_ORIGIN: "https://studio.cosmosgroupusa.com" },
+    ],
+    [
+      "an approval of the Studio's current host",
       { STUDIO_APPROVED_ORIGIN: "https://studio.cosmosservicesllc.com" },
     ],
     [

@@ -100,6 +100,7 @@ test("a visitor's infrastructure credentials never reach the Studio", async () =
     [PREVIEW, VALUE],
   ]) {
     for (const host of [
+      "www.cosmosgroupusa.com",
       "www.cosmosservicesllc.com",
       "cosmos-preview.vercel.app",
     ]) {

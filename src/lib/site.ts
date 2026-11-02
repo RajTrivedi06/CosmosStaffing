@@ -19,7 +19,7 @@ export const siteConfig = {
    * Canonical address for metadata, the sitemap and robots.txt. Set
    * NEXT_PUBLIC_SITE_URL only for an isolated local/preview origin.
    */
-  url: process.env.NEXT_PUBLIC_SITE_URL || "https://cosmosservicesllc.com",
+  url: process.env.NEXT_PUBLIC_SITE_URL || "https://cosmosgroupusa.com",
 
   /**
    * Header navigation. Home sections use `/#id` so the links also work from

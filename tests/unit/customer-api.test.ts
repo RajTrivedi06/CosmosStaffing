@@ -104,7 +104,23 @@ describe("configuration", () => {
       {
         VERCEL_ENV: "preview",
         STUDIO_CUSTOMER_API_URL:
+          "https://studio.cosmosgroupusa.com/api/customer/v2",
+      },
+    ],
+    [
+      "the Studio's current domain",
+      {
+        VERCEL_ENV: "preview",
+        STUDIO_CUSTOMER_API_URL:
           "https://studio.cosmosservicesllc.com/api/customer/v2",
+      },
+    ],
+    [
+      "a lookalike of the company domain",
+      {
+        VERCEL_ENV: "preview",
+        STUDIO_CUSTOMER_API_URL:
+          "https://studio.cosmosgroupusa.com.evil.example/api/customer/v2",
       },
     ],
   ])("is off with %s", (_, env) => {
@@ -206,6 +222,15 @@ describe("protected Preview access", () => {
     [
       "the production Studio",
       {
+        STUDIO_APPROVED_ORIGIN: "https://studio.cosmosgroupusa.com",
+        STUDIO_REWRITE_ORIGIN: "https://studio.cosmosgroupusa.com",
+        STUDIO_CUSTOMER_API_URL:
+          "https://studio.cosmosgroupusa.com/api/customer/v2",
+      },
+    ],
+    [
+      "the Studio's current host",
+      {
         STUDIO_APPROVED_ORIGIN: "https://studio.cosmosservicesllc.com",
         STUDIO_REWRITE_ORIGIN: "https://studio.cosmosservicesllc.com",
         STUDIO_CUSTOMER_API_URL:
@@ -229,14 +254,11 @@ describe("protected Preview access", () => {
   });
 
   it("asks for no token in Vercel Production", async () => {
-    const api = "https://studio.cosmosservicesllc.com/api/customer/v2";
+    const api = "https://studio.cosmosgroupusa.com/api/customer/v2";
     vi.stubEnv("VERCEL_ENV", "production");
     vi.stubEnv("CUSTOMER_API_PRODUCTION_ENABLED", "true");
     vi.stubEnv("STUDIO_CUSTOMER_API_URL", api);
-    vi.stubEnv(
-      "STUDIO_APPROVED_ORIGIN",
-      "https://studio.cosmosservicesllc.com",
-    );
+    vi.stubEnv("STUDIO_APPROVED_ORIGIN", "https://studio.cosmosgroupusa.com");
     expect(await sent()).not.toHaveProperty(ACCESS);
     expect(seen).toHaveLength(1);
     expect(oidc).not.toHaveBeenCalled();
@@ -270,7 +292,8 @@ describe("protected Preview access", () => {
 });
 
 describe("production", () => {
-  const PRODUCTION = "https://studio.cosmosservicesllc.com/api/customer/v2";
+  const PRODUCTION = "https://studio.cosmosgroupusa.com/api/customer/v2";
+  const CURRENT = "https://studio.cosmosservicesllc.com/api/customer/v2";
   beforeEach(() => {
     vi.stubEnv("VERCEL_ENV", "production");
     vi.stubEnv("STUDIO_CUSTOMER_API_URL", PRODUCTION);
@@ -282,17 +305,41 @@ describe("production", () => {
     expect(customerApiConfig()).toBeNull();
   });
 
-  it("opens only with its own switch and the real Studio", () => {
-    vi.stubEnv("QUOTE_STUDIO_TEST_ENABLED", "");
-    vi.stubEnv("CUSTOMER_API_PRODUCTION_ENABLED", "true");
-    expect(customerApiConfig()).toEqual({ base: PRODUCTION, secret: SECRET });
-  });
+  it.each([PRODUCTION, CURRENT])(
+    "opens only with its own switch and the real Studio, %s",
+    (url) => {
+      vi.stubEnv("QUOTE_STUDIO_TEST_ENABLED", "");
+      vi.stubEnv("CUSTOMER_API_PRODUCTION_ENABLED", "true");
+      vi.stubEnv("STUDIO_CUSTOMER_API_URL", url);
+      expect(customerApiConfig()).toEqual({ base: url, secret: SECRET });
+    },
+  );
 
   it.each([
     ["a loopback address", "http://127.0.0.1:3398/api/customer/v2"],
     ["another host", "https://studio.example.test/api/customer/v2"],
-    ["the wrong path", "https://studio.cosmosservicesllc.com/api/customer"],
-    ["plain HTTP", "http://studio.cosmosservicesllc.com/api/customer/v2"],
+    ["the wrong path", "https://studio.cosmosgroupusa.com/api/customer"],
+    ["plain HTTP", "http://studio.cosmosgroupusa.com/api/customer/v2"],
+    [
+      "the old host over HTTP",
+      "http://studio.cosmosservicesllc.com/api/customer/v2",
+    ],
+    ["the apex", "https://cosmosgroupusa.com/api/customer/v2"],
+    ["capitals", "https://STUDIO.cosmosgroupusa.com/api/customer/v2"],
+    ["a trailing slash", `${PRODUCTION}/`],
+    [
+      "a lookalike suffix",
+      "https://studio.cosmosgroupusa.com.evil.example/api/customer/v2",
+    ],
+    [
+      "a lookalike of the old host",
+      "https://studio.cosmosservicesllc.com.evil.example/api/customer/v2",
+    ],
+    ["a lookalike prefix", "https://studio-cosmosgroupusa.com/api/customer/v2"],
+    [
+      "a credential in the URL",
+      "https://u:p@studio.cosmosgroupusa.com/api/customer/v2",
+    ],
     ["no address", ""],
   ])("refuses %s even when switched on", (_, url) => {
     vi.stubEnv("CUSTOMER_API_PRODUCTION_ENABLED", "true");

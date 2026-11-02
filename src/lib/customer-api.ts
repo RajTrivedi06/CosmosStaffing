@@ -1,7 +1,11 @@
 import "server-only";
 import { z } from "zod";
 import { pairedStudio, studioAccessHeaders } from "@/lib/studio-access";
-import { DEFAULT_STUDIO_ORIGIN } from "@/lib/studio-routes";
+import {
+  DEFAULT_STUDIO_ORIGIN,
+  TRANSITION_STUDIO_ORIGIN,
+  isProductionHost,
+} from "@/lib/studio-routes";
 import { studioAcknowledgment, toStudioIntake } from "@/lib/quote-attempt";
 import type { QuoteAttempt } from "@/lib/quote-attempt";
 import {
@@ -34,10 +38,10 @@ export function customerApiConfig(): { base: string; secret: string } | null {
   if (enabled !== "true") return null;
   const secret = process.env.WEBSITE_INTAKE_SECRET;
   if (!secret || secret.length < 24) return null;
-  if (production)
-    return process.env.STUDIO_CUSTOMER_API_URL === PRODUCTION_CUSTOMER_API
-      ? { base: PRODUCTION_CUSTOMER_API, secret }
-      : null;
+  if (production) {
+    const base = process.env.STUDIO_CUSTOMER_API_URL ?? "";
+    return PRODUCTION_CUSTOMER_APIS.includes(base) ? { base, secret } : null;
+  }
   try {
     const url = new URL(process.env.STUDIO_CUSTOMER_API_URL || "");
     const loopback = ["localhost", "127.0.0.1", "[::1]"].includes(url.hostname);
@@ -53,7 +57,7 @@ export function customerApiConfig(): { base: string; secret: string } | null {
       url.password ||
       url.search ||
       url.hash ||
-      /(^|\.)cosmosservicesllc\.com$/.test(url.hostname)
+      isProductionHost(url.hostname)
     )
       return null;
     return { base: url.href, secret };
@@ -62,8 +66,11 @@ export function customerApiConfig(): { base: string; secret: string } | null {
   }
 }
 
-/** The only customer API Vercel Production may call. */
-const PRODUCTION_CUSTOMER_API = `${DEFAULT_STUDIO_ORIGIN}/api/customer/v2`;
+/** The only customer APIs Vercel Production may call, matched exactly. */
+const PRODUCTION_CUSTOMER_APIS = [
+  DEFAULT_STUDIO_ORIGIN,
+  TRANSITION_STUDIO_ORIGIN,
+].map((origin) => `${origin}/api/customer/v2`);
 
 /** Studio's answers can be long (50 quotes and payments); still bounded. */
 const MAX_RESPONSE_BYTES = 262_144;

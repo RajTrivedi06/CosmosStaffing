@@ -19,7 +19,7 @@ an authenticated Studio journey.
 ## What this file is for
 
 How this website and the Operations Studio (`internal-tools-cosmos`) share
-`cosmosservicesllc.com`, what is built on the website side, and what Raj must
+`cosmosgroupusa.com`, what is built on the website side, and what Raj must
 decide or arrange in the Studio. The canonical intake contract is the implementation worktree's
 [website-studio-integration.md](../../wt-integration-implementation/docs/03-guides/website-studio-integration.md),
 branch `feat/website-intake-assisted-onboarding`, commit `c456d95`.
@@ -53,7 +53,7 @@ and the review handoff are in
 | The website's own `/terms` page removed; "Terms" links are plain `<a>` to the Studio's `/terms`; `/terms` left out of the sitemap (the Studio marks it noindex)                      | footer, services page                                                                                                                                                |
 | "Clean with Cosmos" page for independent cleaners, a short note at the end of the home page, links in the footer and the phone menu                                                  | `src/app/(site)/clean-with-cosmos`, `CleanTeaser`, `cleaners` in `site.ts`                                                                                           |
 | Contact page: two separate actions, "Request a cleaning / Get a quote" and "Cleaner onboarding", plus "Cleaner sign-in"                                                              | `src/app/(site)/contact`                                                                                                                                             |
-| "Cleaner sign-in" is a plain link to `/me/login` (phone number and texted code). Nothing links to the staff `/login` or to `studio.cosmosservicesllc.com`                            | `CleanerSignIn`                                                                                                                                                      |
+| "Cleaner sign-in" is a plain link to `/me/login` (phone number and texted code). Nothing links to the staff `/login` or to a Studio host                                             | `CleanerSignIn`                                                                                                                                                      |
 | Application call to action controlled by `cleaners.apply.available` (now `false`): explains invitation-led onboarding and that public applications are unavailable; no `/apply` page | `ApplyAction`                                                                                                                                                        |
 | No cleaner data collected: no form, input, table, upload or "leave your number" on the website                                                                                       | `tests/e2e/cleaners.mobile.spec.ts`                                                                                                                                  |
 | `STUDIO_ORIGIN` (build time, optional) points the rewrites at a Studio preview for paired staging; an HTTPS origin (HTTP only on localhost)                                          | `.env.example`                                                                                                                                                       |
@@ -318,7 +318,7 @@ reconciliation plan, including older email-only leads from the prior behavior.
 The checked-in rewrite list and Vercel header template match the Studio guide
 exactly. Website `/_next` stays separate from `/studio-assets/_next/static`.
 Cross-zone links are normal anchors; public navigation uses relative company
-paths. The production canonical URL now defaults to `https://cosmosservicesllc.com`.
+paths. The production canonical URL now defaults to `https://cosmosgroupusa.com`.
 Only Stripe-hosted checkout is an approved payment departure.
 
 Local tests use a synthetic upstream, never the real Studio or production
