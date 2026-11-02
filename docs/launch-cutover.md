@@ -164,6 +164,7 @@ Names only. Values stay in Vercel.
 | `AUTH_SUPABASE_URL`               | The Studio's production project                                                                                                                           |
 | `AUTH_SUPABASE_PUBLISHABLE_KEY`   | Publishable key only                                                                                                                                      |
 | `NEXT_PUBLIC_SITE_URL`            | `https://cosmosgroupusa.com`                                                                                                                              |
+| `TURNSTILE_SITE_KEY`              | The production Turnstile widget's site key (public). Set it at step 6, before CAPTCHA is turned on in Supabase. The widget must list `cosmosgroupusa.com` |
 
 Never set `QUOTE_STUDIO_TEST_ENABLED`, or a service-role key, in Production.
 Delivery needs the Studio's guard lifted as well: this switch alone sends
@@ -185,12 +186,15 @@ nothing.
 9. A deliberately blocked form shows the 429 screen, and nothing resends.
 10. `https://www.` plus a path and query lands on the same path on the apex.
 11. Canonical tags, `sitemap.xml` and an email link all use the final domain.
+12. With CAPTCHA on, the sign-in, sign-up and reset forms enable their buttons
+    and show no security-check message. Step 4 then still signs in.
 
 ## Recovery
 
 | Failure                          | Do this                                                                                                                                      |
 | -------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------- |
 | Delivery misbehaves after step 7 | Unset `CUSTOMER_API_PRODUCTION_ENABLED` and redeploy. `/quote` says sending isn't open, and history reads as not connected. Nothing is lost. |
+| Forms show the security check    | Turn CAPTCHA off in the Supabase project; the forms work either way. Then check the site key and the widget's hostnames.                     |
 | A wrong server credential        | Fix the secret on both sides. Customers see temporary unavailability and keep their attempts.                                                |
 | The website itself fails         | Redeploy the recorded artifact, or revert the website's DNS records to their saved values. Leave mail records alone.                         |
 | Anything after the migrations    | Use a compatible app or a forward fix. Never restore anonymous quote or payment access, or drop bindings or receipts.                        |
