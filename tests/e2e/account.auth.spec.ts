@@ -573,46 +573,59 @@ test("account pages keep referrers on this site; the token link sends none", asy
 test.describe("without JavaScript", () => {
   test.use({ javaScriptEnabled: false });
 
-  test("native sign-in works, keeps the email when refused, and sends the real Origin", async ({
+  test("sign-in says it needs JavaScript, and a post without a token signs no one in", async ({
     page,
     browser,
   }) => {
-    // The account is made in a normal (JavaScript) browser context.
-    const setup = await browser.newPage();
+    // The security check needs JavaScript to make the account.
+    const setup = await browser.newPage({ javaScriptEnabled: true });
     const email = await confirmedAccount(setup, "nojs");
     await setup.close();
 
-    await page.goto("/account/login");
-    await page.getByLabel("Email").fill(email);
-    await page.getByLabel("Password", { exact: true }).fill("not-the-password");
-    const refused = page.waitForRequest((r) => r.method() === "POST");
-    await page
-      .getByRole("button", { name: account.signIn.submit, exact: true })
-      .click();
-    const origin = (await refused).headers().origin;
-    expect(origin).toBe(new URL(page.url()).origin);
-    await expect(page.locator("main").getByRole("alert")).toHaveText(
-      account.errors.credentials,
-    );
-    await expect(page.getByLabel("Email")).toHaveValue(email);
-    await expect(page.getByLabel("Password", { exact: true })).toHaveValue("");
+    for (const [path, submit] of [
+      ["/account/login", account.signIn.submit],
+      ["/account/signup", account.signUp.submit],
+      ["/account/forgot", account.forgot.submit],
+    ]) {
+      await page.goto(path);
+      await expect(page.getByText(account.errors.captchaScript)).toBeVisible();
+      await expect(
+        page.getByRole("button", { name: submit, exact: true }),
+      ).toBeDisabled();
+    }
 
-    await page.getByLabel("Password", { exact: true }).fill(PASSWORD);
-    await page
-      .getByRole("button", { name: account.signIn.submit, exact: true })
-      .click();
-    await expect(page).toHaveURL(/\/account$/);
-    await expect(page.getByText(email)).toBeVisible();
+    // The real form, posted from this site with the right password but no
+    // token, as a script would: refused before Auth, and no session.
+    await page.goto("/account/login");
+    const fields = await page
+      .locator("main form input[name]")
+      .evaluateAll((inputs) =>
+        (inputs as HTMLInputElement[]).map((input) => [
+          input.name,
+          input.value,
+        ]),
+      );
+    const res = await page.request.post("/account/login", {
+      multipart: { ...Object.fromEntries(fields), email, password: PASSWORD },
+      headers: { origin: new URL(page.url()).origin },
+      maxRedirects: 0,
+    });
+    expect(res.status()).toBe(200);
+    expect(await res.text()).toContain(account.errors.captcha);
+    expect(
+      (await page.context().cookies()).some((c) =>
+        c.name.startsWith("cosmos-client-auth"),
+      ),
+    ).toBe(false);
   });
 
-  test("a refused native sign-in keeps its destination through the retry", async ({
-    page,
-    context,
+  // Signing in needs the security check, so this one runs with JavaScript.
+  test("a refused sign-in keeps its destination through the retry", async ({
     browser,
   }) => {
-    const setup = await browser.newPage();
-    const email = await confirmedAccount(setup, "nojs-next");
-    await setup.close();
+    const context = await browser.newContext({ javaScriptEnabled: true });
+    const page = await context.newPage();
+    const email = await confirmedAccount(page, "nojs-next");
 
     for (const [next, lands] of [
       ["/quote", /127\.0\.0\.1:3201\/quote$/],
@@ -634,13 +647,15 @@ test.describe("without JavaScript", () => {
       if (kept.startsWith("/q/"))
         await expect(page.locator("#path")).toHaveText(kept);
     }
+    await context.close();
   });
 
   test("a sign-in posted from another site is refused and signs no one in", async ({
     page,
     browser,
   }) => {
-    const setup = await browser.newPage();
+    // The security check needs JavaScript to make the account.
+    const setup = await browser.newPage({ javaScriptEnabled: true });
     const email = await confirmedAccount(setup, "csrf");
     await setup.close();
 
@@ -657,6 +672,8 @@ test.describe("without JavaScript", () => {
     const multipart: Record<string, string> = Object.fromEntries(fields);
     multipart.email = email;
     multipart.password = PASSWORD;
+    // A token the local check accepts, so only the Origin check can refuse.
+    multipart["cf-turnstile-response"] = "XXXX.DUMMY.TOKEN.XXXX";
     expect(
       Object.keys(multipart).some((name) => name.startsWith("$ACTION")),
     ).toBe(true);
@@ -746,7 +763,9 @@ test("a form without a token is refused before Auth is asked", async ({
     .locator('input[name="cf-turnstile-response"]')
     .evaluate((input: HTMLInputElement) => (input.value = ""));
   await submit.click();
-  await expect(page.getByRole("alert")).toHaveText(account.errors.captcha);
+  await expect(page.locator("main").getByRole("alert")).toHaveText(
+    account.errors.captcha,
+  );
   // A fresh token comes back for the retry, and nothing was sent.
   await expect(submit).toBeEnabled();
   expect(await mailCount(page, email)).toBe(0);
@@ -764,7 +783,7 @@ test("a check that can't load says so and keeps the form closed", async ({
     ["/account/forgot", account.forgot.submit],
   ]) {
     await page.goto(path);
-    await expect(page.getByRole("alert")).toHaveText(
+    await expect(page.locator("main").getByRole("alert")).toHaveText(
       account.errors.captchaUnavailable,
     );
     await expect(
@@ -793,7 +812,9 @@ test("@captcha-fail Auth's refusal reaches each form, and nothing is sent", asyn
       await page.getByLabel("Password", { exact: true }).fill(PASSWORD);
     await page.getByRole("button", { name: submit, exact: true }).click();
     // Not "That email and password don't match": the check failed.
-    await expect(page.getByRole("alert")).toHaveText(account.errors.captcha);
+    await expect(page.locator("main").getByRole("alert")).toHaveText(
+      account.errors.captcha,
+    );
   }
   expect(await mailCount(page, email)).toBe(0);
 });
