@@ -635,7 +635,7 @@ export const account = {
     captchaScript: "This form needs JavaScript for its security check.",
     interrupted: {
       title: "We couldn't confirm the result",
-      body: "Please wait a moment, then return to the form. If you asked for an email, check your inbox first.",
+      body: "Please wait a few minutes, then return to the form. If you asked for an email, check your inbox first.",
       action: "Return to the form",
     },
   },

@@ -90,7 +90,13 @@ numbers or hours. Cosmos handles support, scheduling and payment follow-up manua
 
 - [ ] Protected Preview: a native form POST, and the 429 screens under the real
       WAF rule. A native form's 429 needs a usable edge response; the React
-      screen can't cover it. See item 2.8 in the release tracker.
+      screen can't cover it. See item 2.8 in the release tracker. Vercel's
+      rate-limit rule offers its default 429, Log, Deny or Challenge, with no
+      body of our own, so that page is Vercel's and carries no site copy. It
+      claims no success. Script-run forms show the site's "We couldn't confirm
+      the result" screen, and the quote form its own "Too many attempts"
+      message; `/api/quote` takes only script-sent JSON. With CAPTCHA on, a
+      form sent without JavaScript can't sign in or send mail anyway.
 - [ ] Cleaner and staff regression on the shared project.
 - [ ] A physical iPhone and Android phone, once.
 - [ ] A new paired reservation only if integration code changes. The production

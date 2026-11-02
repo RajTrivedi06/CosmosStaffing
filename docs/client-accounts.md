@@ -147,8 +147,10 @@ Sharing the project grants nothing beyond sign-in:
    switch, `CUSTOMER_API_PRODUCTION_ENABLED`, is prepared and off, and the
    Studio's guard is separate. See [launch-cutover.md](launch-cutover.md).
 4. **Server-side auth rate limiting needs a reviewed deployment design.**
-   _Open._ Every Supabase Auth call comes from the website server, so provider
-   per-IP limits are shared by all clients. Raising provider limits is not
+   _Partly done._ Turnstile CAPTCHA protects sign-in, sign-up, resend and
+   reset, and turns on in the coordinated launch, not separately; per-client
+   edge rules are still open. Every Supabase Auth call comes from the website
+   server, so provider per-IP limits are shared by all clients. Raising provider limits is not
    enough on its own. The design must cover per-client limits on sign-in,
    sign-up, resend and reset (e.g. Vercel WAF rules on `/account/*` Server
    Action POSTs), whether and how the real client IP reaches Supabase, and
