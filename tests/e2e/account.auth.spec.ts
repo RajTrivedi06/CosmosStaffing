@@ -588,7 +588,11 @@ test.describe("without JavaScript", () => {
       ["/account/forgot", account.forgot.submit],
     ]) {
       await page.goto(path);
-      await expect(page.getByText(account.errors.captchaScript)).toBeVisible();
+      // Playwright stops scripts but still parses <noscript> as if they ran,
+      // so the note is checked in the page the server sends.
+      expect(await (await page.request.get(path)).text()).toContain(
+        `<noscript><p class="quote-note">${account.errors.captchaScript}</p></noscript>`,
+      );
       await expect(
         page.getByRole("button", { name: submit, exact: true }),
       ).toBeDisabled();
