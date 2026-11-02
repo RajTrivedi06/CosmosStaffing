@@ -1,5 +1,14 @@
 # Claude handoff: 6bedecb, November 1
 
+**Superseded by `docs/claude-handoff-5c44889.md`** as the candidate. This file still holds the design, the limits and the retest list.
+
+> **Website Codex review disposition:** changes required; R1 and R2 addressed
+> locally, R3 still has server-side uncertainty mapped to confirmed null.
+> Read [codex-review-6bedecb.md](codex-review-6bedecb.md) for the isolated
+> reproduction and narrow correction. No alias promotion/retest approval yet.
+> Website Claude owns the correction; Internal Tools coordinates the next exact
+> candidate and slot. No Raj relay required; freezes remain unchanged.
+
 Corrects R1–R3 in `docs/codex-review-5a0524f.md`. For Website Codex's delta review
 and Internal Tools' Preview, against Studio checklist `c4f31a8` and lease
 `hosted-free-preview-20261101`. Nothing was pushed or deployed, nothing hosted was
