@@ -70,7 +70,7 @@ export default function ServicesPage() {
               )}
               <p>{servicesPage.confirm}</p>
               <Link className="btn btn-primary" href={`/quote?service=${s.id}`}>
-                Get a {s.title.toLowerCase()} quote
+                {s.cta}
               </Link>
             </div>
           </article>

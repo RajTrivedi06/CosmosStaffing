@@ -143,6 +143,7 @@ export const services = [
   {
     id: "regular",
     title: "Home cleaning",
+    cta: "Get a home cleaning quote",
     short: "Regular care you can request weekly, every two weeks or monthly.",
     image: "kitchen",
     alt: "A mother and daughter laughing in a bright kitchen.",
@@ -160,6 +161,7 @@ export const services = [
   {
     id: "deep",
     title: "Deep cleans",
+    cta: "Get a deep clean quote",
     short:
       "A more detailed reset for a new season, a new baby or a fresh start.",
     image: "bath",
@@ -180,6 +182,7 @@ export const services = [
   {
     id: "move",
     title: "Move-in and move-out",
+    cta: "Get a move-in and move-out quote",
     short: "For empty or nearly empty homes when you move.",
     image: "move",
     alt: "A couple carrying a large plant into a bright, empty apartment.",
@@ -200,6 +203,7 @@ export const services = [
   {
     id: "office",
     title: "Workplaces",
+    cta: "Get a workplace quote",
     short: "Offices, studios and retail spaces.",
     image: "office",
     alt: "A bright, tidy studio office with people at work.",

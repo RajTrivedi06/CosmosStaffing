@@ -65,7 +65,12 @@ test("service lists read as examples, and requests need confirming", async ({
     await expect(article).toContainText(servicesPage.confirm);
     for (const task of service.onRequest)
       await expect(article).toContainText(task);
+    await expect(
+      article.getByRole("link", { name: service.cta, exact: true }),
+    ).toHaveAttribute("href", `/quote?service=${service.id}`);
   }
+  for (const wording of ["Get a deep clean quote", "Get a workplace quote"])
+    await expect(main.getByRole("link", { name: wording })).toBeVisible();
   for (const id of ["regular", "deep", "move"]) {
     const article = main.locator(`article#${id}`);
     await expect(article).toContainText(servicesPage.onRequestTitle);
