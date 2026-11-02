@@ -121,8 +121,8 @@ link isn't enough on its own, because `/pay` stays forwarded.
 
 ### Final-domain configuration
 
-**The domain isn't confirmed.** Source and these docs use `cosmosservicesllc.com`.
-The Notion build status says `cosmosgroupusa.com`. Everything below assumes the first.
+The final domain is `cosmosservicesllc.com`. The release tracker closed Notion's
+`cosmosgroupusa.com` line as stale. Cutover approval should still name the domain.
 
 | Setting                  | Value                                                                                           | State                                                                                 |
 | ------------------------ | ----------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------- |
