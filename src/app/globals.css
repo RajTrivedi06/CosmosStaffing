@@ -1180,13 +1180,37 @@
   /* ---- Quote screen (/quote) ----
      One question at a time on a warm, softly lit page, inside a translucent
      card. Steps fade and slide in the direction of travel (QuoteFlow). */
+  /* The warm ground fills the whole screen, under the notch, the home
+     indicator and Safari's bars, at any scroll or overscroll. */
+  html:has(.quote-shell) {
+    background: #f4efe7;
+  }
+  body:has(.quote-shell) {
+    /* The top edge is exactly the theme colour Safari paints its bar with. */
+    --warm-ground:
+      linear-gradient(#f4efe7, rgba(244, 239, 231, 0) 120px),
+      radial-gradient(120% 70% at 85% 0%, #f7ead8 0%, transparent 60%),
+      radial-gradient(90% 60% at 0% 100%, #efe3d2 0%, transparent 65%), #f4efe7;
+    background: transparent;
+  }
+  /* The notch strip and the page share one light, sized to the screen, so
+     there is no seam where they meet. */
+  body:has(.quote-shell)::before,
+  .quote-shell::before {
+    background: var(--warm-ground);
+    background-size: 100% 100lvh;
+    background-repeat: no-repeat;
+  }
+  .quote-shell::before {
+    content: "";
+    position: fixed;
+    inset: 0;
+    z-index: -1;
+  }
   .quote-shell {
     min-height: 100svh;
     display: grid;
     grid-template-rows: auto auto 1fr auto;
-    background:
-      radial-gradient(120% 70% at 85% 0%, #f7ead8 0%, transparent 60%),
-      radial-gradient(90% 60% at 0% 100%, #efe3d2 0%, transparent 65%), #f4efe7;
     padding: calc(env(safe-area-inset-top, 0px) + 18px)
       max(var(--gutter), env(safe-area-inset-right, 0px))
       calc(env(safe-area-inset-bottom, 0px) + 24px)
