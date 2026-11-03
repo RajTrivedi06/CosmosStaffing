@@ -38,7 +38,7 @@ export const siteConfig = {
 
   /** Confirmed by Raj, 2026-10-30. */
   contact: {
-    email: "info@cosmosservicesllc.com",
+    email: "info@cosmosgroupusa.com",
   },
 
   footer: {

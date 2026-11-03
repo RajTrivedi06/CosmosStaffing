@@ -73,8 +73,9 @@ the note and the step together.
 Austin, Houston, San Antonio, Dallas and coordination elsewhere in the US come from
 the project brief, and are treated as confirmed.
 
-**Contact, decided by Raj:** email only, `info@cosmosservicesllc.com`, with no phone
-numbers or hours. Cosmos handles support, scheduling and payment follow-up manually.
+**Contact, decided by Raj:** email only, `info@cosmosgroupusa.com` from launch
+(November 3), with no phone numbers or hours. Raj's IT is setting up that
+mailbox; `info@cosmosservicesllc.com` keeps working for anyone who has it. Cosmos handles support, scheduling and payment follow-up manually.
 
 **Blocks the release steps, from the canonical plan:**
 
@@ -134,15 +135,15 @@ The website's domain is `cosmosgroupusa.com`, Raj's official domain, with
 called `cosmosservicesllc.com` final. That was wrong. Keep `cosmosservicesllc.com` and
 its email configuration in place during the transition.
 
-| Setting                  | Value                                                                                           | State                                                                                 |
-| ------------------------ | ----------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------- |
-| Vercel domains           | Apex primary. `www` redirects to the apex, keeping path and query                               | Not set. Session cookies are host-only, so serving both would split sign-in           |
-| Studio domain            | `studio.cosmosgroupusa.com`, proposed                                                           | Doesn't resolve yet. The Studio stays on `studio.cosmosservicesllc.com` until it does |
-| Auth Redirect URLs       | Add `https://cosmosgroupusa.com/account/confirm**`. Keep existing staff and cleaner entries     | Not set. No `www` entry is needed: email links always use `NEXT_PUBLIC_SITE_URL`      |
-| Auth Site URL            | Stays the Studio's value                                                                        | Studio-owned                                                                          |
-| Confirm and reset emails | `supabase/templates/` links, used only on the customer branch of the shared project's templates | Not set. Don't paste them in unbranched: other redirects have no query for the `&`    |
-| Email sender             | None chosen                                                                                     | See below                                                                             |
-| Support address          | `info@cosmosservicesllc.com`, on the Contact page and in the footer                             | Unchanged by decision. Who monitors it isn't confirmed, and it hasn't been tested     |
+| Setting                  | Value                                                                                           | State                                                                                                |
+| ------------------------ | ----------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------- |
+| Vercel domains           | Apex primary. `www` redirects to the apex, keeping path and query                               | Not set. Session cookies are host-only, so serving both would split sign-in                          |
+| Studio domain            | `studio.cosmosgroupusa.com`, proposed                                                           | Doesn't resolve yet. The Studio stays on `studio.cosmosservicesllc.com` until it does                |
+| Auth Redirect URLs       | Add `https://cosmosgroupusa.com/account/confirm**`. Keep existing staff and cleaner entries     | Not set. No `www` entry is needed: email links always use `NEXT_PUBLIC_SITE_URL`                     |
+| Auth Site URL            | Stays the Studio's value                                                                        | Studio-owned                                                                                         |
+| Confirm and reset emails | `supabase/templates/` links, used only on the customer branch of the shared project's templates | Not set. Don't paste them in unbranched: other redirects have no query for the `&`                   |
+| Email sender             | None chosen                                                                                     | See below                                                                                            |
+| Support address          | `info@cosmosgroupusa.com`, on the Contact page and in the footer                                | The mailbox is being set up. Before launch, send one test message to it and confirm someone reads it |
 
 **During the transition,** Production's customer API accepts exactly the new or the
 current Studio address. Both domains stay refused on every test and Preview path. When
