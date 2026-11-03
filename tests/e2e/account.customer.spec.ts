@@ -1501,6 +1501,55 @@ test("the signed-in address leaves with the page, never shown to the next accoun
   await expect(page.getByText(alice)).toHaveCount(0);
 });
 
+test("the quote's email starts as the signed-in address, and only ever that one", async ({
+  page,
+  context,
+}) => {
+  const alice = uniqueEmail("fill-a");
+  const bob = uniqueEmail("fill-b");
+  await signUpAndConfirm(page, bob);
+  await signOut(page);
+  await signUpAndConfirm(page, alice);
+
+  await toContact(page);
+  await expect(page.getByLabel("Email")).toHaveValue(alice);
+  // Offered, never saved: no storage holds the address.
+  expect(await storedText(page)).not.toContain(alice);
+  await page.reload();
+  await expect(page.getByLabel("Email")).toHaveValue(alice);
+
+  // Signed out in another tab: the field and its address leave this tab.
+  const other = await context.newPage();
+  await signOut(other);
+  await expect(page.locator(`input[value="${alice}"]`)).toHaveCount(0);
+  await expect(page.getByLabel("Email")).toHaveCount(0);
+  await page.reload();
+  await expect(page.getByLabel("Email")).toHaveCount(0);
+  await expect(page.locator(`input[value="${alice}"]`)).toHaveCount(0);
+  expect(await storedText(page)).not.toContain(alice);
+
+  // Bob signs in: his own address, never Alice's.
+  await signIn(other, bob);
+  await toContact(page);
+  await expect(page.getByLabel("Email")).toHaveValue(bob);
+
+  // What Bob types is his, and stays his.
+  const typed = "bob-elsewhere@example.test";
+  await page.getByLabel("Email").fill(typed);
+  await page.reload();
+  await expect(page.getByLabel("Email")).toHaveValue(typed);
+
+  // Alice signs in beside his open tab: his text goes, and she gets her own.
+  await context.clearCookies();
+  await signIn(other, alice);
+  await expect(page).toHaveURL(/\/quote$/);
+  await expect(page.locator(`input[value="${typed}"]`)).toHaveCount(0);
+  await toContact(page);
+  await expect(page.getByLabel("Email")).toHaveValue(alice);
+  await expect(page.locator(`input[value="${typed}"]`)).toHaveCount(0);
+  await expect(page.locator(`input[value="${bob}"]`)).toHaveCount(0);
+});
+
 test("answers from before sign-in are offered once, from this browser only", async ({
   page,
   context,

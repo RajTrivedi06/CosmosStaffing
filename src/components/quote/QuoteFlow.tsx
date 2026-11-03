@@ -125,7 +125,15 @@ export function QuoteFlow({
   const [hasAttempt, setHasAttempt] = useState(false);
   const [unresolved, setUnresolved] = useState<UnresolvedAttempt | null>(null);
   const [attemptRecoveryFailed, setAttemptRecoveryFailed] = useState(false);
-  const shown = answers;
+  const [emailEdited, setEmailEdited] = useState(false);
+  // The signed-in address fills an empty Email until the client edits it. It
+  // comes from the session this page was rendered for and is never saved with
+  // the draft: only what the client types is. A page whose session changes is
+  // cleared and reloaded (AccountPrivacy), so it can't show another's address.
+  const shown =
+    account && !emailEdited && !answers.email
+      ? { ...answers, email: account.email }
+      : answers;
 
   // Restore this tab's draft. Answers in the link (a shared quote, or a
   // service chosen on the site) win over the draft, and the flow opens on
@@ -264,6 +272,7 @@ export function QuoteFlow({
 
   const update = (patch: Partial<QuoteAnswers>) => {
     if (attemptRef.current) return;
+    if ("email" in patch) setEmailEdited(true);
     setAnswers((a) => updateQuoteAnswers(a, patch));
     setError(null);
     if (status === "unavailable" || status === "error") setStatus("idle");
