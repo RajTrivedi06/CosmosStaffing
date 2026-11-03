@@ -186,7 +186,7 @@ export function AccountPrivacy({
                 <p>{account.privacy.unconfirmed}</p>
                 <button
                   type="button"
-                  className="btn btn-glass"
+                  className="btn btn-primary"
                   onClick={() => retryRef.current()}
                 >
                   {account.privacy.retry}
