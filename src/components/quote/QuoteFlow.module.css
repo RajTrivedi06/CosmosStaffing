@@ -58,13 +58,25 @@
   transition: none;
 }
 
-@media (max-width: 600px), (max-height: 600px) {
-  .shell {
-    padding-top: max(12px, env(safe-area-inset-top, 0px));
+@media (max-width: 600px) {
+  .shell :global(.quote-card) {
+    padding: 0;
   }
+  .shell :global(.quote-actions) {
+    align-items: stretch;
+  }
+}
+
+@media (min-width: 601px) and (max-height: 600px) {
   .shell :global(.quote-card) {
     padding: 20px;
     border-radius: 22px;
+  }
+}
+
+@media (max-width: 600px), (max-height: 600px) {
+  .shell {
+    padding-top: max(12px, env(safe-area-inset-top, 0px));
   }
   .shell :global(.quote-card form) {
     gap: 18px;

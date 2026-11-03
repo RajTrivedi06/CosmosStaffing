@@ -145,30 +145,51 @@ function Section({
   );
 }
 
+/**
+ * Records as rows. A row that opens something is one tap target as a whole,
+ * with its action at the end; quotes waiting on the client carry the accent.
+ */
 export function ItemList({ items }: { items: AccountItem[] }) {
   return (
     <ul className="account-list">
-      {items.map((item) => (
-        <li key={item.id}>
-          <div>
-            <p className="account-item-title">{item.title}</p>
-            {item.facts.length > 0 && (
-              <p className="quote-note">{item.facts.join(" · ")}</p>
-            )}
-          </div>
-          {item.href &&
-            // Studio recipient pages need a full page load; ours can use Link.
-            (item.href.startsWith("/account/") ? (
-              <Link className="btn btn-glass" href={item.href}>
+      {items.map((item) => {
+        const body = (
+          <>
+            <span className="account-row-text">
+              <span className="account-item-title">{item.title}</span>
+              {item.facts.length > 0 && (
+                <span className="quote-note">{item.facts.join(" · ")}</span>
+              )}
+            </span>
+            {item.href && (
+              <span className="account-row-action">
                 {item.action ?? "Open"}
+                <span aria-hidden="true"> ›</span>
+              </span>
+            )}
+          </>
+        );
+        return (
+          <li key={item.id}>
+            {!item.href ? (
+              <div className="account-row">{body}</div>
+            ) : // Studio recipient pages need a full page load; ours can use Link.
+            item.href.startsWith("/account/") ? (
+              <Link className="account-row" href={item.href}>
+                {body}
               </Link>
             ) : (
-              <a className="btn btn-glass" href={item.href}>
-                {item.action ?? "Open"}
+              <a
+                className="account-row"
+                data-waiting={item.waiting || undefined}
+                href={item.href}
+              >
+                {body}
               </a>
-            ))}
-        </li>
-      ))}
+            )}
+          </li>
+        );
+      })}
     </ul>
   );
 }

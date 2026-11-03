@@ -56,6 +56,9 @@ export function useCaptcha(
   // The result the current token was issued after; a newer one needs another.
   const [passed, setPassed] = useState<object | null>(null);
   const [failed, setFailed] = useState(false);
+  // The result a check has taken over a second on, so the closed button says why.
+  const [slow, setSlow] = useState<object | null>(null);
+  const waiting = !!siteKey && passed !== result && !failed;
 
   useEffect(() => {
     if (!siteKey) return;
@@ -93,11 +96,20 @@ export function useCaptcha(
     if (widget.current) window.turnstile?.reset(widget.current);
   }, [result]);
 
+  useEffect(() => {
+    if (!waiting) return;
+    const timer = setTimeout(() => setSlow(result), 1000);
+    return () => clearTimeout(timer);
+  }, [waiting, result]);
+
   return {
     ready: !siteKey || passed === result,
     widget: siteKey ? (
       <>
         <div ref={box} className="account-captcha" />
+        <p className="quote-note account-captcha-note" aria-live="polite">
+          {waiting && slow === result ? account.errors.captchaPending : ""}
+        </p>
         {failed && (
           <p className="quote-alert" role="alert">
             {account.errors.captchaUnavailable}

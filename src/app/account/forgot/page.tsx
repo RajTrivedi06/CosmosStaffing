@@ -22,17 +22,15 @@ export default async function ForgotPage({ searchParams }: Props) {
   if (!accountsEnabled()) return <AccountsOff title={account.forgot.title} />;
   return (
     <section className="account-section">
-      <h1>{account.forgot.title}</h1>
-      {signInReason(params.reason) === "link_expired" ? (
-        <p className="quote-alert" role="alert">
-          {account.reset.expired}
-        </p>
-      ) : (
-        <p className="quote-help">{account.forgot.lede}</p>
-      )}
-      <ForgotForm next={next} captcha={captchaSiteKey()} />
+      <ForgotForm
+        next={next}
+        captcha={captchaSiteKey()}
+        expired={signInReason(params.reason) === "link_expired"}
+      />
       <p className="account-links">
-        <Link href={withNext("/account/login", next)}>Back to sign in</Link>
+        <Link href={withNext("/account/login", next)}>
+          {account.forgot.back}
+        </Link>
       </p>
     </section>
   );

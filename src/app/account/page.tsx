@@ -31,26 +31,38 @@ export default async function AccountPage({ searchParams }: Props) {
   const updated = params.updated === "1";
   const cursor = safeCursor(params.cursor);
   const overview = await accountOverview(cursor);
+  // A session the Studio refused has one way on, its own "Sign in again".
+  const refused = overview.status === "signin";
   return (
     <section className="account-section account-home">
       <header className="account-head">
         <h1>{account.home.title}</h1>
-        <p className="quote-help">
-          {account.home.signedInAs} <strong>{session.client.email}</strong>
-        </p>
       </header>
       {updated && (
         <p className="account-notice" role="status">
           {account.reasons.password_updated}
         </p>
       )}
-      <div className="account-actions">
-        <Link className="btn btn-primary" href="/quote">
-          {account.home.newRequest}
-        </Link>
-        <SignOutButton label={account.home.signOut} />
-      </div>
+      {!refused && (
+        <div className="account-actions">
+          <Link className="btn btn-primary" href="/quote">
+            {account.home.newRequest}
+          </Link>
+        </div>
+      )}
       <AccountOverviewView overview={overview} paged={!!cursor} />
+      {!refused && (
+        <footer className="account-foot">
+          <p>
+            {account.home.signedInAs}{" "}
+            <strong className="account-address">{session.client.email}</strong>
+          </p>
+          <SignOutButton
+            label={account.home.signOut}
+            className="account-signout"
+          />
+        </footer>
+      )}
     </section>
   );
 }

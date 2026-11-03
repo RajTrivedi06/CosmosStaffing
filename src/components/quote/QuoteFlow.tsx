@@ -22,6 +22,7 @@ import {
 } from "@/lib/quote-attempt";
 import { localCalendarDate, preferredDateError } from "@/lib/quote-date";
 import { SignOutButton } from "@/components/account/SignOutButton";
+import { ContactLines } from "./ContactLines";
 import { PreferredDate } from "./PreferredDate";
 import styles from "./QuoteFlow.module.css";
 import {
@@ -124,6 +125,7 @@ export function QuoteFlow({
   const [hasAttempt, setHasAttempt] = useState(false);
   const [unresolved, setUnresolved] = useState<UnresolvedAttempt | null>(null);
   const [attemptRecoveryFailed, setAttemptRecoveryFailed] = useState(false);
+  const shown = answers;
 
   // Restore this tab's draft. Answers in the link (a shared quote, or a
   // service chosen on the site) win over the draft, and the flow opens on
@@ -229,6 +231,11 @@ export function QuoteFlow({
   const steps = gated ? preAccountSteps(answers) : stepsFor(answers);
   const index = Math.max(0, steps.indexOf(step));
   const isReview = step === "review";
+  // Counted over the whole flow for everyone, so nothing jumps at sign-in. A
+  // signed-out visitor's review is the account gate, not a question: no count.
+  const allSteps = stepsFor(answers);
+  const gate = gated && isReview;
+  const position = gate ? index : Math.max(0, allSteps.indexOf(step)) + 1;
   const awaitingStudio =
     intakeMode === "studio_pending" || status === "studio_pending";
   const needsAccount = gated && !awaitingStudio;
@@ -277,9 +284,9 @@ export function QuoteFlow({
   };
 
   const validate = (candidate: StepId) =>
-    stepError(candidate, answers) ||
-    (candidate === "timing" && answers.timing === "date"
-      ? preferredDateError(answers.date, localCalendarDate())
+    stepError(candidate, shown) ||
+    (candidate === "timing" && shown.timing === "date"
+      ? preferredDateError(shown.date, localCalendarDate())
       : null);
 
   const stepReady = () => {
@@ -339,7 +346,7 @@ export function QuoteFlow({
       }
     }
     // Persist before transport: a reload must never mint a replacement UUID.
-    const attempt = attemptRef.current ?? createQuoteAttempt(answers);
+    const attempt = attemptRef.current ?? createQuoteAttempt(shown);
     if (!slots.saveAttempt(attempt)) {
       setDraftStored(false);
       setError(
@@ -576,26 +583,61 @@ export function QuoteFlow({
         <QuoteTop signedIn={accountsOn && !!account} />
         <main id="main" className="quote-card" aria-live="polite">
           <motion.div {...motionProps} key="sent" className="quote-step">
-            <h1 ref={headingRef} tabIndex={-1}>
-              Thank you. Your request is in.
-            </h1>
-            <p className="quote-help">
-              We&apos;ll review your answers and reply to{" "}
-              <strong>{answers.email}</strong> with your quote.
-              {accountsOn && account && ` ${accountCopy.quote.followInAccount}`}
-            </p>
-            <div className="quote-actions">
-              {accountsOn && account ? (
-                <Link className="btn btn-primary" href={accountCopy.path}>
-                  Back to my account
-                </Link>
-              ) : (
-                <Link className="btn btn-primary" href="/">
-                  Back to home
-                </Link>
-              )}
-            </div>
+            {/* One child: motion lists its children, which would need keys. */}
+            <>
+              <h1 ref={headingRef} tabIndex={-1}>
+                Thank you. Your request is in.
+              </h1>
+              <p className="quote-help">
+                We&apos;ll review your answers and reply to{" "}
+                <strong className="account-address">{shown.email}</strong> with
+                your quote.
+                {accountsOn &&
+                  account &&
+                  ` ${accountCopy.quote.followInAccount}`}
+              </p>
+              <div className="quote-actions">
+                {accountsOn && account ? (
+                  <Link className="btn btn-primary" href={accountCopy.path}>
+                    Back to my account
+                  </Link>
+                ) : (
+                  <Link className="btn btn-primary" href="/">
+                    Back to home
+                  </Link>
+                )}
+              </div>
+            </>
           </motion.div>
+        </main>
+        <QuoteFoot />
+      </div>
+    );
+  }
+
+  // Answers from this browser's signed-out draft, offered once: taking them
+  // or starting fresh clears the draft either way.
+  if (adoptable && !hasAttempt) {
+    return (
+      <div
+        className={`quote-shell ${styles.shell}`}
+        ref={shellRef}
+        data-lenis-prevent
+      >
+        <QuoteTop signedIn />
+        <main id="main" className="quote-card">
+          <div className="quote-step">
+            <h1>{accountCopy.quote.adoptTitle}</h1>
+            <p className="quote-help">{accountCopy.quote.adoptBody}</p>
+            <div className="quote-actions">
+              <button type="button" className="btn btn-glass" onClick={discard}>
+                {accountCopy.quote.discard}
+              </button>
+              <button type="button" className="btn btn-primary" onClick={adopt}>
+                {accountCopy.quote.adopt}
+              </button>
+            </div>
+          </div>
         </main>
         <QuoteFoot />
       </div>
@@ -613,7 +655,7 @@ export function QuoteFlow({
       <div
         className="quote-progress"
         aria-hidden="true"
-        style={{ "--p": (index + 1) / steps.length } as React.CSSProperties}
+        style={{ "--p": position / allSteps.length } as React.CSSProperties}
       >
         <span />
       </div>
@@ -628,46 +670,31 @@ export function QuoteFlow({
             void next();
           }}
         >
-          {adoptable && !hasAttempt && (
-            <section
-              className="quote-alert border-line bg-paper"
-              aria-labelledby="adopt-title"
-            >
-              <h2
-                id="adopt-title"
-                className="mb-2 text-lg leading-snug font-semibold tracking-tight"
+          <div className="quote-head">
+            {index > 0 && (
+              <button
+                type="button"
+                className="quote-back"
+                onClick={back}
+                disabled={status === "sending" || transitioning || hasAttempt}
               >
-                {accountCopy.quote.adoptTitle}
-              </h2>
-              <p>{accountCopy.quote.adoptBody}</p>
-              <div className="quote-account-actions mt-3">
-                <button
-                  type="button"
-                  className="btn btn-glass"
-                  onClick={discard}
-                >
-                  {accountCopy.quote.discard}
-                </button>
-                <button
-                  type="button"
-                  className="btn btn-primary"
-                  onClick={adopt}
-                >
-                  {accountCopy.quote.adopt}
-                </button>
-              </div>
-            </section>
-          )}
-          <p className="quote-count">
-            Step {index + 1} of {steps.length}
-          </p>
+                <span aria-hidden="true">‹ </span>
+                Back
+              </button>
+            )}
+            {!gate && (
+              <p className="quote-count">
+                Step {position} of {allSteps.length}
+              </p>
+            )}
+          </div>
           <div className="quote-viewport">
             {ready ? (
               <AnimatePresence mode="wait" custom={dir} initial={false}>
                 <motion.div {...motionProps} key={step} className="quote-step">
                   <Step
                     step={step}
-                    answers={answers}
+                    answers={shown}
                     update={update}
                     error={error}
                     headingRef={headingRef}
@@ -818,21 +845,12 @@ export function QuoteFlow({
           )}
           {isReview && accountsOn && account && !needsAccount && (
             <p className="quote-note">
-              {accountCopy.quote.signedInAs} <strong>{account.email}</strong>
+              {accountCopy.quote.signedInAs}{" "}
+              <strong className="account-address">{account.email}</strong>
             </p>
           )}
 
           <div className="quote-actions">
-            {index > 0 && (
-              <button
-                type="button"
-                className="btn btn-glass"
-                onClick={back}
-                disabled={status === "sending" || transitioning || hasAttempt}
-              >
-                Back
-              </button>
-            )}
             {isReview && needsAccount ? (
               <div className="quote-account-actions">
                 {/* Full page loads: the choices wait in this device's storage. */}
@@ -1261,14 +1279,19 @@ function Step({
               ? "Your original answers are retained for retry."
               : "Change anything before you send.",
           )}
-          <ShareLink />
           <dl className="quote-review">
             {summarize(a)
               .filter((row) => !onlySteps || onlySteps.includes(row.step))
               .map((row) => (
                 <div key={row.step}>
                   <dt>{row.label}</dt>
-                  <dd>{row.value}</dd>
+                  <dd>
+                    {row.step === "contact" ? (
+                      <ContactLines answers={a} />
+                    ) : (
+                      row.value
+                    )}
+                  </dd>
                   <button
                     type="button"
                     className="quote-edit"
@@ -1281,6 +1304,7 @@ function Step({
                 </div>
               ))}
           </dl>
+          <ShareLink />
         </>
       );
   }

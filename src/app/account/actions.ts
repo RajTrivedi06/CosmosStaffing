@@ -192,7 +192,7 @@ export async function updatePassword(
     return { error: account.reset.linkRequired };
   const { error } = await supabase.auth.updateUser({ password: secret.data });
   if (error?.code === "same_password")
-    return { error: "Choose a password you haven't used for this account." };
+    return { error: account.reset.samePassword };
   if (error) return failure(error);
   const next = destinationOr(form.get("next"));
   if (next !== ACCOUNT_HOME) return await arrive(next);

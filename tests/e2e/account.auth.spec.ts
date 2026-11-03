@@ -518,10 +518,15 @@ test("a password reset ends the client's other sessions at Auth", async ({
   await other.close();
 });
 
-test("account screens fit a phone without sideways scrolling", async ({
+test("account and quote screens fit a phone without sideways scrolling", async ({
   page,
 }) => {
-  for (const path of ["/account/login", "/account/signup", "/account/forgot"]) {
+  for (const path of [
+    "/account/login",
+    "/account/signup",
+    "/account/forgot",
+    "/quote",
+  ]) {
     await page.goto(path);
     const overflow = await page.evaluate(
       () => document.documentElement.scrollWidth - window.innerWidth,

@@ -759,7 +759,8 @@ test("a signed-out visitor is asked only for choices, and stores nothing else", 
   ).toBeVisible();
   await expect(page.getByLabel("ZIP code")).toHaveCount(0);
   await expect(page.getByLabel("Name")).toHaveCount(0);
-  await expect(page.getByText("Step 6 of 6")).toBeVisible();
+  // The gate isn't a question, so it has no step count.
+  await expect(page.locator(".quote-count")).toHaveCount(0);
 
   await page.getByRole("link", { name: account.quote.create }).click();
   await expect(page).toHaveURL(/\/account\/signup\?next=%2Fquote$/);
@@ -1419,4 +1420,113 @@ test("an ended session leaves only the ID, and stops sending until a decision", 
   await expect(page.getByRole("heading", { name: SENT })).toBeVisible();
   expect((await resend).postDataJSON().submission_id).not.toBe(submission_id);
   expect((await stubState(page, email)).requests).toBe(1);
+});
+
+/** Signed in: through the remaining questions to the contact details. */
+async function toContact(page: Page) {
+  await page.goto(choicesLink);
+  const fresh = page.getByRole("button", { name: account.quote.discard });
+  if (await fresh.isVisible()) await fresh.click();
+  const next = () =>
+    page.getByRole("button", { name: "Continue", exact: true }).click();
+  await page.getByLabel("ZIP code").fill(homeQuote.zip!);
+  await next();
+  await page.getByRole("radio", { name: "Within two weeks" }).check();
+  await next();
+  // Details are optional.
+  await next();
+  await expect(page.getByLabel("Name")).toBeVisible();
+}
+
+/** No sideways scrolling, and every control on the page a 44 px target. */
+async function fitsPhone(page: Page, label: string) {
+  const overflow = await page.evaluate(
+    () => document.documentElement.scrollWidth - window.innerWidth,
+  );
+  expect(overflow, label).toBeLessThanOrEqual(0);
+  for (const target of await page.locator("main button, main a").all()) {
+    const box = await target.boundingBox();
+    if (box)
+      expect(box.height, `${label} tap target`).toBeGreaterThanOrEqual(44);
+  }
+}
+
+test("signed-in screens fit a phone without sideways scrolling", async ({
+  page,
+}) => {
+  const email = uniqueEmail("fit");
+  await signUpAndConfirm(page, email);
+  await fitsPhone(page, "/account, empty");
+  await requestOpen(page, "Fitz Phone", email);
+  await fitsPhone(page, "request details");
+  await page.goto("/account");
+  await fitsPhone(page, "/account, with a request");
+  await toContact(page);
+  await fitsPhone(page, "/quote, contact");
+  await page.getByLabel("Name").fill("Fitz Phone");
+  await page.getByLabel("Phone").fill(homeQuote.phone);
+  await page.getByRole("button", { name: "Continue", exact: true }).click();
+  await expect(
+    page.getByRole("heading", { name: "Check your answers" }),
+  ).toBeVisible();
+  await fitsPhone(page, "/quote, review");
+});
+
+test("the signed-in address leaves with the page, never shown to the next account", async ({
+  page,
+  context,
+}) => {
+  const alice = uniqueEmail("foot-a");
+  const bob = uniqueEmail("foot-b");
+  await signUpAndConfirm(page, bob);
+  await signOut(page);
+  await signUpAndConfirm(page, alice);
+  await expect(page.locator(".account-foot").getByText(alice)).toBeVisible();
+
+  // Signed out in another tab: the address is removed, not just hidden.
+  const other = await context.newPage();
+  await signOut(other);
+  await expect(page.getByText(alice)).toHaveCount(0);
+  await expect(
+    page.getByRole("heading", { name: account.signIn.title }),
+  ).toBeVisible();
+  await expect(page.getByText(alice)).toHaveCount(0);
+
+  // Back as Alice; then Bob signs in beside her open page.
+  await signIn(page, alice);
+  await expect(page.locator(".account-foot").getByText(alice)).toBeVisible();
+  await context.clearCookies();
+  await signIn(other, bob);
+  await expect(page.locator(".account-foot").getByText(bob)).toBeVisible();
+  await expect(page.getByText(alice)).toHaveCount(0);
+});
+
+test("answers from before sign-in are offered once, from this browser only", async ({
+  page,
+  context,
+}) => {
+  const email = uniqueEmail("once");
+  await signUpAndConfirm(page, email);
+  await anonymousAnswers(page, "Olive Once", email);
+  await page.goto("/quote");
+  await expect(
+    page.getByRole("heading", { name: account.quote.adoptTitle }),
+  ).toBeVisible();
+  // The offer itself shows none of the answers.
+  await expect(page.getByText("Olive Once")).toHaveCount(0);
+  await page.getByRole("button", { name: account.quote.adopt }).click();
+  await expect(page.getByLabel("ZIP code")).toBeVisible();
+  await page.reload();
+  await expect(page.locator(".quote-step")).toBeVisible();
+  await expect(
+    page.getByRole("heading", { name: account.quote.adoptTitle }),
+  ).toHaveCount(0);
+
+  // Another tab of the same account has nothing to adopt.
+  const other = await context.newPage();
+  await other.goto("/quote");
+  await expect(other.locator(".quote-step")).toBeVisible();
+  await expect(
+    other.getByRole("heading", { name: account.quote.adoptTitle }),
+  ).toHaveCount(0);
 });

@@ -209,18 +209,22 @@ export function SignUpForm({ next, captcha }: FormProps) {
   if (state.sentTo)
     return <CheckEmail email={state.sentTo} next={next} captcha={captcha} />;
   return (
-    <form action={action} className="account-form">
-      <input type="hidden" name="next" value={next} />
-      <EmailField defaultValue={state.email} />
-      <PasswordField isNew />
-      <Alert state={state} />
-      {check.widget}
-      <Submit
-        pending={pending}
-        ready={check.ready}
-        label={account.signUp.submit}
-      />
-    </form>
+    <>
+      <h1>{account.signUp.title}</h1>
+      <p className="quote-help">{account.signUp.lede}</p>
+      <form action={action} className="account-form">
+        <input type="hidden" name="next" value={next} />
+        <EmailField defaultValue={state.email} />
+        <PasswordField isNew />
+        <Alert state={state} />
+        {check.widget}
+        <Submit
+          pending={pending}
+          ready={check.ready}
+          label={account.signUp.submit}
+        />
+      </form>
+    </>
   );
 }
 
@@ -228,9 +232,10 @@ function CheckEmail({ email, next, captcha }: FormProps & { email: string }) {
   const { checkEmail } = account;
   return (
     <div className="account-form" role="status">
-      <h2 className="account-subtitle">{checkEmail.title}</h2>
-      <p>
-        {checkEmail.body} <strong>{email}</strong>. {checkEmail.next}
+      <h1>{checkEmail.title}</h1>
+      <p className="quote-help">
+        {checkEmail.body} <strong className="account-address">{email}</strong>.{" "}
+        {checkEmail.next}
       </p>
       {next === "/quote" && (
         <p className="quote-note">{checkEmail.sameDevice}</p>
@@ -261,7 +266,14 @@ function ResendForm({ email, next, captcha }: FormProps & { email: string }) {
   );
 }
 
-export function ForgotForm({ next, captcha }: FormProps) {
+export function ForgotForm({
+  next,
+  captcha,
+  expired = false,
+}: FormProps & {
+  /** Arrived from a reset link that no longer works. */
+  expired?: boolean;
+}) {
   const [state, action, pending] = useActionState(
     requestReset,
     {},
@@ -270,22 +282,33 @@ export function ForgotForm({ next, captcha }: FormProps) {
   const check = useCaptcha(captcha, "recover", state);
   if (state.notice)
     return (
-      <p className="account-notice" role="status">
-        {state.notice}
-      </p>
+      <div className="account-form" role="status">
+        <h1>{account.forgot.sentTitle}</h1>
+        <p className="quote-help">{state.notice}</p>
+      </div>
     );
   return (
-    <form action={action} className="account-form">
-      <input type="hidden" name="next" value={next} />
-      <EmailField defaultValue={state.email} invalid={!!state.error} />
-      <Alert state={state} />
-      {check.widget}
-      <Submit
-        pending={pending}
-        ready={check.ready}
-        label={account.forgot.submit}
-      />
-    </form>
+    <>
+      <h1>{account.forgot.title}</h1>
+      {expired ? (
+        <p className="quote-alert" role="alert">
+          {account.reset.expired}
+        </p>
+      ) : (
+        <p className="quote-help">{account.forgot.lede}</p>
+      )}
+      <form action={action} className="account-form">
+        <input type="hidden" name="next" value={next} />
+        <EmailField defaultValue={state.email} invalid={!!state.error} />
+        <Alert state={state} />
+        {check.widget}
+        <Submit
+          pending={pending}
+          ready={check.ready}
+          label={account.forgot.submit}
+        />
+      </form>
+    </>
   );
 }
 

@@ -32,6 +32,8 @@ export type AccountItem = {
    */
   href?: string;
   action?: string;
+  /** An open quote waiting on the client: the page's one highlight. */
+  waiting?: boolean;
 };
 
 export type AccountOverview =
@@ -119,6 +121,7 @@ export async function accountOverview(
       ],
       href: `/q/${quote.token}`,
       action: "Review quote",
+      waiting: true,
     });
   });
 
@@ -227,6 +230,7 @@ export function requestItems(request: RequestDetail, now = Date.now()) {
       ],
       href: open || quote.accepted_at ? `/q/${quote.token}` : undefined,
       action: open ? "Review quote" : "View quote",
+      waiting: open,
     };
   });
   // Online payment isn't verified for launch: no real checkout has been

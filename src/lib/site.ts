@@ -503,6 +503,8 @@ export const account = {
     lede: "Enter your account email and we'll send you a link to choose a new password.",
     submit: "Send reset link",
     sent: "If an account exists for that email, we've sent a link to reset the password. It can take a minute to arrive.",
+    sentTitle: "Check your email",
+    back: "Back to sign in",
   },
   reset: {
     title: "Choose a new password",
@@ -511,6 +513,7 @@ export const account = {
       "This reset link has expired or was already used. Ask for a new one.",
     linkRequired:
       "To change your password, we'll email you a secure link first. Open it within an hour, on this device.",
+    samePassword: "Choose a password you haven't used for this account.",
   },
   reasons: {
     signin_required: "Sign in to continue.",
@@ -633,6 +636,7 @@ export const account = {
     captchaUnavailable:
       "The security check didn't load. Check your connection, or try another browser.",
     captchaScript: "This form needs JavaScript for its security check.",
+    captchaPending: "Running a quick security check…",
     interrupted: {
       title: "We couldn't confirm the result",
       body: "Please wait a few minutes, then return to the form. If you asked for an email, check your inbox first.",

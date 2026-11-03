@@ -337,6 +337,7 @@ describe("account home", () => {
             facts: ["$180.00 total"],
             href: `/q/${token}`,
             action: "Review quote",
+            waiting: true,
           },
         ],
         requests: [
@@ -355,7 +356,10 @@ describe("account home", () => {
     expect(html.indexOf(account.home.sections.quotes)).toBeLessThan(
       html.indexOf(account.home.sections.requests),
     );
-    expect(html).toContain(`<a class="btn btn-glass" href="/q/${token}">`);
+    // The whole row is the plain anchor, and a quote waiting on the client is marked.
+    expect(html).toContain(
+      `<a class="account-row" data-waiting="true" href="/q/${token}">`,
+    );
     expect(html).toContain(
       'href="/account/requests/00000000-0000-4000-8000-000000000001"',
     );

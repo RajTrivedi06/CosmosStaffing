@@ -29,8 +29,6 @@ export default async function SignUpPage({ searchParams }: Props) {
 
   return (
     <section className="account-section">
-      <h1>{account.signUp.title}</h1>
-      <p className="quote-help">{account.signUp.lede}</p>
       <SignUpForm next={next} captcha={captchaSiteKey()} />
       <p className="account-links">
         <span>
