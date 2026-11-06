@@ -6,9 +6,26 @@ import {
   isProductionHost,
   DEFAULT_STUDIO_ORIGIN,
   STUDIO_PATHS,
+  TRANSITION_STUDIO_ORIGIN,
   studioOrigin,
   studioRewrites,
 } from "@/lib/studio-routes";
+
+/** Old marketing hosts → new apex once Vercel serves them. Exact hosts only. */
+const OLD_SITE_HOST_REDIRECTS = [
+  {
+    source: "/:path*",
+    has: [{ type: "host", value: { eq: "cosmosservicesllc.com" } }],
+    destination: "https://cosmosgroupusa.com/:path*",
+    statusCode: 301,
+  },
+  {
+    source: "/:path*",
+    has: [{ type: "host", value: { eq: "www.cosmosservicesllc.com" } }],
+    destination: "https://cosmosgroupusa.com/:path*",
+    statusCode: 301,
+  },
+];
 
 /**
  * The template in the Studio's docs/03-guides/connect-company-domain.md
@@ -70,10 +87,43 @@ describe("Studio forwarding", () => {
   });
 
   it("vercel.json carries the documented no-store headers exactly", () => {
+    expect(vercelConfig.headers).toEqual(DOCUMENTED.headers);
+  });
+
+  it("vercel.json 301s only the old apex and www onto the new apex path", () => {
     expect(vercelConfig).toEqual({
       $schema: "https://openapi.vercel.sh/vercel.json",
       headers: DOCUMENTED.headers,
+      redirects: OLD_SITE_HOST_REDIRECTS,
     });
+    for (const rule of OLD_SITE_HOST_REDIRECTS) {
+      expect(rule.statusCode).toBe(301);
+      expect(rule.has).toHaveLength(1);
+      expect(rule.has[0]).toEqual({
+        type: "host",
+        value: { eq: expect.stringMatching(/^(www\.)?cosmosservicesllc\.com$/) },
+      });
+      expect(rule.destination).toBe("https://cosmosgroupusa.com/:path*");
+    }
+    const hosts = OLD_SITE_HOST_REDIRECTS.map(
+      (rule) => (rule.has[0].value as { eq: string }).eq,
+    );
+    expect(hosts).toEqual([
+      "cosmosservicesllc.com",
+      "www.cosmosservicesllc.com",
+    ]);
+    expect(hosts).not.toContain("studio.cosmosservicesllc.com");
+    expect(hosts).not.toContain("localhost");
+    expect(hosts).not.toContain("cosmosgroupusa.com");
+    expect(hosts).not.toContain("www.cosmosgroupusa.com");
+  });
+
+  it("keeps the old Studio origin as an explicit transition allowlist entry", () => {
+    expect(DEFAULT_STUDIO_ORIGIN).toBe("https://studio.cosmosgroupusa.com");
+    expect(TRANSITION_STUDIO_ORIGIN).toBe(
+      "https://studio.cosmosservicesllc.com",
+    );
+    expect(TRANSITION_STUDIO_ORIGIN).not.toBe(DEFAULT_STUDIO_ORIGIN);
   });
 
   it("next.config forwards them before this site's own routes, and only them", async () => {

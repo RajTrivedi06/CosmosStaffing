@@ -15,12 +15,16 @@
  */
 
 /**
- * The Studio's production origin. Proposed and not live yet, so Production
- * sets STUDIO_ORIGIN until it is (docs/launch-cutover.md).
+ * The Studio's production origin on the company domain. Production may still
+ * set STUDIO_ORIGIN to TRANSITION_STUDIO_ORIGIN during rollback
+ * (docs/launch-cutover.md).
  */
 export const DEFAULT_STUDIO_ORIGIN = "https://studio.cosmosgroupusa.com";
 
-/** The Studio's current origin, kept working through the domain move. */
+/**
+ * The previous Studio origin. Kept as an explicit allowlist entry so Production
+ * can point STUDIO_ORIGIN / the customer API back during a bounded rollback.
+ */
 export const TRANSITION_STUDIO_ORIGIN = "https://studio.cosmosservicesllc.com";
 
 /** Forwarded path patterns, in the documented order. */

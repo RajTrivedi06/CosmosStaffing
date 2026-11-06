@@ -12,5 +12,19 @@
         { "key": "Referrer-Policy", "value": "no-referrer" }
       ]
     }
+  ],
+  "redirects": [
+    {
+      "source": "/:path*",
+      "has": [{ "type": "host", "value": { "eq": "cosmosservicesllc.com" } }],
+      "destination": "https://cosmosgroupusa.com/:path*",
+      "statusCode": 301
+    },
+    {
+      "source": "/:path*",
+      "has": [{ "type": "host", "value": { "eq": "www.cosmosservicesllc.com" } }],
+      "destination": "https://cosmosgroupusa.com/:path*",
+      "statusCode": 301
+    }
   ]
 }
