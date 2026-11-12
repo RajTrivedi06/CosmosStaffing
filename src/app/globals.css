@@ -452,9 +452,12 @@
   }
 
   /* ---- 07:00 Hero ---- */
+  /* Scene heights set how far you scroll through each pinned scene:
+     the stage stays for (height - 100svh). Kept short so small scrolls
+     show clear progress (timelines in <DayScroll>). */
   .hero {
     position: relative;
-    height: 300svh;
+    height: 240svh;
   }
   .hero-stage {
     position: sticky;
@@ -475,8 +478,10 @@
     height: 100%;
     max-width: none;
     object-fit: cover;
-    object-position: 62% 50%;
-    transform-origin: 70% 32%;
+    /* Show plenty of the clear wall for the text, and push in around the
+       wall's edge so the zoom never slides the room into the lines. */
+    object-position: 30% 50%;
+    transform-origin: 58% 55%;
     will-change: transform;
   }
   .frame-slot {
@@ -487,13 +492,15 @@
     width: 36vw;
     pointer-events: none;
   }
+  /* A soft lift of the plaster behind the two lines, so the ink stays
+     crisp where window light falls. */
   .hero-scrim {
     position: absolute;
     inset: 0;
-    background: linear-gradient(
-      to top,
-      rgba(28, 22, 16, 0.5),
-      rgba(28, 22, 16, 0) 52%
+    background: radial-gradient(
+      ellipse 70% 55% at 22% 26%,
+      rgba(247, 241, 232, 0.42),
+      rgba(247, 241, 232, 0) 70%
     );
     opacity: 0;
   }
@@ -532,19 +539,21 @@
     letter-spacing: 1px;
     color: #b58a2c;
   }
+  /* The two scroll lines take the headline's exact place and type
+     (<DayScroll> measures it), so all three hero texts share one spot. */
   .say {
     position: absolute;
     left: max(var(--gutter), env(safe-area-inset-left, 0px));
-    right: var(--gutter);
-    bottom: calc(10svh + env(safe-area-inset-bottom, 0px));
-    color: #fffaf2;
-    font-size: clamp(2.6rem, 6.2vw, 7rem);
+    top: 17svh;
+    margin: 0;
+    color: var(--ink);
+    font-size: clamp(3rem, min(8.4vw, 15svh), 10rem);
     font-weight: 300;
-    letter-spacing: -0.05em;
-    line-height: 0.95;
+    letter-spacing: -0.055em;
+    line-height: 0.9;
+    /* Always the two set lines, like the headline. */
+    white-space: nowrap;
     opacity: 0;
-    text-wrap: balance;
-    max-width: 15ch;
   }
   /* Stacked hero: phones, narrow windows and anything portrait. Copy sits
      in flow and the frame takes whatever height is left, so nothing overlaps
@@ -574,7 +583,7 @@
     .hero-media img {
       height: 114%;
       object-position: 50% 0%;
-      transform-origin: 50% 40%;
+      transform-origin: 50% 74%;
     }
     .hero-copy {
       /* The frame comes first in the markup; the copy reads first. */
@@ -730,15 +739,178 @@
     transform: scale(1.03);
   }
 
+  /* Phones swap the grid for the services reel, but only when JavaScript
+     runs (html[data-motion] is set by the head script either way): without
+     it the reel could not change its quote link, so the linked cards stay.
+     With motion, scrolling pins the reel and carries the cards past
+     (<ServicePicker>); under reduced motion the row is a native swipe. */
+  .service-picker {
+    display: none;
+  }
+  @media (max-width: 760px) {
+    html[data-motion] #services > .services {
+      display: none;
+    }
+    html[data-motion] .service-picker {
+      display: block;
+      margin-inline: calc(
+          -1 * max(var(--gutter), env(safe-area-inset-left, 0px))
+        )
+        calc(-1 * max(var(--gutter), env(safe-area-inset-right, 0px)));
+    }
+    .reel-stage {
+      --reel-gap: 12px;
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+      padding-inline: max(var(--gutter), env(safe-area-inset-left, 0px))
+        max(var(--gutter), env(safe-area-inset-right, 0px));
+    }
+    .service-picker-cards {
+      display: flex;
+      gap: var(--reel-gap);
+      min-width: 0;
+    }
+    .service-picker-card {
+      position: relative;
+      flex: 0 0 86%;
+      overflow: hidden;
+      padding: 0;
+      border: 0;
+      border-radius: 14px;
+      background: var(--paper);
+      color: #fffaf2;
+      font: inherit;
+      text-align: left;
+      cursor: pointer;
+      opacity: 0.5;
+      transition: opacity 0.35s var(--ease-out);
+    }
+    .service-picker-card[aria-checked="true"] {
+      opacity: 1;
+    }
+    .service-picker-card img {
+      object-fit: cover;
+    }
+    .service-picker-card::after {
+      content: "";
+      position: absolute;
+      inset: 0;
+      background: linear-gradient(
+        to top,
+        rgba(26, 20, 14, 0.72),
+        rgba(26, 20, 14, 0) 55%
+      );
+    }
+    .reel-caption {
+      position: absolute;
+      z-index: 1;
+      left: 20px;
+      right: 20px;
+      bottom: 20px;
+      display: grid;
+      gap: 6px;
+    }
+    .reel-index {
+      font-size: 0.85rem;
+      font-variant-numeric: tabular-nums;
+      opacity: 0.85;
+    }
+    .service-picker-title {
+      font-size: clamp(1.9rem, 8.6vw, 2.6rem);
+      line-height: 1;
+      letter-spacing: -0.04em;
+    }
+    .reel-short {
+      max-width: 30ch;
+      font-size: 0.95rem;
+      line-height: 1.35;
+      color: rgba(255, 250, 242, 0.9);
+    }
+    .reel-progress {
+      display: flex;
+      gap: 6px;
+    }
+    .reel-progress span {
+      flex: 1;
+      height: 2px;
+      border-radius: 2px;
+      background: var(--line);
+      transition: background-color 0.35s var(--ease-out);
+    }
+    .reel-progress [data-on] {
+      background: var(--ink);
+    }
+    .service-picker-details {
+      display: grid;
+      gap: 4px;
+      margin: 0;
+      padding-left: 18px;
+      color: var(--ink-soft);
+      font-size: 0.9rem;
+      line-height: 1.4;
+    }
+    .service-picker-quote {
+      align-self: center;
+    }
+    #services > .more-link {
+      justify-self: center;
+    }
+
+    /* The reel: one pinned screen, cards carried past by the scroll. */
+    html[data-motion="on"] .service-picker {
+      height: calc(100svh + 3 * 62svh);
+    }
+    html[data-motion="on"] .reel-stage {
+      position: sticky;
+      top: 0;
+      height: 100svh;
+      overflow: hidden;
+      padding-top: calc(env(safe-area-inset-top, 0px) + 84px);
+      padding-bottom: calc(env(safe-area-inset-bottom, 0px) + 20px);
+    }
+    html[data-motion="on"] .service-picker-cards {
+      flex: 1 1 auto;
+      min-height: 0;
+      will-change: transform;
+    }
+
+    /* Reduced motion: a native swipe row, one card per swipe. */
+    html[data-motion="off"] .service-picker-cards {
+      height: 62svh;
+      margin-inline: calc(
+          -1 * max(var(--gutter), env(safe-area-inset-left, 0px))
+        )
+        calc(-1 * max(var(--gutter), env(safe-area-inset-right, 0px)));
+      padding-inline: max(var(--gutter), env(safe-area-inset-left, 0px));
+      overflow-x: auto;
+      scroll-snap-type: x mandatory;
+      scroll-padding-left: max(var(--gutter), env(safe-area-inset-left, 0px));
+      overscroll-behavior-x: contain;
+      scrollbar-width: none;
+    }
+    html[data-motion="off"] .service-picker-cards::-webkit-scrollbar {
+      display: none;
+    }
+    html[data-motion="off"] .service-picker-cards::after {
+      content: "";
+      flex: 0 0 calc(14% - var(--reel-gap));
+    }
+    html[data-motion="off"] .service-picker-card {
+      scroll-snap-align: start;
+      scroll-snap-stop: always;
+    }
+  }
+
   /* ---- 13:00 Workplaces band and 18:30 evening (full-screen stages) ---- */
   .band {
     position: relative;
-    height: 220svh;
+    height: 180svh;
     margin-top: clamp(96px, 14vw, 200px);
   }
   .evening {
     position: relative;
-    height: 260svh;
+    height: 200svh;
     margin-top: clamp(96px, 14vw, 200px);
   }
   .stage {
@@ -789,6 +961,18 @@
   }
   .eve-late {
     opacity: 0;
+  }
+  /* Portrait screens look at the wide evening photos through a tall window.
+     With motion, the photo keeps its full width so <DayScroll> can pan it
+     from the door to the sofa; still, it rests on the sofa. */
+  @media (max-aspect-ratio: 3/4) {
+    .evening .stage img {
+      object-position: 27% 50%;
+    }
+    html[data-motion="on"] .evening .stage img {
+      right: auto;
+      width: auto;
+    }
   }
   .evening .stage::after {
     content: "";
@@ -1458,7 +1642,7 @@
     font-weight: 500;
   }
 
-  /* ---- Content pages (/services, /terms, /contact) ---- */
+  /* ---- Content pages (/services, /clean-with-cosmos, /contact) ---- */
   .page {
     padding-top: calc(env(safe-area-inset-top, 0px) + 110px);
   }
@@ -1926,6 +2110,26 @@ html:not([data-motion="on"]) .evening {
 }
 html:not([data-motion="on"]) .stage {
   position: relative;
+}
+/* Phones: the still hero sets the photo in the frame's place in the flow,
+   centred on the people, instead of clipping a full-screen layer. */
+@media (max-width: 900px) and (max-aspect-ratio: 1/1), (max-aspect-ratio: 3/4) {
+  html:not([data-motion="on"]) .frame-slot {
+    display: none;
+  }
+  html:not([data-motion="on"]) .hero-media {
+    position: relative;
+    inset: auto;
+    flex: 1 1 auto;
+    min-height: 96px;
+    clip-path: none;
+    border-radius: 6px;
+    overflow: hidden;
+  }
+  html:not([data-motion="on"]) .hero-media img {
+    height: 100%;
+    object-position: 50% 74%;
+  }
 }
 html:not([data-motion="on"]) .band-media {
   clip-path: none;

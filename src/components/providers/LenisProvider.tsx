@@ -37,11 +37,11 @@ export function LenisProvider({ children }: { children: React.ReactNode }) {
       return;
     }
 
-    const lenis = new Lenis({
-      duration: 1.05,
-      easing: (t) => Math.min(1, 1.001 - Math.pow(2, -10 * t)),
-      smoothWheel: true,
-    });
+    // Lerp smoothing (Lenis's default) eases every frame toward the target,
+    // so even a small wheel or trackpad nudge moves the page at once. The
+    // fixed 1s ease-out it replaces left a long tail that made scroll-linked
+    // scenes feel late. Touch keeps the device's own native scrolling.
+    const lenis = new Lenis({ lerp: 0.1, smoothWheel: true });
     setLenis(lenis);
 
     lenis.on("scroll", ScrollTrigger.update);

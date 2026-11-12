@@ -4,7 +4,10 @@ import { ArtImage } from "@/components/ui/ArtImage";
 
 /**
  * 18:30. The family arrives home in late sun; as you scroll the same room
- * crossfades to evening and the headline pays off the slogan.
+ * crossfades to evening and the headline pays off the slogan. Phones see the
+ * same two photos through a tall window that pans from the door to the sofa
+ * as the light turns (motion in <DayScroll>), so the room and the hour match
+ * the desktop scene exactly.
  */
 export function Evening() {
   return (
@@ -15,15 +18,9 @@ export function Evening() {
       aria-labelledby="eve-h"
     >
       <div className="stage">
-        <ArtImage
-          wide={images.homeDayWide}
-          tall={images.homeDayTall}
-          alt=""
-          zoom={1.08}
-        />
+        <ArtImage wide={images.homeDayWide} alt="" zoom={1.08} />
         <ArtImage
           wide={images.homeEveWide}
-          tall={images.homeEveTall}
           alt={home.evening.alt}
           id="eve-late"
           className="eve-late"
